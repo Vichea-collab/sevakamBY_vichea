@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../widgets/app_top_bar.dart';
+import '../../widgets/primary_button.dart';
 
 class ProfileNotificationPage extends StatefulWidget {
   static const String routeName = '/profile/notification';
@@ -22,33 +25,44 @@ class _ProfileNotificationPageState extends State<ProfileNotificationPage> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            10,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                  Text('Notification', style: Theme.of(context).textTheme.titleMedium),
-                ],
+              const AppTopBar(title: 'Notification'),
+              const SizedBox(height: 12),
+              _SwitchTile(
+                label: 'General notification',
+                value: general,
+                onChanged: (v) => setState(() => general = v),
               ),
-              const SizedBox(height: 14),
-              _SwitchTile(label: 'General notification', value: general, onChanged: (v) => setState(() => general = v)),
-              _SwitchTile(label: 'Sound', value: sound, onChanged: (v) => setState(() => sound = v)),
-              _SwitchTile(label: 'Vibrate', value: vibrate, onChanged: (v) => setState(() => vibrate = v)),
-              _SwitchTile(label: 'New Service', value: newService, onChanged: (v) => setState(() => newService = v)),
-              _SwitchTile(label: 'Payment', value: payment, onChanged: (v) => setState(() => payment = v)),
+              _SwitchTile(
+                label: 'Sound',
+                value: sound,
+                onChanged: (v) => setState(() => sound = v),
+              ),
+              _SwitchTile(
+                label: 'Vibrate',
+                value: vibrate,
+                onChanged: (v) => setState(() => vibrate = v),
+              ),
+              _SwitchTile(
+                label: 'New Service',
+                value: newService,
+                onChanged: (v) => setState(() => newService = v),
+              ),
+              _SwitchTile(
+                label: 'Payment',
+                value: payment,
+                onChanged: (v) => setState(() => payment = v),
+              ),
               const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('Save'),
-                ),
-              ),
+              PrimaryButton(label: 'Save', onPressed: () {}),
             ],
           ),
         ),
@@ -62,7 +76,11 @@ class _SwitchTile extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const _SwitchTile({required this.label, required this.value, required this.onChanged});
+  const _SwitchTile({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +90,7 @@ class _SwitchTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
         boxShadow: const [
           BoxShadow(
             color: Color(0x10000000),
@@ -82,8 +101,20 @@ class _SwitchTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(child: Text(label)),
-          Switch(value: value, onChanged: onChanged),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: AppColors.textPrimary),
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeTrackColor: AppColors.primaryLight,
+            activeThumbColor: AppColors.primary,
+          ),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
+import '../data/mock/mock_data.dart';
 import 'pages/splash_page.dart';
 import 'pages/welcome_page.dart';
 import 'pages/onboarding_page.dart';
@@ -9,6 +10,10 @@ import 'pages/auth/forgot_password_flow.dart';
 import 'pages/home/home_page.dart';
 import 'pages/providers/provider_home_page.dart';
 import 'pages/search/search_page.dart';
+import 'pages/chat/chat_list_page.dart';
+import 'pages/orders/orders_page.dart';
+import 'pages/booking/booking_address_page.dart';
+import 'pages/notifications/notifications_page.dart';
 import 'pages/profile/profile_page.dart';
 import 'pages/profile/edit_profile_page.dart';
 import 'pages/profile/notification_page.dart';
@@ -34,9 +39,18 @@ class ServiceFinderApp extends StatelessWidget {
         HomePage.routeName: (_) => const HomePage(),
         ProviderHomePage.routeName: (_) => const ProviderHomePage(),
         SearchPage.routeName: (_) => const SearchPage(),
+        ChatListPage.routeName: (_) => const ChatListPage(),
+        OrdersPage.routeName: (_) => const OrdersPage(),
+        NotificationsPage.routeName: (_) => const NotificationsPage(),
+        '/booking/address': (_) => BookingAddressPage(
+              draft: MockData.defaultBookingDraft(
+                provider: MockData.cleanerProviders.first,
+              ),
+            ),
         ProfilePage.routeName: (_) => const ProfilePage(),
         EditProfilePage.routeName: (_) => const EditProfilePage(),
-        ProfileNotificationPage.routeName: (_) => const ProfileNotificationPage(),
+        ProfileNotificationPage.routeName: (_) =>
+            const ProfileNotificationPage(),
         PaymentPage.routeName: (_) => const PaymentPage(),
         HelpSupportPage.routeName: (_) => const HelpSupportPage(),
       },

@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/page_transition.dart';
 import '../../../data/mock/mock_data.dart';
+import '../../../domain/entities/provider.dart';
 import '../../../domain/entities/service.dart';
 import '../../widgets/category_chip.dart';
 import '../../widgets/pressable_scale.dart';
+import '../providers/provider_category_page.dart';
+import '../providers/provider_detail_page.dart';
+import '../providers/provider_home_page.dart';
 
 class SearchPage extends StatefulWidget {
   static const String routeName = '/search';
+  final String initialQuery;
+  final String? initialCategory;
 
-  const SearchPage({super.key});
+  const SearchPage({
+    super.key,
+    this.initialQuery = '',
+    this.initialCategory,
+  });
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -20,9 +31,23 @@ enum _SortOption { popular, rating, priceHigh, priceLow }
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _controller = TextEditingController();
   String _query = '';
+  String? _selectedCategory;
   _SortOption? _sortOption;
   int _visibleCount = 10;
-  final List<String> _recentSearches = List<String>.from(MockData.recentSearches);
+  final List<String> _recentSearches = List<String>.from(
+    MockData.recentSearches,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _query = widget.initialQuery.trim();
+    _selectedCategory = widget.initialCategory;
+    if (_query.isNotEmpty) {
+      _controller.text = _query;
+      _controller.selection = TextSelection.collapsed(offset: _query.length);
+    }
+  }
 
   @override
   void dispose() {
@@ -33,19 +58,23 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     final query = _query.trim().toLowerCase();
-    final filteredCategories = query.isEmpty
-        ? MockData.categories
-        : MockData.categories
-            .where((c) => c.name.toLowerCase().contains(query))
-            .toList();
-    final filteredPopular = query.isEmpty
-        ? List<ServiceItem>.from(MockData.services)
-        : MockData.services
-            .where((s) =>
-                s.title.toLowerCase().contains(query) ||
-                s.subtitle.toLowerCase().contains(query) ||
-                s.category.toLowerCase().contains(query))
-            .toList();
+    final filteredCategories = MockData.categories;
+    final filteredPopular = MockData.services.where((service) {
+      final matchesProviderName =
+          query.isEmpty ||
+          MockData.providersByCategory(service.category).any(
+            (provider) => provider.name.toLowerCase().contains(query),
+          );
+      final matchesQuery =
+          query.isEmpty ||
+          service.title.toLowerCase().contains(query) ||
+          service.subtitle.toLowerCase().contains(query) ||
+          service.category.toLowerCase().contains(query) ||
+          matchesProviderName;
+      final matchesCategory =
+          _selectedCategory == null || service.category == _selectedCategory;
+      return matchesQuery && matchesCategory;
+    }).toList();
 
     switch (_sortOption) {
       case _SortOption.rating:
@@ -118,17 +147,22 @@ class _SearchPageState extends State<SearchPage> {
                         )
                         .toList(),
                   ),
-                  if (_query.trim().isNotEmpty) ...[
+                  if (_query.trim().isNotEmpty || _selectedCategory != null) ...[
                     const SizedBox(height: 14),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: AppColors.divider),
                       ),
                       child: Text(
-                        '${filteredPopular.length} results for "${_query.trim()}" around Phnom Penh',
+                        _selectedCategory == null
+                            ? '${filteredPopular.length} results for "${_query.trim()}" around Phnom Penh'
+                            : '${filteredPopular.length} results in "$_selectedCategory" around Phnom Penh',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ),
@@ -142,8 +176,10 @@ class _SearchPageState extends State<SearchPage> {
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemBuilder: (context, index) {
+                        final category = filteredCategories[index];
                         return CategoryChip(
-                          category: filteredCategories[index],
+                          category: category,
+                          onTap: () => _toggleCategory(category.name),
                         );
                       },
                       separatorBuilder: (_, _) =>
@@ -181,10 +217,24 @@ class _SearchPageState extends State<SearchPage> {
                             _visibleCount = 10;
                           }),
                         ),
+                      if (_selectedCategory != null)
+                        _ActiveSortPill(
+                          label: _selectedCategory!,
+                          onClear: () => setState(() {
+                            _selectedCategory = null;
+                            _visibleCount = 10;
+                          }),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  ...visibleServices.map((item) => _ServiceListTile(item: item)),
+                  ...visibleServices.map(
+                    (item) => _ServiceListTile(
+                      item: item,
+                      providerName: _findMatchedProvider(item.category, query)?.name,
+                      onTap: () => _openServiceResult(item, query),
+                    ),
+                  ),
                   if (filteredPopular.length > _visibleCount)
                     Padding(
                       padding: const EdgeInsets.only(top: 6, bottom: 8),
@@ -335,6 +385,48 @@ class _SearchPageState extends State<SearchPage> {
     _controller.selection = TextSelection.collapsed(offset: text.length);
     _onSearchSubmitted(text);
   }
+
+  void _toggleCategory(String category) {
+    setState(() {
+      _visibleCount = 10;
+      if (_selectedCategory == category) {
+        _selectedCategory = null;
+      } else {
+        _selectedCategory = category;
+      }
+    });
+  }
+
+  void _openProvidersForCategory(String category) {
+    final section = MockData.providerSectionForCategory(category);
+    if (section == null) {
+      Navigator.push(context, slideFadeRoute(const ProviderHomePage()));
+      return;
+    }
+    Navigator.push(context, slideFadeRoute(ProviderCategoryPage(section: section)));
+  }
+
+  ProviderItem? _findMatchedProvider(String category, String query) {
+    if (query.isEmpty) return null;
+    for (final provider in MockData.providersByCategory(category)) {
+      if (provider.name.toLowerCase().contains(query)) {
+        return provider;
+      }
+    }
+    return null;
+  }
+
+  void _openServiceResult(ServiceItem item, String query) {
+    final matchedProvider = _findMatchedProvider(item.category, query);
+    if (matchedProvider != null) {
+      Navigator.push(
+        context,
+        slideFadeRoute(ProviderDetailPage(provider: matchedProvider)),
+      );
+      return;
+    }
+    _openProvidersForCategory(item.category);
+  }
 }
 
 class _SearchField extends StatelessWidget {
@@ -376,7 +468,7 @@ class _SearchField extends StatelessWidget {
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
-                hintText: 'Search for "Indoor Cleaning"',
+                hintText: 'Search name, category, or service',
               ),
             ),
           ),
@@ -421,83 +513,124 @@ class _SearchChip extends StatelessWidget {
 
 class _ServiceListTile extends StatelessWidget {
   final ServiceItem item;
+  final String? providerName;
+  final VoidCallback onTap;
 
-  const _ServiceListTile({required this.item});
+  const _ServiceListTile({
+    required this.item,
+    this.providerName,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+    return PressableScale(
+      onTap: onTap,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 89)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundImage: AssetImage(item.imagePath),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 89)),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundImage: AssetImage(item.imagePath),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        item.title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyLarge
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const Icon(Icons.star, size: 14, color: Color(0xFFF59E0B)),
+                        const SizedBox(width: 4),
+                        Text(
+                          item.rating.toStringAsFixed(1),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(item.subtitle, style: Theme.of(context).textTheme.bodyMedium),
+                    if (providerName != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.person_outline,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              providerName!,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppColors.primary),
+                            ),
+                          ),
+                        ],
                       ),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.place_outlined,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '${item.location} • ${item.available ? "Available" : "Closed"} • ${item.etaHours} hrs',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
                     ),
-                    const Icon(Icons.star,
-                        size: 14, color: Color(0xFFF59E0B)),
-                    const SizedBox(width: 4),
-                    Text(
-                      item.rating.toStringAsFixed(1),
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(item.subtitle,
-                    style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(Icons.place_outlined,
-                        size: 14, color: AppColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        '${item.location} • ${item.available ? "Available" : "Closed"} • ${item.etaHours} hrs',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.access_time,
-                        size: 14, color: AppColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Service Timing: ${item.serviceTime}',
-                      style: const TextStyle(fontSize: 12),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Service Timing: ${item.serviceTime}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -532,20 +665,20 @@ class _SortPill extends StatelessWidget {
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(
-                icon,
-                size: 14,
-                color: active ? Colors.white : AppColors.primary,
-              ),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: active ? Colors.white : AppColors.primary,
-                    fontWeight: FontWeight.w600,
+            children: [
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: 14,
+                  color: active ? Colors.white : AppColors.primary,
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: active ? Colors.white : AppColors.primary,
+                      fontWeight: FontWeight.w600,
                     ),
               ),
               const SizedBox(width: 6),

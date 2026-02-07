@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../widgets/app_top_bar.dart';
+import '../../widgets/primary_button.dart';
 
 class HelpSupportPage extends StatelessWidget {
   static const String routeName = '/profile/help';
@@ -11,48 +14,62 @@ class HelpSupportPage extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            10,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                  Text('Help & support', style: Theme.of(context).textTheme.titleMedium),
-                  const Spacer(),
-                  TextButton(onPressed: () {}, child: const Text('live chat')),
+              AppTopBar(
+                title: 'Help & support',
+                actions: [
+                  TextButton(onPressed: () {}, child: const Text('Live chat')),
                 ],
               ),
               const SizedBox(height: 12),
-              const Center(
-                child: Icon(Icons.support_agent, size: 100, color: Colors.blue),
+              Center(
+                child: Container(
+                  height: 112,
+                  width: 112,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF1FF),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: const Icon(
+                    Icons.support_agent,
+                    size: 62,
+                    color: AppColors.primary,
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               Center(
-                child: Text('Hello, how can we assist you?', style: Theme.of(context).textTheme.bodyLarge),
+                child: Text(
+                  'Hello, how can we assist you?',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
               ),
               const SizedBox(height: 20),
               Text('Title', style: Theme.of(context).textTheme.bodyMedium),
               const SizedBox(height: 6),
-              const TextField(decoration: InputDecoration(hintText: 'Enter the title of your issue')),
+              const TextField(
+                decoration: InputDecoration(hintText: 'Enter the title of your issue'),
+              ),
               const SizedBox(height: 12),
-              Text('Write in below box', style: Theme.of(context).textTheme.bodyMedium),
+              Text(
+                'Write in below box',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               const SizedBox(height: 6),
               const TextField(
                 maxLines: 4,
                 decoration: InputDecoration(hintText: 'Write here..'),
               ),
               const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('Send'),
-                ),
-              ),
+              PrimaryButton(label: 'Send', onPressed: () {}),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,

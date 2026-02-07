@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/provider.dart';
 import '../../widgets/provider_card.dart';
+import 'provider_detail_page.dart';
 
 class ProviderCategoryPage extends StatelessWidget {
   final ProviderSection section;
 
-  const ProviderCategoryPage({
-    super.key,
-    required this.section,
-  });
+  const ProviderCategoryPage({super.key, required this.section});
 
   @override
   Widget build(BuildContext context) {
@@ -51,10 +50,9 @@ class ProviderCategoryPage extends StatelessWidget {
                     ),
                     Text(
                       '${section.providers.length} providers',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: AppColors.primary),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -70,7 +68,14 @@ class ProviderCategoryPage extends StatelessWidget {
                     childAspectRatio: 0.75,
                   ),
                   itemBuilder: (context, index) {
-                    return ProviderCard(provider: section.providers[index]);
+                    final provider = section.providers[index];
+                    return ProviderCard(
+                      provider: provider,
+                      onDetails: () => Navigator.push(
+                        context,
+                        slideFadeRoute(ProviderDetailPage(provider: provider)),
+                      ),
+                    );
                   },
                 ),
               ),

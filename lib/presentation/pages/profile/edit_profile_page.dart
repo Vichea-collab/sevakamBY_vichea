@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../widgets/app_top_bar.dart';
+import '../../widgets/primary_button.dart';
 
 class EditProfilePage extends StatelessWidget {
   static const String routeName = '/profile/edit';
@@ -11,25 +14,41 @@ class EditProfilePage extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            10,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              const AppTopBar(title: 'Edit Profile'),
+              const SizedBox(height: 12),
+              Stack(
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back),
+                  const CircleAvatar(
+                    radius: 42,
+                    backgroundImage: AssetImage('assets/images/profile.jpg'),
                   ),
-                  Text('Edit Profile', style: Theme.of(context).textTheme.titleMedium),
+                  Positioned(
+                    right: 2,
+                    bottom: 2,
+                    child: Container(
+                      height: 24,
+                      width: 24,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(99),
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.edit,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ],
-              ),
-              const SizedBox(height: 10),
-              const Center(
-                child: CircleAvatar(
-                  radius: 34,
-                  backgroundImage: AssetImage('assets/images/profile.jpg'),
-                ),
               ),
               const SizedBox(height: 16),
               const _LabeledField(label: 'Name', hint: 'Kimheng'),
@@ -42,13 +61,7 @@ class EditProfilePage extends StatelessWidget {
               const SizedBox(height: 10),
               const _LabeledField(label: 'Phone number', hint: '+88 123456'),
               const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('Save'),
-                ),
-              ),
+              PrimaryButton(label: 'Save', onPressed: () {}),
             ],
           ),
         ),
@@ -68,7 +81,12 @@ class _LabeledField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
         const SizedBox(height: 6),
         TextField(
           decoration: InputDecoration(hintText: hint),

@@ -66,18 +66,23 @@ class _SplashPageState extends State<SplashPage>
                 child: Column(
                   children: [
                     Container(
-                      height: 120,
-                      width: 120,
-                      padding: const EdgeInsets.all(AppSpacing.md),
+                      height: 168,
+                      width: 168,
+                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(34),
                         boxShadow: const [
                           BoxShadow(
                             color: Color(0x26000000),
-                            blurRadius: 20,
-                            offset: Offset(0, 10),
-                          )
+                            blurRadius: 24,
+                            offset: Offset(0, 12),
+                          ),
+                          BoxShadow(
+                            color: Color(0x24005BBB),
+                            blurRadius: 32,
+                            offset: Offset(0, 14),
+                          ),
                         ],
                       ),
                       child: Image.asset(
@@ -85,13 +90,17 @@ class _SplashPageState extends State<SplashPage>
                         fit: BoxFit.contain,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(height: 18),
                     Text(
                       'SEVAKAM',
                       style: Theme.of(context)
                           .textTheme
-                          .titleMedium
-                          ?.copyWith(color: Colors.white),
+                          .titleLarge
+                          ?.copyWith(
+                            color: Colors.white,
+                            letterSpacing: 1.1,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),

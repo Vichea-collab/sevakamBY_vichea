@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../widgets/app_top_bar.dart';
+import '../../widgets/primary_button.dart';
 
 class PaymentPage extends StatefulWidget {
   static const String routeName = '/profile/payment';
@@ -19,21 +21,23 @@ class _PaymentPageState extends State<PaymentPage> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            10,
+            AppSpacing.lg,
+            AppSpacing.lg,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                  Text('Payment', style: Theme.of(context).textTheme.titleMedium),
-                ],
-              ),
+              const AppTopBar(title: 'Payment'),
               const SizedBox(height: 18),
-              Text('Select Payment method', style: Theme.of(context).textTheme.bodyLarge),
+              Text(
+                'Select Payment method',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: AppColors.textPrimary),
+              ),
               const SizedBox(height: 12),
               _PaymentTile(
                 label: 'Credit Card',
@@ -63,13 +67,7 @@ class _PaymentPageState extends State<PaymentPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('Save'),
-                ),
-              ),
+              PrimaryButton(label: 'Save', onPressed: () {}),
             ],
           ),
         ),
@@ -95,20 +93,29 @@ class _PaymentTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           color: selected ? const Color(0xFFDCEBFF) : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: selected ? AppColors.primary : AppColors.divider),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.divider,
+          ),
         ),
         child: Row(
           children: [
             Icon(icon, color: AppColors.primary),
             const SizedBox(width: 10),
-            Expanded(child: Text(label)),
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: AppColors.textPrimary),
+              ),
+            ),
             Icon(Icons.check, color: selected ? AppColors.primary : AppColors.divider),
           ],
         ),

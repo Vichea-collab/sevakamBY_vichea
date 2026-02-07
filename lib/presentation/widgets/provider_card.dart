@@ -5,11 +5,9 @@ import '../../domain/entities/provider.dart';
 
 class ProviderCard extends StatelessWidget {
   final ProviderItem provider;
+  final VoidCallback? onDetails;
 
-  const ProviderCard({
-    super.key,
-    required this.provider,
-  });
+  const ProviderCard({super.key, required this.provider, this.onDetails});
 
   @override
   Widget build(BuildContext context) {
@@ -39,10 +37,7 @@ class ProviderCard extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: Image.asset(
-                  provider.imagePath,
-                  fit: BoxFit.cover,
-                ),
+                child: Image.asset(provider.imagePath, fit: BoxFit.cover),
               ),
             ),
           ),
@@ -56,10 +51,9 @@ class ProviderCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             provider.role,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: AppColors.textSecondary),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.sm),
           Row(
@@ -68,16 +62,15 @@ class ProviderCard extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 provider.rating.toStringAsFixed(1),
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
               const Spacer(),
               SizedBox(
                 height: 28,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: onDetails,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     shape: RoundedRectangleBorder(

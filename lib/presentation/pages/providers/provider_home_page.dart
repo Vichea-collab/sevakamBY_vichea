@@ -7,6 +7,7 @@ import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/provider_card.dart';
 import '../../widgets/section_title.dart';
 import 'provider_category_page.dart';
+import 'provider_detail_page.dart';
 
 class ProviderHomePage extends StatelessWidget {
   static const String routeName = '/providers';
@@ -40,21 +41,25 @@ class ProviderHomePage extends StatelessWidget {
                       children: [
                         IconButton(
                           onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           'Service Providers',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
+                          style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(color: Colors.white),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(14),
@@ -91,9 +96,18 @@ class ProviderHomePage extends StatelessWidget {
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemBuilder: (context, index) {
+                      final provider = section.providers[index];
                       return SizedBox(
                         width: 150,
-                        child: ProviderCard(provider: section.providers[index]),
+                        child: ProviderCard(
+                          provider: provider,
+                          onDetails: () => Navigator.push(
+                            context,
+                            slideFadeRoute(
+                              ProviderDetailPage(provider: provider),
+                            ),
+                          ),
+                        ),
                       );
                     },
                     separatorBuilder: (_, _) =>
@@ -107,9 +121,7 @@ class ProviderHomePage extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: const AppBottomNav(
-        current: AppBottomTab.home,
-      ),
+      bottomNavigationBar: const AppBottomNav(current: AppBottomTab.home),
     );
   }
 }

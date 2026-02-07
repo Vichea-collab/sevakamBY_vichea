@@ -35,7 +35,14 @@ class AppBottomNav extends StatelessWidget {
             }
             break;
           case 1:
-            Navigator.pushNamed(context, '/profile/notification');
+            if (current != AppBottomTab.notification) {
+              Navigator.pushReplacementNamed(context, '/notifications');
+            }
+            break;
+          case 3:
+            if (current != AppBottomTab.order) {
+              Navigator.pushReplacementNamed(context, '/orders');
+            }
             break;
           case 4:
             if (current != AppBottomTab.profile) {
