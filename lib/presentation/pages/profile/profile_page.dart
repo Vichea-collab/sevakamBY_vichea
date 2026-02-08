@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/page_transition.dart';
+import '../../state/app_role_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
+import '../auth/customer_auth_page.dart';
 import 'edit_profile_page.dart';
 import 'help_support_page.dart';
 import 'notification_page.dart';
@@ -119,7 +121,14 @@ class ProfilePage extends StatelessWidget {
                           ),
                           Switch(
                             value: false,
-                            onChanged: (_) {},
+                            onChanged: (enabled) {
+                              if (!enabled) return;
+                              AppRoleState.setProvider(true);
+                              Navigator.pushReplacementNamed(
+                                context,
+                                '/provider/home',
+                              );
+                            },
                             activeTrackColor: AppColors.primaryLight,
                             activeThumbColor: AppColors.primary,
                           ),
@@ -169,43 +178,75 @@ class ProfilePage extends StatelessWidget {
   void _showLogoutDialog(BuildContext context) {
     showDialog<void>(
       context: context,
+      barrierDismissible: true,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+        backgroundColor: const Color(0xFFF7F5FF),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        contentPadding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              height: 62,
-              width: 62,
+              height: 72,
+              width: 72,
               decoration: BoxDecoration(
                 color: const Color(0xFFFFEFEF),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: const Icon(
                 Icons.logout_rounded,
-                size: 30,
+                size: 34,
                 color: AppColors.danger,
               ),
             ),
             const SizedBox(height: 12),
-            Text('Logout', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 6),
+            Text(
+              'Logout',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
               'Are you sure to logout?',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Logout'),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.primary, AppColors.primaryLight],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: ElevatedButton(
+                  onPressed: () {
+                    AppRoleState.setProvider(false);
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      CustomerAuthPage.routeName,
+                      (route) => false,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text('Logout'),
+                ),
               ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ),

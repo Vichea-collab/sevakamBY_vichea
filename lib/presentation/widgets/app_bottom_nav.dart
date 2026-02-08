@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../state/app_role_state.dart';
 
 enum AppBottomTab { home, notification, post, order, profile }
 
@@ -31,28 +32,35 @@ class AppBottomNav extends StatelessWidget {
         switch (index) {
           case 0:
             if (current != AppBottomTab.home) {
-              Navigator.pushReplacementNamed(context, '/home');
+              Navigator.pushReplacementNamed(context, AppRoleState.homeRoute());
             }
             break;
           case 1:
             if (current != AppBottomTab.notification) {
-              Navigator.pushReplacementNamed(context, '/notifications');
+              Navigator.pushReplacementNamed(
+                context,
+                AppRoleState.notificationRoute(),
+              );
+            }
+            break;
+          case 2:
+            if (current != AppBottomTab.post) {
+              Navigator.pushReplacementNamed(context, AppRoleState.postRoute());
             }
             break;
           case 3:
             if (current != AppBottomTab.order) {
-              Navigator.pushReplacementNamed(context, '/orders');
+              Navigator.pushReplacementNamed(context, AppRoleState.orderRoute());
             }
             break;
           case 4:
             if (current != AppBottomTab.profile) {
-              Navigator.pushReplacementNamed(context, '/profile');
+              Navigator.pushReplacementNamed(
+                context,
+                AppRoleState.profileRoute(),
+              );
             }
             break;
-          default:
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Feature coming soon')),
-            );
         }
       },
       selectedItemColor: AppColors.primary,

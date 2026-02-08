@@ -6,6 +6,7 @@ import '../../domain/entities/provider.dart';
 import '../../domain/entities/provider_profile.dart';
 import '../../domain/entities/chat.dart';
 import '../../domain/entities/order.dart';
+import '../../domain/entities/provider_portal.dart';
 
 class MockData {
   static const List<OnboardingStep> onboarding = [
@@ -53,6 +54,107 @@ class MockData {
     'Interior Painting',
     'AC Repair',
     'Door Repair',
+  ];
+
+  static const List<FinderPostItem> finderPosts = [
+    FinderPostItem(
+      id: 'fp-1',
+      clientName: 'Eang Kimheng',
+      message: 'I want to find cleaning service in Toul Kork.',
+      timeLabel: '2 hrs ago',
+      category: 'Cleaner',
+      service: 'House Cleaning',
+      location: 'Toul Kork, Phnom Penh',
+      avatarPath: 'assets/images/profile.jpg',
+    ),
+    FinderPostItem(
+      id: 'fp-2',
+      clientName: 'Heng Mengly',
+      message: 'My toilet broken please help!',
+      timeLabel: '3 hrs ago',
+      category: 'Plumber',
+      service: 'Toilet Repair',
+      location: 'Sen Sok, Phnom Penh',
+      avatarPath: 'assets/images/profile.jpg',
+    ),
+    FinderPostItem(
+      id: 'fp-3',
+      clientName: 'Monich',
+      message: 'Need wiring repair for 2 rooms this afternoon.',
+      timeLabel: '5 hrs ago',
+      category: 'Electrician',
+      service: 'Wiring Repair',
+      location: 'Tuol Svay Prey, Phnom Penh',
+      avatarPath: 'assets/images/profile.jpg',
+    ),
+  ];
+
+  static const List<ProviderOrderItem> providerOrdersSeed = [
+    ProviderOrderItem(
+      id: 'po-101',
+      clientName: 'Sok Dara',
+      category: 'Cleaner',
+      serviceName: 'Indoor Cleaning',
+      address: 'Toul Kork, Phnom Penh, Cambodia',
+      scheduleDate: 'Wed, Mar 7',
+      scheduleTime: '9:00 AM - 11:00 AM',
+      workers: 2,
+      hours: 2,
+      total: 22,
+      state: ProviderOrderState.incoming,
+    ),
+    ProviderOrderItem(
+      id: 'po-102',
+      clientName: 'Bora',
+      category: 'Plumber',
+      serviceName: 'Pipe Leak Repair',
+      address: 'Veng Sreng, Phnom Penh, Cambodia',
+      scheduleDate: 'Thu, Mar 8',
+      scheduleTime: '1:00 PM - 3:00 PM',
+      workers: 1,
+      hours: 2,
+      total: 18,
+      state: ProviderOrderState.incoming,
+    ),
+    ProviderOrderItem(
+      id: 'po-103',
+      clientName: 'Sreynich',
+      category: 'Electrician',
+      serviceName: 'Wiring Repair',
+      address: 'Chbar Ampov, Phnom Penh, Cambodia',
+      scheduleDate: 'Fri, Mar 9',
+      scheduleTime: '9:00 AM - 11:00 AM',
+      workers: 1,
+      hours: 2,
+      total: 20,
+      state: ProviderOrderState.onTheWay,
+    ),
+    ProviderOrderItem(
+      id: 'po-107',
+      clientName: 'Nisa',
+      category: 'Cleaner',
+      serviceName: 'Office Cleaning',
+      address: 'Daun Penh, Phnom Penh, Cambodia',
+      scheduleDate: 'Sat, Mar 10',
+      scheduleTime: '1:00 PM - 3:00 PM',
+      workers: 2,
+      hours: 2,
+      total: 26,
+      state: ProviderOrderState.started,
+    ),
+    ProviderOrderItem(
+      id: 'po-104',
+      clientName: 'Kimly',
+      category: 'Cleaner',
+      serviceName: 'House Cleaning',
+      address: 'Boeung Keng Kang, Phnom Penh, Cambodia',
+      scheduleDate: 'Mon, Mar 4',
+      scheduleTime: '10:00 AM - 12:00 PM',
+      workers: 2,
+      hours: 2,
+      total: 24,
+      state: ProviderOrderState.completed,
+    ),
   ];
 
   static final List<ServiceItem> services = [
@@ -853,6 +955,10 @@ class MockData {
 
   static List<ServiceItem> servicesByCategory(String category) {
     return services.where((s) => s.category == category).toList();
+  }
+
+  static List<ProviderOrderItem> providerOrders() {
+    return providerOrdersSeed.toList();
   }
 
   static List<ProviderItem> providersByCategory(String category) {

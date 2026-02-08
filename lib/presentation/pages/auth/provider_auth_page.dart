@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../state/app_role_state.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/primary_button.dart';
 import 'forgot_password_flow.dart';
 import 'customer_auth_page.dart';
-import '../home/home_page.dart';
+import '../provider_portal/provider_home_page.dart';
 
 class ProviderAuthPage extends StatefulWidget {
   static const String routeName = '/auth/provider';
@@ -37,6 +38,7 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
                 rightLabel: 'Become a Service Provider',
                 isLeftActive: false,
                 onTapLeft: () {
+                  AppRoleState.setProvider(false);
                   Navigator.pushReplacementNamed(
                     context,
                     CustomerAuthPage.routeName,
@@ -119,10 +121,13 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
                     const SizedBox(height: AppSpacing.md),
                     PrimaryButton(
                       label: _isSignUp ? 'Sign up' : 'Sign in',
-                      onPressed: () => Navigator.pushReplacementNamed(
-                        context,
-                        HomePage.routeName,
-                      ),
+                      onPressed: () {
+                        AppRoleState.setProvider(true);
+                        Navigator.pushReplacementNamed(
+                          context,
+                          ProviderPortalHomePage.routeName,
+                        );
+                      },
                     ),
                     if (!_isSignUp) ...[
                       const SizedBox(height: 12),

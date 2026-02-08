@@ -12,6 +12,7 @@ import 'pages/providers/provider_home_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/chat/chat_list_page.dart';
 import 'pages/orders/orders_page.dart';
+import 'pages/post/client_post_page.dart';
 import 'pages/booking/booking_address_page.dart';
 import 'pages/notifications/notifications_page.dart';
 import 'pages/profile/profile_page.dart';
@@ -19,6 +20,14 @@ import 'pages/profile/edit_profile_page.dart';
 import 'pages/profile/notification_page.dart';
 import 'pages/profile/payment_page.dart';
 import 'pages/profile/help_support_page.dart';
+import 'pages/provider_portal/provider_home_page.dart';
+import 'pages/provider_portal/provider_notifications_page.dart';
+import 'pages/provider_portal/provider_post_page.dart';
+import 'pages/provider_portal/provider_orders_page.dart';
+import 'pages/provider_portal/provider_profile_page.dart';
+import 'pages/provider_portal/provider_profession_page.dart';
+import 'pages/provider_portal/provider_verification_page.dart';
+import 'pages/provider_portal/provider_upgrade_page.dart';
 
 class ServiceFinderApp extends StatelessWidget {
   const ServiceFinderApp({super.key});
@@ -41,6 +50,7 @@ class ServiceFinderApp extends StatelessWidget {
         SearchPage.routeName: (_) => const SearchPage(),
         ChatListPage.routeName: (_) => const ChatListPage(),
         OrdersPage.routeName: (_) => const OrdersPage(),
+        ClientPostPage.routeName: (_) => const ClientPostPage(),
         NotificationsPage.routeName: (_) => const NotificationsPage(),
         '/booking/address': (_) => BookingAddressPage(
               draft: MockData.defaultBookingDraft(
@@ -53,6 +63,16 @@ class ServiceFinderApp extends StatelessWidget {
             const ProfileNotificationPage(),
         PaymentPage.routeName: (_) => const PaymentPage(),
         HelpSupportPage.routeName: (_) => const HelpSupportPage(),
+        ProviderPortalHomePage.routeName: (_) => const ProviderPortalHomePage(),
+        ProviderNotificationsPage.routeName: (_) =>
+            const ProviderNotificationsPage(),
+        ProviderPostPage.routeName: (_) => const ProviderPostPage(),
+        ProviderOrdersPage.routeName: (_) => const ProviderOrdersPage(),
+        ProviderProfilePage.routeName: (_) => const ProviderProfilePage(),
+        ProviderProfessionPage.routeName: (_) => const ProviderProfessionPage(),
+        ProviderVerificationPage.routeName: (_) =>
+            const ProviderVerificationPage(),
+        ProviderUpgradePage.routeName: (_) => const ProviderUpgradePage(),
       },
     );
   }

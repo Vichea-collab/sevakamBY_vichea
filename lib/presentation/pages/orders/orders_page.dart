@@ -24,6 +24,7 @@ class _OrdersPageState extends State<OrdersPage> {
   late List<OrderItem> _inProgress;
   late List<OrderItem> _completed;
   bool _showCompleted = false;
+  String _filter = 'all';
 
   @override
   void initState() {
@@ -34,7 +35,10 @@ class _OrdersPageState extends State<OrdersPage> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleOrders = _showCompleted ? _completed : _inProgress;
+    final sourceOrders = _showCompleted ? _completed : _inProgress;
+    final visibleOrders = sourceOrders
+        .where((order) => _matchesFilter(order))
+        .toList();
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -46,6 +50,15 @@ class _OrdersPageState extends State<OrdersPage> {
                 showBack: false,
                 actions: [
                   PopupMenuButton<String>(
+                    initialValue: _filter,
+                    onSelected: (value) => setState(() => _filter = value),
+                    color: Colors.white,
+                    elevation: 8,
+                    offset: const Offset(0, 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: AppColors.divider),
+                    ),
                     itemBuilder: (context) => const [
                       PopupMenuItem(value: 'all', child: Text('All')),
                       PopupMenuItem(value: 'today', child: Text('Today')),
@@ -61,11 +74,11 @@ class _OrdersPageState extends State<OrdersPage> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppColors.divider),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Text('Filter'),
-                          SizedBox(width: 4),
-                          Icon(Icons.expand_more, size: 16),
+                          Text(_filterLabel(_filter)),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.expand_more, size: 16),
                         ],
                       ),
                     ),
@@ -163,6 +176,36 @@ class _OrdersPageState extends State<OrdersPage> {
       }
     });
   }
+
+  bool _matchesFilter(OrderItem order) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final orderDay = DateTime(
+      order.scheduledAt.year,
+      order.scheduledAt.month,
+      order.scheduledAt.day,
+    );
+
+    switch (_filter) {
+      case 'today':
+        return orderDay == today;
+      case 'upcoming':
+        return orderDay.isAfter(today);
+      default:
+        return true;
+    }
+  }
+
+  String _filterLabel(String value) {
+    switch (value) {
+      case 'today':
+        return 'Today';
+      case 'upcoming':
+        return 'Upcoming';
+      default:
+        return 'All';
+    }
+  }
 }
 
 class _TabButton extends StatelessWidget {
@@ -240,16 +283,10 @@ class _OrderCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: AppColors.primary,
                           fontWeight: FontWeight.w600,
-                        ),
+                      ),
                   ),
                 ),
-                Text(
-                  _statusLabel(order.status),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
+                _OrderStatusPill(status: order.status),
               ],
             ),
             const SizedBox(height: 8),
@@ -294,21 +331,6 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  String _statusLabel(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.booked:
-        return 'Booked';
-      case OrderStatus.onTheWay:
-        return 'On the way';
-      case OrderStatus.started:
-        return 'Processing';
-      case OrderStatus.completed:
-        return 'Completed';
-      case OrderStatus.cancelled:
-        return 'Cancelled';
-    }
-  }
-
   String _dateLabel(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
@@ -344,6 +366,58 @@ class _EmptyOrders extends StatelessWidget {
       child: Text(
         isCompleted ? 'No completed orders yet.' : 'No active orders.',
         style: Theme.of(context).textTheme.bodyLarge,
+      ),
+    );
+  }
+}
+
+class _OrderStatusPill extends StatelessWidget {
+  final OrderStatus status;
+
+  const _OrderStatusPill({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, bg, fg) = switch (status) {
+      OrderStatus.booked => (
+          'Incoming',
+          const Color(0xFFFFF4E5),
+          const Color(0xFFD97706),
+        ),
+      OrderStatus.onTheWay => (
+          'On the way',
+          const Color(0xFFEAF1FF),
+          AppColors.primary,
+        ),
+      OrderStatus.started => (
+          'Started',
+          const Color(0xFFE9FDF4),
+          AppColors.success,
+        ),
+      OrderStatus.completed => (
+          'Completed',
+          const Color(0xFFE9FDF4),
+          AppColors.success,
+        ),
+      OrderStatus.cancelled => (
+          'Cancelled',
+          const Color(0xFFFFEFEF),
+          AppColors.danger,
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
