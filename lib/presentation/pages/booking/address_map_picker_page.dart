@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 
@@ -87,7 +88,10 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                 title: 'Pick Location',
                 subtitle: 'Phnom Penh, Cambodia',
                 actions: [
-                  TextButton(onPressed: _confirmLocation, child: const Text('Done')),
+                  TextButton(
+                    onPressed: _confirmLocation,
+                    child: const Text('Done'),
+                  ),
                 ],
               ),
             ),
@@ -109,7 +113,9 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                                 child: SizedBox(
                                   height: 16,
                                   width: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 ),
                               )
                             : null,
@@ -160,7 +166,9 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(18),
-                  child: _mapSupported ? _buildMap() : _buildUnsupportedFallback(),
+                  child: _mapSupported
+                      ? _buildMap()
+                      : _buildUnsupportedFallback(),
                 ),
               ),
             ),
@@ -222,7 +230,10 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
 
   Widget _buildMap() {
     return GoogleMap(
-      initialCameraPosition: const CameraPosition(target: _phnomPenh, zoom: 11.5),
+      initialCameraPosition: const CameraPosition(
+        target: _phnomPenh,
+        zoom: 11.5,
+      ),
       myLocationEnabled: _hasLocationPermission,
       myLocationButtonEnabled: _hasLocationPermission,
       zoomControlsEnabled: false,
@@ -249,9 +260,9 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         'Live map is not supported on this device target.\n'
         'Search by location name or use current location to continue.',
         textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          color: AppColors.textSecondary,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
       ),
     );
   }
@@ -265,7 +276,9 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       _searchController.text = city;
     });
     _mapController?.animateCamera(
-      CameraUpdate.newCameraPosition(CameraPosition(target: target, zoom: 12.4)),
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: target, zoom: 12.4),
+      ),
     );
   }
 
@@ -336,7 +349,8 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     final response = await http.get(
       uri,
       headers: const {
-        'User-Agent': 'servicefinder/1.0 (contact: support@servicefinder.local)',
+        'User-Agent':
+            'servicefinder/1.0 (contact: support@servicefinder.local)',
       },
     );
     if (response.statusCode != 200) return false;
@@ -349,7 +363,8 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     final point = LatLng(lat, lon);
     setState(() {
       _selectedPoint = point;
-      _selectedAddress = (first['display_name'] as String?) ?? 'Phnom Penh, Cambodia';
+      _selectedAddress =
+          (first['display_name'] as String?) ?? 'Phnom Penh, Cambodia';
     });
     await _mapController?.animateCamera(
       CameraUpdate.newCameraPosition(CameraPosition(target: point, zoom: 14.8)),
@@ -402,7 +417,9 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       final point = LatLng(position.latitude, position.longitude);
       setState(() => _selectedPoint = point);
       await _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(CameraPosition(target: point, zoom: 15.0)),
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: point, zoom: 15.0),
+        ),
       );
       await _reverseGeocode(point);
     } catch (_) {
@@ -556,29 +573,18 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
 
   Future<void> _showPermissionDialog() async {
     if (!mounted) return;
-    await showDialog<void>(
+    final openSettings = await showAppConfirmDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Enable Location Permission'),
-        content: const Text(
-          'Location access is required to use your current location. '
-          'Please enable it in app settings.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await Geolocator.openAppSettings();
-            },
-            child: const Text('Open Settings'),
-          ),
-        ],
-      ),
+      icon: Icons.location_on_rounded,
+      title: 'Enable Location Permission',
+      message:
+          'Location access is required to use your current location. Please enable it in app settings.',
+      confirmText: 'Open Settings',
+      cancelText: 'Not Now',
+      tone: AppDialogTone.info,
     );
+    if (openSettings != true) return;
+    await Geolocator.openAppSettings();
   }
 }
 

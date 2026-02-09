@@ -3,6 +3,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../state/app_role_state.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../auth/customer_auth_page.dart';
@@ -24,10 +25,7 @@ class ProfilePage extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: const AppTopBar(
-                title: 'Profile',
-                showBack: false,
-              ),
+              child: const AppTopBar(title: 'Profile', showBack: false),
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -154,12 +152,11 @@ class ProfilePage extends StatelessWidget {
                           alignment: Alignment.center,
                           child: Text(
                             'Logout',
-                            style: Theme.of(
-                              context,
-                            ).textTheme.bodyLarge?.copyWith(
-                              color: AppColors.danger,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  color: AppColors.danger,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                         ),
                       ),
@@ -175,82 +172,23 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog<void>(
+  Future<void> _showLogoutDialog(BuildContext context) async {
+    final shouldLogout = await showAppConfirmDialog(
       context: context,
-      barrierDismissible: true,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFFF7F5FF),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        contentPadding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              height: 72,
-              width: 72,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEFEF),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(
-                Icons.logout_rounded,
-                size: 34,
-                color: AppColors.danger,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Logout',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Are you sure to logout?',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.primary, AppColors.primaryLight],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: ElevatedButton(
-                  onPressed: () {
-                    AppRoleState.setProvider(false);
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      CustomerAuthPage.routeName,
-                      (route) => false,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text('Logout'),
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
-      ),
+      icon: Icons.logout_rounded,
+      title: 'Logout',
+      message: 'Are you sure you want to logout?',
+      confirmText: 'Logout',
+      cancelText: 'Stay Logged In',
+      tone: AppDialogTone.danger,
+    );
+    if (shouldLogout != true || !context.mounted) return;
+
+    AppRoleState.setProvider(false);
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      CustomerAuthPage.routeName,
+      (route) => false,
     );
   }
 }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../data/mock/mock_data.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/notification_messenger_sheet.dart';
 import '../../widgets/pressable_scale.dart';
 
 enum _NoticeFilter { all, orders, system, promos }
@@ -107,6 +109,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
               title: 'Notifications',
               showBack: false,
               actions: [
+                IconButton(
+                  onPressed: _openMessenger,
+                  icon: const Icon(Icons.chat_bubble_outline_rounded),
+                  tooltip: 'Messenger',
+                ),
                 TextButton(
                   onPressed: _markAllAsRead,
                   child: const Text('Mark all'),
@@ -251,6 +258,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
           .map((item) => item.title == title ? item.copyWith(unread: false) : item)
           .toList();
     });
+  }
+
+  void _openMessenger() {
+    showNotificationMessengerSheet(
+      context,
+      title: 'Finder Messenger',
+      subtitle: 'Recent chats with providers',
+      threads: MockData.chats,
+      accentColor: AppColors.primary,
+    );
   }
 }
 

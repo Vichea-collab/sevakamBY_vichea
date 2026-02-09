@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../data/mock/mock_data.dart';
+import '../../../domain/entities/chat.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/notification_messenger_sheet.dart';
 import '../../widgets/pressable_scale.dart';
 import 'provider_orders_page.dart';
 
@@ -35,9 +37,16 @@ class ProviderNotificationsPage extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           children: [
-            const AppTopBar(
+            AppTopBar(
               title: 'Notifications',
               showBack: false,
+              actions: [
+                IconButton(
+                  onPressed: () => _openMessenger(context),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded),
+                  tooltip: 'Messenger',
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             _ProviderNotificationSummary(
@@ -107,6 +116,48 @@ class ProviderNotificationsPage extends StatelessWidget {
       ),
       bottomNavigationBar: const AppBottomNav(current: AppBottomTab.notification),
     );
+  }
+
+  void _openMessenger(BuildContext context) {
+    showNotificationMessengerSheet(
+      context,
+      title: 'Provider Messenger',
+      subtitle: 'Chat with clients and confirm requests',
+      threads: _providerMessengerThreads(),
+      accentColor: AppColors.accentDark,
+    );
+  }
+
+  List<ChatThread> _providerMessengerThreads() {
+    final now = DateTime.now();
+    return MockData.finderPosts
+        .asMap()
+        .entries
+        .map((entry) {
+          final index = entry.key;
+          final post = entry.value;
+          return ChatThread(
+            id: 'provider_msg_${post.id}',
+            title: post.clientName,
+            subtitle: '${post.service} • ${post.location}',
+            avatarPath: post.avatarPath,
+            updatedAt: now.subtract(Duration(minutes: 4 + index * 11)),
+            unreadCount: index < 2 ? 1 : 0,
+            messages: [
+              ChatMessage(
+                text: post.message,
+                fromMe: false,
+                sentAt: now.subtract(Duration(minutes: 9 + index * 11)),
+              ),
+              ChatMessage(
+                text: 'I can help with ${post.service}.',
+                fromMe: true,
+                sentAt: now.subtract(Duration(minutes: 5 + index * 11)),
+              ),
+            ],
+          );
+        })
+        .toList();
   }
 }
 

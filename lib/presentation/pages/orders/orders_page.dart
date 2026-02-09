@@ -20,22 +20,38 @@ class OrdersPage extends StatefulWidget {
   State<OrdersPage> createState() => _OrdersPageState();
 }
 
+enum _FinderOrderTab { pending, inProgress, completed }
+
 class _OrdersPageState extends State<OrdersPage> {
+  late List<OrderItem> _pending;
   late List<OrderItem> _inProgress;
   late List<OrderItem> _completed;
-  bool _showCompleted = false;
+  _FinderOrderTab _activeTab = _FinderOrderTab.pending;
   String _filter = 'all';
 
   @override
   void initState() {
     super.initState();
-    _inProgress = MockData.inProgressOrders(widget.latestOrder);
-    _completed = MockData.completedOrders();
+    _pending = <OrderItem>[];
+    _inProgress = <OrderItem>[];
+    _completed = <OrderItem>[];
+
+    final seeded = <OrderItem>[...MockData.orders];
+    if (widget.latestOrder != null) {
+      seeded.insert(0, widget.latestOrder!);
+    }
+    for (final order in seeded) {
+      _insertOrder(order);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final sourceOrders = _showCompleted ? _completed : _inProgress;
+    final sourceOrders = switch (_activeTab) {
+      _FinderOrderTab.pending => _pending,
+      _FinderOrderTab.inProgress => _inProgress,
+      _FinderOrderTab.completed => _completed,
+    };
     final visibleOrders = sourceOrders
         .where((order) => _matchesFilter(order))
         .toList();
@@ -88,23 +104,34 @@ class _OrdersPageState extends State<OrdersPage> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  _TabButton(
-                    label: 'In Progress',
-                    active: !_showCompleted,
-                    onTap: () => setState(() => _showCompleted = false),
+                  _TabChip(
+                    label: 'Incoming',
+                    active: _activeTab == _FinderOrderTab.pending,
+                    onTap: () =>
+                        setState(() => _activeTab = _FinderOrderTab.pending),
                   ),
                   const SizedBox(width: 8),
-                  _TabButton(
+                  _TabChip(
+                    label: 'In Progress',
+                    active: _activeTab == _FinderOrderTab.inProgress,
+                    onTap: () => setState(
+                      () => _activeTab = _FinderOrderTab.inProgress,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _TabChip(
                     label: 'Completed',
-                    active: _showCompleted,
-                    onTap: () => setState(() => _showCompleted = true),
+                    active: _activeTab == _FinderOrderTab.completed,
+                    onTap: () => setState(
+                      () => _activeTab = _FinderOrderTab.completed,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
               Expanded(
                 child: visibleOrders.isEmpty
-                    ? _EmptyOrders(isCompleted: _showCompleted)
+                    ? _EmptyOrders(activeTab: _activeTab)
                     : ListView.separated(
                         itemCount: visibleOrders.length,
                         separatorBuilder: (_, _) =>
@@ -121,7 +148,8 @@ class _OrdersPageState extends State<OrdersPage> {
                         },
                       ),
               ),
-              if (!_showCompleted && _inProgress.isEmpty)
+              if (_activeTab == _FinderOrderTab.inProgress &&
+                  visibleOrders.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: PrimaryButton(
@@ -159,22 +187,34 @@ class _OrdersPageState extends State<OrdersPage> {
   void _markCompleted(OrderItem order) {
     final completedOrder = order.copyWith(status: OrderStatus.completed);
     setState(() {
+      _pending.removeWhere((item) => item.id == order.id);
       _inProgress.removeWhere((item) => item.id == order.id);
-      _completed.insert(0, completedOrder);
-      _showCompleted = true;
+      _completed.removeWhere((item) => item.id == order.id);
+      _insertOrder(completedOrder, atStart: true);
+      _activeTab = _FinderOrderTab.completed;
     });
   }
 
   void _replaceOrder(OrderItem order) {
     setState(() {
+      _pending.removeWhere((item) => item.id == order.id);
       _inProgress.removeWhere((item) => item.id == order.id);
       _completed.removeWhere((item) => item.id == order.id);
-      if (order.status == OrderStatus.completed) {
-        _completed.insert(0, order);
-      } else if (order.status != OrderStatus.cancelled) {
-        _inProgress.insert(0, order);
-      }
+      _insertOrder(order, atStart: true);
     });
+  }
+
+  void _insertOrder(OrderItem order, {bool atStart = false}) {
+    final target = switch (order.status) {
+      OrderStatus.booked || OrderStatus.cancelled => _pending,
+      OrderStatus.onTheWay || OrderStatus.started => _inProgress,
+      OrderStatus.completed => _completed,
+    };
+    if (atStart) {
+      target.insert(0, order);
+    } else {
+      target.add(order);
+    }
   }
 
   bool _matchesFilter(OrderItem order) {
@@ -208,12 +248,12 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 }
 
-class _TabButton extends StatelessWidget {
+class _TabChip extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
 
-  const _TabButton({
+  const _TabChip({
     required this.label,
     required this.active,
     required this.onTap,
@@ -223,25 +263,24 @@ class _TabButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: InkWell(
-        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          height: 40,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: active ? AppColors.primary : AppColors.divider,
-                width: 2,
-              ),
+            color: active ? const Color(0xFFEAF1FF) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: active ? AppColors.primary : AppColors.divider,
             ),
           ),
           child: Text(
             label,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: active ? AppColors.primary : AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: active ? AppColors.primary : AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
@@ -356,15 +395,20 @@ class _MetaText extends StatelessWidget {
 }
 
 class _EmptyOrders extends StatelessWidget {
-  final bool isCompleted;
+  final _FinderOrderTab activeTab;
 
-  const _EmptyOrders({required this.isCompleted});
+  const _EmptyOrders({required this.activeTab});
 
   @override
   Widget build(BuildContext context) {
+    final label = switch (activeTab) {
+      _FinderOrderTab.pending => 'No incoming orders.',
+      _FinderOrderTab.inProgress => 'No orders in progress.',
+      _FinderOrderTab.completed => 'No completed orders yet.',
+    };
     return Center(
       child: Text(
-        isCompleted ? 'No completed orders yet.' : 'No active orders.',
+        label,
         style: Theme.of(context).textTheme.bodyLarge,
       ),
     );

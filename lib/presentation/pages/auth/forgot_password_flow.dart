@@ -20,7 +20,7 @@ class _ForgotPasswordFlowState extends State<ForgotPasswordFlow> {
   int _index = 0;
 
   void _next() {
-    if (_index < 3) {
+    if (_index < 2) {
       _controller.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
@@ -63,13 +63,12 @@ class _ForgotPasswordFlowState extends State<ForgotPasswordFlow> {
                 children: [
                   _ResetRequestStep(onNext: _next),
                   _ResetEmailSentStep(onNext: _next),
-                  _ResetLoadingStep(onNext: _next),
                   const _ResetSuccessStep(),
                 ],
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            StepIndicator(count: 4, index: _index),
+            StepIndicator(count: 3, index: _index),
             const SizedBox(height: AppSpacing.lg),
           ],
         ),
@@ -127,34 +126,6 @@ class _ResetEmailSentStep extends StatelessWidget {
           const AppTextField(hint: 'kimheng@gmail.com'),
           const SizedBox(height: AppSpacing.lg),
           PrimaryButton(label: 'Next', onPressed: onNext),
-        ],
-      ),
-    );
-  }
-}
-
-class _ResetLoadingStep extends StatelessWidget {
-  final VoidCallback onNext;
-
-  const _ResetLoadingStep({required this.onNext});
-
-  @override
-  Widget build(BuildContext context) {
-    return _CardWrapper(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Let\'s reset your password.',
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text(
-            'We will email you a link to reset your password.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          const AppTextField(hint: 'kimheng@gmail.com'),
-          const SizedBox(height: AppSpacing.lg),
-          PrimaryButton(label: '...', onPressed: onNext),
         ],
       ),
     );

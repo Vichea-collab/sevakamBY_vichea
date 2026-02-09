@@ -3,6 +3,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../state/app_role_state.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../auth/provider_auth_page.dart';
@@ -26,18 +27,15 @@ class ProviderProfilePage extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
           children: [
-            const AppTopBar(
-              title: 'My Profile',
-              showBack: false,
-            ),
+            const AppTopBar(title: 'My Profile', showBack: false),
             const SizedBox(height: 10),
             const _ProviderHero(),
             const SizedBox(height: 16),
             Text(
               'Profile information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.textPrimary,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: AppColors.textPrimary),
             ),
             const SizedBox(height: 10),
             _ActionTile(
@@ -69,18 +67,16 @@ class ProviderProfilePage extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               'Subscription & payments',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.textPrimary,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: AppColors.textPrimary),
             ),
             const SizedBox(height: 10),
             _ActionTile(
               icon: Icons.credit_card_outlined,
               label: 'Payment method',
-              onTap: () => Navigator.push(
-                context,
-                slideFadeRoute(const PaymentPage()),
-              ),
+              onTap: () =>
+                  Navigator.push(context, slideFadeRoute(const PaymentPage())),
             ),
             const SizedBox(height: 10),
             _ActionTile(
@@ -94,9 +90,9 @@ class ProviderProfilePage extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               'General preferences',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.textPrimary,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: AppColors.textPrimary),
             ),
             const SizedBox(height: 10),
             _ActionTile(
@@ -126,7 +122,10 @@ class ProviderProfilePage extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.swap_horiz_rounded, color: AppColors.primary),
+                  const Icon(
+                    Icons.swap_horiz_rounded,
+                    color: AppColors.primary,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -181,57 +180,23 @@ class ProviderProfilePage extends StatelessWidget {
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog<void>(
+  Future<void> _showLogoutDialog(BuildContext context) async {
+    final shouldLogout = await showAppConfirmDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              height: 62,
-              width: 62,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEFEF),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: const Icon(
-                Icons.logout_rounded,
-                size: 30,
-                color: AppColors.danger,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text('Logout', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 6),
-            Text(
-              'Are you sure to logout?',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  AppRoleState.setProvider(true);
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    ProviderAuthPage.routeName,
-                    (route) => false,
-                  );
-                },
-                child: const Text('Logout'),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
-      ),
+      icon: Icons.logout_rounded,
+      title: 'Logout',
+      message: 'Are you sure you want to logout?',
+      confirmText: 'Logout',
+      cancelText: 'Stay Logged In',
+      tone: AppDialogTone.danger,
+    );
+    if (shouldLogout != true || !context.mounted) return;
+
+    AppRoleState.setProvider(true);
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      ProviderAuthPage.routeName,
+      (route) => false,
     );
   }
 }
@@ -299,28 +264,26 @@ class _ProviderHero extends StatelessWidget {
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 38),
+                    color: const Color(0xFFFFF3D6),
                     borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFFD88A)),
                   ),
                   child: Text(
                     'Electrician',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white,
+                      color: const Color(0xFF8A5A00),
                       fontWeight: FontWeight.w600,
-                      shadows: const [
-                        Shadow(
-                          color: Color(0x66000000),
-                          blurRadius: 4,
-                          offset: Offset(0, 1),
-                        ),
-                      ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.star_rounded, color: Color(0xFFF59E0B), size: 18),
+                    const Icon(
+                      Icons.star_rounded,
+                      color: Color(0xFFF59E0B),
+                      size: 18,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '3.9',
@@ -344,11 +307,9 @@ class _ProviderHero extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 230),
+              color: AppColors.success,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 245),
-              ),
+              border: Border.all(color: const Color(0xFF0F8E3F)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -356,13 +317,13 @@ class _ProviderHero extends StatelessWidget {
                 const Icon(
                   Icons.task_alt_rounded,
                   size: 16,
-                  color: AppColors.primary,
+                  color: Colors.white,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   '56 completed',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.primary,
+                    color: Colors.white,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
