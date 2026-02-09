@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../state/app_role_state.dart';
+import '../../state/profile_image_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
@@ -232,9 +233,14 @@ class _ProviderHero extends StatelessWidget {
               color: Colors.white.withValues(alpha: 235),
               shape: BoxShape.circle,
             ),
-            child: const CircleAvatar(
-              radius: 34,
-              backgroundImage: AssetImage('assets/images/profile.jpg'),
+            child: ValueListenableBuilder(
+              valueListenable: ProfileImageState.listenable,
+              builder: (context, value, child) {
+                return CircleAvatar(
+                  radius: 34,
+                  backgroundImage: ProfileImageState.avatarProvider(),
+                );
+              },
             ),
           ),
           const SizedBox(width: 12),

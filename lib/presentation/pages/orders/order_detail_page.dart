@@ -190,12 +190,18 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _InfoRow(label: 'Skillr', value: _order.provider.name),
+                    _InfoRow(label: 'Provider', value: _order.provider.name),
+                    _InfoRow(label: 'Service', value: _order.serviceName),
                     _InfoRow(
-                      label: 'You selected',
-                      value:
-                          '${_order.workers} workers | ${_order.hours} hours',
+                      label: 'Scheduled date',
+                      value: _dateLabel(_order.scheduledAt),
                     ),
+                    _InfoRow(label: 'Time slot', value: _order.timeRange),
+                    _InfoRow(
+                      label: 'Duration',
+                      value: '${_order.hours} hour(s)',
+                    ),
+                    _InfoRow(label: 'Workers', value: '${_order.workers}'),
                     if (_order.additionalService.trim().isNotEmpty)
                       _InfoRow(
                         label: 'Additional Service',
@@ -210,6 +216,10 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                       value: '${_order.address.street}, ${_order.address.city}',
                     ),
                     _InfoRow(
+                      label: 'Payment method',
+                      value: _paymentLabel(_order.paymentMethod),
+                    ),
+                    _InfoRow(
                       label: 'Address Link',
                       value: _resolvedAddressLink(_order.address),
                     ),
@@ -220,7 +230,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                       amount: _order.processingFee,
                     ),
                     _AmountRow(
-                      label: 'Promo code (20% OFF)',
+                      label: _order.discount > 0
+                          ? 'Promo discount'
+                          : 'Promo code',
                       amount: -_order.discount,
                     ),
                     const SizedBox(height: 4),
@@ -306,6 +318,17 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     if (direct.isNotEmpty) return direct;
     final query = Uri.encodeComponent('${address.street}, ${address.city}');
     return 'https://maps.google.com/?q=$query';
+  }
+
+  String _paymentLabel(PaymentMethod method) {
+    switch (method) {
+      case PaymentMethod.creditCard:
+        return 'Credit Card';
+      case PaymentMethod.bankAccount:
+        return 'Bank account';
+      case PaymentMethod.cash:
+        return 'Cash';
+    }
   }
 }
 

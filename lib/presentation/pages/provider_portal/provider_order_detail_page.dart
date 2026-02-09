@@ -12,7 +12,8 @@ class ProviderOrderDetailPage extends StatefulWidget {
   const ProviderOrderDetailPage({super.key, required this.order});
 
   @override
-  State<ProviderOrderDetailPage> createState() => _ProviderOrderDetailPageState();
+  State<ProviderOrderDetailPage> createState() =>
+      _ProviderOrderDetailPageState();
 }
 
 class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
@@ -88,6 +89,14 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
               const SizedBox(height: 10),
               _StatusStepper(status: _order.state),
               const SizedBox(height: 16),
+              Text(
+                'Finder booking details',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
@@ -100,31 +109,69 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _InfoRow(label: 'Client', value: _order.clientName),
+                    if (_order.clientPhone.trim().isNotEmpty)
+                      _InfoRow(label: 'Contact', value: _order.clientPhone),
                     _InfoRow(label: 'Category', value: _order.category),
+                    _InfoRow(label: 'Service', value: _order.serviceName),
                     _InfoRow(
-                      label: 'Selected',
-                      value: '${_order.workers} workers | ${_order.hours} hours',
+                      label: 'Scheduled date',
+                      value: _order.scheduleDate,
                     ),
+                    _InfoRow(label: 'Time slot', value: _order.scheduleTime),
+                    _InfoRow(
+                      label: 'Duration',
+                      value: '${_order.hours} hour(s)',
+                    ),
+                    _InfoRow(label: 'Workers', value: '${_order.workers}'),
+                    if (_order.homeType.trim().isNotEmpty)
+                      _InfoRow(label: 'Home type', value: _order.homeType),
+                    if (_order.additionalService.trim().isNotEmpty)
+                      _InfoRow(
+                        label: 'Additional service',
+                        value: _order.additionalService,
+                      ),
                     _InfoRow(label: 'Address', value: _order.address),
+                    _InfoRow(
+                      label: 'Address link',
+                      value: _resolvedAddressLink(_order),
+                    ),
+                    if (_order.paymentMethod.trim().isNotEmpty)
+                      _InfoRow(
+                        label: 'Payment method',
+                        value: _order.paymentMethod,
+                      ),
+                    if (_order.finderNote.trim().isNotEmpty)
+                      _InfoRow(label: 'Finder note', value: _order.finderNote),
+                    if (_order.serviceInputs.isNotEmpty) ...[
+                      const Divider(height: 22),
+                      Text(
+                        'Service inputs from finder',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ..._order.serviceInputs.entries.map(
+                        (entry) =>
+                            _InfoRow(label: entry.key, value: entry.value),
+                      ),
+                    ],
                     const Divider(height: 22),
-                    Row(
-                      children: [
-                        Text(
-                          'Booking Cost',
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '\$ ${_order.total.toStringAsFixed(0)}',
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+                    _AmountRow(label: 'Sub Total', amount: _order.subtotal),
+                    _AmountRow(
+                      label: 'Processing fee',
+                      amount: _order.processingFee,
+                    ),
+                    _AmountRow(
+                      label: 'Promo discount',
+                      amount: -_order.discount,
+                    ),
+                    const SizedBox(height: 4),
+                    _AmountRow(
+                      label: 'Booking Cost',
+                      amount: _order.total,
+                      bold: true,
                     ),
                   ],
                 ),
@@ -134,9 +181,11 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
                 status: _order.state,
                 onAccept: () => _updateStatus(ProviderOrderState.onTheWay),
                 onDecline: () => _updateStatus(ProviderOrderState.declined),
-                onMarkOnTheWay: () => _updateStatus(ProviderOrderState.onTheWay),
+                onMarkOnTheWay: () =>
+                    _updateStatus(ProviderOrderState.onTheWay),
                 onMarkStarted: () => _updateStatus(ProviderOrderState.started),
-                onMarkCompleted: () => _updateStatus(ProviderOrderState.completed),
+                onMarkCompleted: () =>
+                    _updateStatus(ProviderOrderState.completed),
               ),
               const SizedBox(height: 10),
               PrimaryButton(
@@ -172,6 +221,13 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
         return 'Declined';
     }
   }
+
+  String _resolvedAddressLink(ProviderOrderItem order) {
+    final direct = order.addressLink.trim();
+    if (direct.isNotEmpty) return direct;
+    final query = Uri.encodeComponent(order.address);
+    return 'https://maps.google.com/?q=$query';
+  }
 }
 
 class _ActionPanel extends StatelessWidget {
@@ -204,7 +260,11 @@ class _ActionPanel extends StatelessWidget {
         ),
         child: Column(
           children: [
-            const Icon(Icons.task_alt_rounded, color: AppColors.success, size: 26),
+            const Icon(
+              Icons.task_alt_rounded,
+              color: AppColors.success,
+              size: 26,
+            ),
             const SizedBox(height: 6),
             Text(
               'Order completed',
@@ -232,10 +292,7 @@ class _ActionPanel extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: PrimaryButton(
-                    label: 'Accept',
-                    onPressed: onAccept,
-                  ),
+                  child: PrimaryButton(label: 'Accept', onPressed: onAccept),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -248,10 +305,7 @@ class _ActionPanel extends StatelessWidget {
               ],
             ),
           ] else if (status == ProviderOrderState.onTheWay) ...[
-            PrimaryButton(
-              label: 'Mark Started',
-              onPressed: onMarkStarted,
-            ),
+            PrimaryButton(label: 'Mark Started', onPressed: onMarkStarted),
             const SizedBox(height: 10),
             PrimaryButton(
               label: 'Mark Complete',
@@ -259,10 +313,7 @@ class _ActionPanel extends StatelessWidget {
               isOutlined: true,
             ),
           ] else if (status == ProviderOrderState.started) ...[
-            PrimaryButton(
-              label: 'Mark Complete',
-              onPressed: onMarkCompleted,
-            ),
+            PrimaryButton(label: 'Mark Complete', onPressed: onMarkCompleted),
           ],
         ],
       ),
@@ -293,14 +344,15 @@ class _StatusStepper extends StatelessWidget {
                       color: i == 0
                           ? Colors.transparent
                           : reached
-                              ? AppColors.primary
-                              : AppColors.divider,
+                          ? AppColors.primary
+                          : AppColors.divider,
                     ),
                   ),
                   CircleAvatar(
                     radius: 11,
-                    backgroundColor:
-                        reached ? AppColors.primary : AppColors.divider,
+                    backgroundColor: reached
+                        ? AppColors.primary
+                        : AppColors.divider,
                     child: Icon(
                       Icons.check_rounded,
                       size: 14,
@@ -313,8 +365,8 @@ class _StatusStepper extends StatelessWidget {
                       color: i == steps.length - 1
                           ? Colors.transparent
                           : (i < index)
-                              ? AppColors.primary
-                              : AppColors.divider,
+                          ? AppColors.primary
+                          : AppColors.divider,
                     ),
                   ),
                 ],
@@ -365,10 +417,7 @@ class _InfoRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -378,6 +427,38 @@ class _InfoRow extends StatelessWidget {
                 color: AppColors.primary,
                 fontWeight: FontWeight.w600,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AmountRow extends StatelessWidget {
+  final String label;
+  final double amount;
+  final bool bold;
+
+  const _AmountRow({
+    required this.label,
+    required this.amount,
+    this.bold = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          const Spacer(),
+          Text(
+            '\$${amount.toStringAsFixed(0)}',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: bold ? AppColors.primary : AppColors.textPrimary,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ],

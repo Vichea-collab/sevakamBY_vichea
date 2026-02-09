@@ -47,9 +47,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: ListView(
             children: [
-              const AppTopBar(
-                title: 'Payment',
-              ),
+              const AppTopBar(title: 'Payment'),
               const SizedBox(height: 14),
               Text(
                 'Select Payment method',
@@ -74,7 +72,8 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                 label: 'Cash',
                 icon: Icons.payments_outlined,
                 selected: _selectedMethod == PaymentMethod.cash,
-                onTap: () => setState(() => _selectedMethod = PaymentMethod.cash),
+                onTap: () =>
+                    setState(() => _selectedMethod = PaymentMethod.cash),
               ),
               const SizedBox(height: 14),
               TextField(
@@ -84,6 +83,61 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                   prefixIcon: Icon(Icons.local_offer_outlined),
                 ),
                 onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Order Summary',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _InfoRow(label: 'Service', value: draft.serviceName),
+                    _InfoRow(label: 'Provider', value: draft.provider.name),
+                    _InfoRow(
+                      label: 'Date',
+                      value: _dateLabel(draft.preferredDate),
+                    ),
+                    _InfoRow(
+                      label: 'Time slot',
+                      value: draft.preferredTimeSlot,
+                    ),
+                    _InfoRow(
+                      label: 'Duration',
+                      value: '${draft.hours} hour(s)',
+                    ),
+                    _InfoRow(label: 'Workers', value: '${draft.workers}'),
+                    _InfoRow(
+                      label: 'Home type',
+                      value: _homeTypeLabel(draft.homeType),
+                    ),
+                    _InfoRow(
+                      label: 'Address',
+                      value:
+                          '${draft.address?.street ?? ''}, ${draft.address?.city ?? ''}',
+                    ),
+                    if (draft.additionalService.trim().isNotEmpty)
+                      _InfoRow(
+                        label: 'Additional service',
+                        value: draft.additionalService,
+                      ),
+                    _InfoRow(
+                      label: 'Payment method',
+                      value: _paymentLabel(_selectedMethod),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               Container(
@@ -96,9 +150,14 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                 child: Column(
                   children: [
                     _AmountRow(label: 'Sub Total', amount: draft.subtotal),
-                    _AmountRow(label: 'Processing fee', amount: draft.processingFee),
                     _AmountRow(
-                      label: 'Promo code (20% OFF)',
+                      label: 'Processing fee',
+                      amount: draft.processingFee,
+                    ),
+                    _AmountRow(
+                      label: draft.promoCode.trim().isEmpty
+                          ? 'Promo code'
+                          : 'Promo code (${draft.promoCode.trim()})',
                       amount: -draft.discount,
                     ),
                     const Divider(height: 20),
@@ -132,6 +191,34 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
       slideFadeRoute(BookingConfirmationPage(order: order)),
     );
   }
+
+  String _paymentLabel(PaymentMethod method) {
+    switch (method) {
+      case PaymentMethod.creditCard:
+        return 'Credit Card';
+      case PaymentMethod.bankAccount:
+        return 'Bank account';
+      case PaymentMethod.cash:
+        return 'Cash';
+    }
+  }
+
+  String _homeTypeLabel(HomeType value) {
+    switch (value) {
+      case HomeType.apartment:
+        return 'Apartment';
+      case HomeType.flat:
+        return 'Flat';
+      case HomeType.villa:
+        return 'Villa';
+      case HomeType.office:
+        return 'Office';
+    }
+  }
+
+  String _dateLabel(DateTime date) {
+    return MaterialLocalizations.of(context).formatMediumDate(date);
+  }
 }
 
 class _AmountRow extends StatelessWidget {
@@ -156,9 +243,9 @@ class _AmountRow extends StatelessWidget {
           Text(
             '\$${amount.toStringAsFixed(0)}',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: bold ? AppColors.primary : AppColors.textPrimary,
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-                ),
+              color: bold ? AppColors.primary : AppColors.textPrimary,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -190,7 +277,9 @@ class _PaymentTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? const Color(0xFFDCEBFF) : Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: selected ? AppColors.primary : AppColors.divider),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.divider,
+          ),
         ),
         child: Row(
           children: [
@@ -203,6 +292,39 @@ class _PaymentTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

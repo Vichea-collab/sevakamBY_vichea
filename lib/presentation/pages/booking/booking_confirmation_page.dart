@@ -11,7 +11,8 @@ class BookingConfirmationPage extends StatefulWidget {
   const BookingConfirmationPage({super.key, required this.order});
 
   @override
-  State<BookingConfirmationPage> createState() => _BookingConfirmationPageState();
+  State<BookingConfirmationPage> createState() =>
+      _BookingConfirmationPageState();
 }
 
 class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
@@ -60,7 +61,9 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                                 children: [
                                   Text(
                                     'Booking Confirmation',
-                                    style: Theme.of(context).textTheme.titleMedium
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
                                         ?.copyWith(
                                           color: AppColors.primary,
                                           fontWeight: FontWeight.w700,
@@ -71,7 +74,9 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                                     '${order.address.street}, ${order.address.city}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                     textAlign: TextAlign.center,
                                   ),
                                 ],
@@ -111,10 +116,11 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                           Text(
                             'Thanks, your booking has been confirmed.',
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                           const SizedBox(height: 10),
                           Center(
@@ -132,7 +138,9 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                                   ),
                                   TextSpan(
                                     text: 'Projects',
-                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                   TextSpan(text: ' to review your booking.'),
                                 ],
@@ -143,16 +151,18 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                           const SizedBox(height: 28),
                           Text(
                             'Service Details',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                           const SizedBox(height: 12),
                           _ServiceDetailCard(
                             order: order,
                             expanded: _expanded,
-                            onToggle: () => setState(() => _expanded = !_expanded),
+                            onToggle: () =>
+                                setState(() => _expanded = !_expanded),
                           ),
                           const SizedBox(height: 16),
                           Row(
@@ -245,9 +255,9 @@ class _ServiceDetailCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     order.serviceName,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.primary,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(color: AppColors.primary),
                   ),
                 ),
                 Icon(
@@ -273,6 +283,13 @@ class _ServiceDetailCard extends StatelessWidget {
             const Divider(height: 1),
             const SizedBox(height: 10),
             _InfoSingleRow(label: 'Skillr', value: order.provider.name),
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            _InfoSingleRow(
+              label: 'Payment method',
+              value: _paymentLabel(order.paymentMethod),
+            ),
             const SizedBox(height: 10),
             const Divider(height: 1),
             const SizedBox(height: 10),
@@ -349,6 +366,17 @@ class _ServiceDetailCard extends StatelessWidget {
     final query = Uri.encodeComponent('${address.street}, ${address.city}');
     return 'https://maps.google.com/?q=$query';
   }
+
+  static String _paymentLabel(PaymentMethod method) {
+    switch (method) {
+      case PaymentMethod.creditCard:
+        return 'Credit Card';
+      case PaymentMethod.bankAccount:
+        return 'Bank account';
+      case PaymentMethod.cash:
+        return 'Cash';
+    }
+  }
 }
 
 class _InfoSingleRow extends StatelessWidget {
@@ -362,10 +390,7 @@ class _InfoSingleRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
+        Text(label, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 2),
         Text(
           value,

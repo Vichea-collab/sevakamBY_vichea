@@ -36,6 +36,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
     _preferredDate = widget.draft.preferredDate;
     _preferredTime = widget.draft.preferredTimeSlot;
     _selectedService = widget.draft.serviceName;
+    _applyGeneralDetailDefaultsForService();
     _validateService();
   }
 
@@ -63,9 +64,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
           ),
           child: ListView(
             children: [
-              AppTopBar(
-                title: draft.categoryName,
-              ),
+              AppTopBar(title: draft.categoryName),
               const SizedBox(height: 12),
               _ProviderCard(draft: draft),
               const SizedBox(height: 16),
@@ -118,7 +117,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
               _SectionHeader(title: 'General Details'),
               const SizedBox(height: 8),
               Text(
-                'How many hours do you need worker to stay?*',
+                _hoursQuestionLabel,
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(color: AppColors.primary),
@@ -130,14 +129,14 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Unsure about the hours to choose? Click here.',
+                _hoursHelpLabel,
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: AppColors.primary),
               ),
               const SizedBox(height: 16),
               Text(
-                'What is the type of your home?*',
+                _homeTypeQuestionLabel,
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(color: AppColors.primary),
@@ -147,18 +146,20 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
                 label: _homeTypeLabel(_homeType),
                 onTap: _pickHomeType,
               ),
-              const SizedBox(height: 16),
-              Text(
-                'How many workers do you need?*',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(color: AppColors.primary),
-              ),
-              const SizedBox(height: 8),
-              _PickerField(
-                label: '$_workers worker${_workers > 1 ? 's' : ''}',
-                onTap: _pickWorkers,
-              ),
+              if (_allowWorkersInput) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'How many workers do you need?*',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: AppColors.primary),
+                ),
+                const SizedBox(height: 8),
+                _PickerField(
+                  label: '$_workers worker${_workers > 1 ? 's' : ''}',
+                  onTap: _pickWorkers,
+                ),
+              ],
             ],
           ),
         ),
@@ -214,6 +215,45 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
     _serviceError = supported
         ? null
         : '${widget.draft.provider.name} does not offer this service. Please choose another.';
+  }
+
+  bool get _isCleaningService {
+    const cleaningServices = {
+      'House Cleaning',
+      'Office Cleaning',
+      'Move-in Cleaning',
+      'Move-in / Move-out Cleaning',
+    };
+    return cleaningServices.contains(_selectedService);
+  }
+
+  bool get _allowWorkersInput => _isCleaningService;
+
+  String get _hoursQuestionLabel {
+    return _isCleaningService
+        ? 'How many hours do you need worker to stay?*'
+        : 'Estimated service duration*';
+  }
+
+  String get _hoursHelpLabel {
+    return _isCleaningService
+        ? 'Unsure about the hours to choose? Click here.'
+        : 'For most repair jobs, 1-2 hours is usually enough.';
+  }
+
+  String get _homeTypeQuestionLabel {
+    return _isCleaningService
+        ? 'What is the type of your home?*'
+        : 'What is the property type?*';
+  }
+
+  void _applyGeneralDetailDefaultsForService() {
+    if (_isCleaningService) {
+      if (_workers < 1) _workers = 1;
+      return;
+    }
+    if (_hours > 4) _hours = 2;
+    _workers = 1;
   }
 
   Future<void> _pickDate() async {
@@ -291,29 +331,32 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
                                 children: [
                                   Text(
                                     _weekdayShort(date),
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium?.copyWith(
-                                      color: AppColors.textSecondary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.textSecondary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                   ),
                                   Text(
                                     '${date.day}',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleLarge?.copyWith(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 28,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          color: AppColors.textPrimary,
+                                          fontSize: 28,
+                                        ),
                                   ),
                                   Text(
                                     _monthShort(date),
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium?.copyWith(
-                                      color: AppColors.textSecondary,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
                                   ),
                                 ],
                               ),
@@ -345,11 +388,8 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
       options: MockData.scheduleTimeOptions,
       selected: _preferredTime,
       labelBuilder: (item) => item,
-      iconBuilder: (item) => const Icon(
-        Icons.access_time,
-        size: 16,
-        color: AppColors.primary,
-      ),
+      iconBuilder: (item) =>
+          const Icon(Icons.access_time, size: 16, color: AppColors.primary),
     );
     if (picked == null) return;
     setState(() => _preferredTime = picked);
@@ -370,6 +410,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
     if (picked == null) return;
     setState(() {
       _selectedService = picked;
+      _applyGeneralDetailDefaultsForService();
       _validateService();
     });
   }
@@ -377,7 +418,9 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   Future<void> _pickHours() async {
     final picked = await _showOptionSheet<int>(
       title: 'How many hours?',
-      options: MockData.bookingHourOptions,
+      options: _isCleaningService
+          ? MockData.bookingHourOptions
+          : const [1, 2, 3, 4],
       selected: _hours,
       labelBuilder: (item) => '$item hour${item > 1 ? 's' : ''}',
       iconBuilder: (item) => const Icon(
@@ -412,16 +455,14 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   }
 
   Future<void> _pickWorkers() async {
+    if (!_allowWorkersInput) return;
     final picked = await _showOptionSheet<int>(
       title: 'How many workers?',
       options: MockData.workerCountOptions,
       selected: _workers,
       labelBuilder: (item) => '$item worker${item > 1 ? 's' : ''}',
-      iconBuilder: (item) => const Icon(
-        Icons.groups_outlined,
-        size: 17,
-        color: AppColors.primary,
-      ),
+      iconBuilder: (item) =>
+          const Icon(Icons.groups_outlined, size: 17, color: AppColors.primary),
     );
     if (picked == null) return;
     setState(() => _workers = picked);
@@ -495,11 +536,12 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
                                   Expanded(
                                     child: Text(
                                       labelBuilder(option),
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyLarge?.copyWith(
-                                        color: AppColors.textPrimary,
-                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            color: AppColors.textPrimary,
+                                          ),
                                     ),
                                   ),
                                   AnimatedOpacity(
