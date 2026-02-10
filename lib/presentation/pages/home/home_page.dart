@@ -3,6 +3,8 @@ import '../../../core/utils/page_transition.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../data/mock/mock_data.dart';
+import '../../../domain/entities/profile_settings.dart';
+import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/category_chip.dart';
 import '../../widgets/pressable_scale.dart';
@@ -149,124 +151,136 @@ class _TopHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.splashStart, AppColors.splashEnd],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return ValueListenableBuilder<ProfileFormData>(
+      valueListenable: ProfileSettingsState.finderProfile,
+      builder: (context, profile, _) {
+        final displayName = profile.name.trim().isEmpty
+            ? 'Service Finder'
+            : profile.name.trim();
+        final city = profile.city.trim().isEmpty
+            ? 'Phnom Penh'
+            : profile.city.trim();
+        return Container(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppColors.splashStart, AppColors.splashEnd],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(20),
+              bottomRight: Radius.circular(20),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 230),
-                  shape: BoxShape.circle,
-                ),
-                child: const CircleAvatar(
-                  radius: 19,
-                  backgroundImage: AssetImage('assets/images/profile.jpg'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome back',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 230),
+                      shape: BoxShape.circle,
                     ),
-                    Text(
-                      'Eang Kimheng',
-                      style: Theme.of(
+                    child: const CircleAvatar(
+                      radius: 19,
+                      backgroundImage: AssetImage('assets/images/profile.jpg'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome back',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Colors.white70),
+                        ),
+                        Text(
+                          displayName,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PressableScale(
+                    onTap: () => Navigator.push(
+                      context,
+                      slideFadeRoute(const ChatListPage()),
+                    ),
+                    child: InkWell(
+                      onTap: () => Navigator.push(
                         context,
-                      ).textTheme.titleMedium?.copyWith(color: Colors.white),
+                        slideFadeRoute(const ChatListPage()),
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        height: 34,
+                        width: 34,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryDark,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x20000000),
+                              blurRadius: 6,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.message_outlined,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x18000000),
+                      blurRadius: 6,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 16,
+                      color: AppColors.primaryDark,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      city,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.primaryDark,
+                      ),
                     ),
                   ],
                 ),
               ),
-              PressableScale(
-                onTap: () => Navigator.push(
-                  context,
-                  slideFadeRoute(const ChatListPage()),
-                ),
-                child: InkWell(
-                  onTap: () => Navigator.push(
-                    context,
-                    slideFadeRoute(const ChatListPage()),
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    height: 34,
-                    width: 34,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryDark,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x20000000),
-                          blurRadius: 6,
-                          offset: Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.message_outlined,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x18000000),
-                  blurRadius: 6,
-                  offset: Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  size: 16,
-                  color: AppColors.primaryDark,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Phnom Penh',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.primaryDark,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

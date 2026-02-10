@@ -9,6 +9,7 @@ class FinderPostItem {
   final String service;
   final String location;
   final String avatarPath;
+  final DateTime? preferredDate;
 
   const FinderPostItem({
     required this.id,
@@ -19,6 +20,7 @@ class FinderPostItem {
     required this.service,
     required this.location,
     required this.avatarPath,
+    this.preferredDate,
   });
 }
 

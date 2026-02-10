@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../widgets/app_bottom_nav.dart';
@@ -54,17 +55,15 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage> {
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             children: [
-              const AppTopBar(
-                title: 'Provider Orders',
-                showBack: false,
-              ),
+              const AppTopBar(title: 'Provider Orders', showBack: false),
               const SizedBox(height: 12),
               Row(
                 children: [
                   _TabChip(
                     label: 'Incoming',
                     active: _tab == ProviderOrderTab.incoming,
-                    onTap: () => setState(() => _tab = ProviderOrderTab.incoming),
+                    onTap: () =>
+                        setState(() => _tab = ProviderOrderTab.incoming),
                   ),
                   const SizedBox(width: 8),
                   _TabChip(
@@ -76,7 +75,8 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage> {
                   _TabChip(
                     label: 'Completed',
                     active: _tab == ProviderOrderTab.completed,
-                    onTap: () => setState(() => _tab = ProviderOrderTab.completed),
+                    onTap: () =>
+                        setState(() => _tab = ProviderOrderTab.completed),
                   ),
                 ],
               ),
@@ -114,9 +114,7 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage> {
   Future<void> _openOrder(ProviderOrderItem item) async {
     final updated = await Navigator.push<ProviderOrderItem>(
       context,
-      MaterialPageRoute(
-        builder: (_) => ProviderOrderDetailPage(order: item),
-      ),
+      MaterialPageRoute(builder: (_) => ProviderOrderDetailPage(order: item)),
     );
     if (updated == null) return;
     _replace(updated);
@@ -140,9 +138,7 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage> {
 
   void _decline(ProviderOrderItem item) {
     _replace(item.copyWith(state: ProviderOrderState.declined));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Order ${item.id} declined.')),
-    );
+    AppToast.warning(context, 'Order ${item.id} declined.');
   }
 }
 
@@ -258,10 +254,7 @@ class _ProviderOrderCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: PrimaryButton(
-                      label: 'Accept',
-                      onPressed: onAccept,
-                    ),
+                    child: PrimaryButton(label: 'Accept', onPressed: onAccept),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -296,30 +289,30 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, bg, fg) = switch (state) {
       ProviderOrderState.incoming => (
-          'Incoming',
-          const Color(0xFFFFF4E5),
-          const Color(0xFFD97706),
-        ),
+        'Incoming',
+        const Color(0xFFFFF4E5),
+        const Color(0xFFD97706),
+      ),
       ProviderOrderState.onTheWay => (
-          'On the way',
-          const Color(0xFFEAF1FF),
-          AppColors.primary,
-        ),
+        'On the way',
+        const Color(0xFFEAF1FF),
+        AppColors.primary,
+      ),
       ProviderOrderState.started => (
-          'Started',
-          const Color(0xFFE9FDF4),
-          AppColors.success,
-        ),
+        'Started',
+        const Color(0xFFE9FDF4),
+        AppColors.success,
+      ),
       ProviderOrderState.completed => (
-          'Completed',
-          const Color(0xFFE9FDF4),
-          AppColors.success,
-        ),
+        'Completed',
+        const Color(0xFFE9FDF4),
+        AppColors.success,
+      ),
       ProviderOrderState.declined => (
-          'Declined',
-          const Color(0xFFFFEFEF),
-          AppColors.danger,
-        ),
+        'Declined',
+        const Color(0xFFFFEFEF),
+        AppColors.danger,
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -329,10 +322,9 @@ class _StatusPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: fg,
-          fontWeight: FontWeight.w700,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: fg, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -353,9 +345,9 @@ class _EmptyState extends StatelessWidget {
     return Center(
       child: Text(
         label,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          color: AppColors.textSecondary,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
       ),
     );
   }

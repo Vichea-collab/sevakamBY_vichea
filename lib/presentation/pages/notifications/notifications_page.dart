@@ -39,7 +39,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
       ),
       const _NotificationUpdate(
         title: 'Confirm Order',
-        description: 'We have added items in your order. Please check and confirm.',
+        description:
+            'We have added items in your order. Please check and confirm.',
         timeLabel: '2 hrs ago',
         icon: Icons.verified_user_outlined,
         iconColor: Color(0xFF7C6EF2),
@@ -48,7 +49,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
       ),
       const _NotificationUpdate(
         title: 'Announcement',
-        description: 'Our service will be down tomorrow for planned maintenance.',
+        description:
+            'Our service will be down tomorrow for planned maintenance.',
         timeLabel: '2 hrs ago',
         icon: Icons.campaign_outlined,
         iconColor: Color(0xFF4B5563),
@@ -83,17 +85,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
         .where(
           (item) =>
               _filter == _NoticeFilter.all ||
-              _filter == _NoticeFilter.orders && item.kind == _NoticeFilter.orders ||
-              _filter == _NoticeFilter.system && item.kind == _NoticeFilter.system,
+              _filter == _NoticeFilter.orders &&
+                  item.kind == _NoticeFilter.orders ||
+              _filter == _NoticeFilter.system &&
+                  item.kind == _NoticeFilter.system,
         )
         .toList();
 
     final visiblePromos = _promos
-        .where((_) => _filter == _NoticeFilter.all || _filter == _NoticeFilter.promos)
+        .where(
+          (_) =>
+              _filter == _NoticeFilter.all || _filter == _NoticeFilter.promos,
+        )
         .toList();
 
-    final unreadCount = _updates.where((item) => item.unread).length +
+    final unreadCount =
+        _updates.where((item) => item.unread).length +
         _promos.where((item) => item.unread).length;
+    final totalCount = _updates.length + _promos.length;
 
     return Scaffold(
       body: SafeArea(
@@ -121,7 +130,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
               ],
             ),
             const SizedBox(height: 12),
-            _HeroCard(unreadCount: unreadCount),
+            _HeroCard(unreadCount: unreadCount, totalCount: totalCount),
             const SizedBox(height: 14),
             SizedBox(
               height: 40,
@@ -155,9 +164,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
             if (visibleUpdates.isNotEmpty) ...[
               Text(
                 'Recent Updates',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(color: AppColors.textPrimary),
               ),
               const SizedBox(height: 10),
               Container(
@@ -182,9 +191,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
             if (visiblePromos.isNotEmpty) ...[
               Text(
                 'Promotions',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(color: AppColors.textPrimary),
               ),
               const SizedBox(height: 10),
               Container(
@@ -207,7 +216,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
             ],
             if (visibleUpdates.isEmpty && visiblePromos.isEmpty)
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 34,
+                  horizontal: 16,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -233,7 +245,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
           ],
         ),
       ),
-      bottomNavigationBar: const AppBottomNav(current: AppBottomTab.notification),
+      bottomNavigationBar: const AppBottomNav(
+        current: AppBottomTab.notification,
+      ),
     );
   }
 
@@ -247,7 +261,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
   void _markUpdateAsRead(String title) {
     setState(() {
       _updates = _updates
-          .map((item) => item.title == title ? item.copyWith(unread: false) : item)
+          .map(
+            (item) => item.title == title ? item.copyWith(unread: false) : item,
+          )
           .toList();
     });
   }
@@ -255,7 +271,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
   void _markPromoAsRead(String title) {
     setState(() {
       _promos = _promos
-          .map((item) => item.title == title ? item.copyWith(unread: false) : item)
+          .map(
+            (item) => item.title == title ? item.copyWith(unread: false) : item,
+          )
           .toList();
     });
   }
@@ -273,8 +291,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
 class _HeroCard extends StatelessWidget {
   final int unreadCount;
+  final int totalCount;
 
-  const _HeroCard({required this.unreadCount});
+  const _HeroCard({required this.unreadCount, required this.totalCount});
 
   @override
   Widget build(BuildContext context) {
@@ -303,8 +322,8 @@ class _HeroCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Finder Noti',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  unreadCount == 0 ? 'You are all caught up' : 'Inbox Summary',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
                   ),
@@ -312,40 +331,64 @@ class _HeroCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   unreadCount == 0
-                      ? 'All caught up'
-                      : '$unreadCount unread notification${unreadCount > 1 ? 's' : ''}',
+                      ? '$totalCount notification${totalCount > 1 ? 's' : ''} reviewed'
+                      : '$unreadCount unread notification${unreadCount > 1 ? 's' : ''} out of $totalCount',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Colors.white.withValues(alpha: 0.86),
                   ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _SummaryPill(label: 'Unread', value: '$unreadCount'),
+                    _SummaryPill(label: 'Total', value: '$totalCount'),
+                  ],
                 ),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(100),
+              color: Colors.white.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
             ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.notifications_active_outlined,
-                  color: Colors.white,
-                  size: 16,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '$unreadCount',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.notifications_active_outlined,
+              color: Colors.white,
+              size: 22,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SummaryPill extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SummaryPill({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Text(
+        '$label: $value',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -443,10 +486,11 @@ class _UpdateTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             item.title,
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                         ),
                         Container(
@@ -464,7 +508,10 @@ class _UpdateTile extends StatelessWidget {
                           color: AppColors.textSecondary,
                         ),
                         const SizedBox(width: 4),
-                        Text(item.timeLabel, style: Theme.of(context).textTheme.bodyMedium),
+                        Text(
+                          item.timeLabel,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -525,7 +572,10 @@ class _PromoTile extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: item.trailingColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(100),

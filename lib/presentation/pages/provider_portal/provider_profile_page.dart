@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../state/app_role_state.dart';
+import '../../state/auth_state.dart';
 import '../../state/profile_image_state.dart';
+import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
@@ -193,6 +195,8 @@ class ProviderProfilePage extends StatelessWidget {
     );
     if (shouldLogout != true || !context.mounted) return;
 
+    await AuthState.signOut();
+    if (!context.mounted) return;
     AppRoleState.setProvider(true);
     Navigator.pushNamedAndRemoveUntil(
       context,
@@ -245,69 +249,79 @@ class _ProviderHero extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Kimheng',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    shadows: const [
-                      Shadow(
-                        color: Color(0x66000000),
-                        blurRadius: 6,
-                        offset: Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3D6),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFFFD88A)),
-                  ),
-                  child: Text(
-                    'Electrician',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: const Color(0xFF8A5A00),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Row(
+            child: ValueListenableBuilder(
+              valueListenable: ProfileSettingsState.providerProfile,
+              builder: (context, profile, _) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.star_rounded,
-                      color: Color(0xFFF59E0B),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 4),
                     Text(
-                      '3.9',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      profile.name.trim().isEmpty
+                          ? 'Provider'
+                          : profile.name.trim(),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         shadows: const [
                           Shadow(
                             color: Color(0x66000000),
-                            blurRadius: 4,
+                            blurRadius: 6,
                             offset: Offset(0, 1),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3D6),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFFD88A)),
+                      ),
+                      child: Text(
+                        profile.city.trim().isEmpty
+                            ? 'Provider'
+                            : profile.city.trim(),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF8A5A00),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.star_rounded,
+                          color: Color(0xFFF59E0B),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '3.9',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                shadows: const [
+                                  Shadow(
+                                    color: Color(0x66000000),
+                                    blurRadius: 4,
+                                    offset: Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                        ),
+                      ],
+                    ),
                   ],
-                ),
-              ],
+                );
+              },
             ),
           ),
           Container(

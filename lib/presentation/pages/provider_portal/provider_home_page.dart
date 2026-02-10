@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
-import '../../../data/mock/mock_data.dart';
+import '../../../domain/entities/profile_settings.dart';
 import '../../../domain/entities/provider_portal.dart';
+import '../../state/finder_post_state.dart';
+import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/pressable_scale.dart';
 import '../chat/chat_list_page.dart';
@@ -28,67 +31,109 @@ class _ProviderPortalHomePageState extends State<ProviderPortalHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final allPosts = MockData.finderPosts;
-    final query = _searchController.text.trim().toLowerCase();
-    final posts = query.isEmpty
-        ? allPosts
-        : allPosts.where((post) {
-            return post.clientName.toLowerCase().contains(query) ||
-                post.service.toLowerCase().contains(query) ||
-                post.location.toLowerCase().contains(query) ||
-                post.category.toLowerCase().contains(query) ||
-                post.message.toLowerCase().contains(query);
-          }).toList();
+    return ValueListenableBuilder<List<FinderPostItem>>(
+      valueListenable: FinderPostState.posts,
+      builder: (context, allPosts, _) {
+        final query = _searchController.text.trim().toLowerCase();
+        final posts = query.isEmpty
+            ? allPosts
+            : allPosts.where((post) {
+                return post.clientName.toLowerCase().contains(query) ||
+                    post.service.toLowerCase().contains(query) ||
+                    post.location.toLowerCase().contains(query) ||
+                    post.category.toLowerCase().contains(query) ||
+                    post.message.toLowerCase().contains(query);
+              }).toList();
 
-    return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.xl,
-          ),
-          children: [
-            _ProviderTopHeader(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 18),
-            Row(
+        return Scaffold(
+          body: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.xl,
+              ),
               children: [
-                Text(
-                  'Finder Requests',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
+                _ProviderTopHeader(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
                 ),
-                const Spacer(),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Text(
+                      'Finder Requests',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${posts.length} results',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
                 Text(
-                  '${posts.length} results',
+                  'Search by client name, service, or location',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
                   ),
                 ),
+                const SizedBox(height: 12),
+                if (posts.isEmpty)
+                  _EmptySearch(query: _searchController.text.trim())
+                else
+                  ...posts.map((post) => _FinderPostTile(post: post)),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Search by client name, service, or location',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (posts.isEmpty)
-              _EmptySearch(query: _searchController.text.trim())
-            else
-              ...posts.map((post) => _FinderPostTile(post: post)),
-          ],
-        ),
+          ),
+          bottomNavigationBar: const AppBottomNav(current: AppBottomTab.home),
+        );
+      },
+    );
+  }
+}
+
+class _PreferredDatePill extends StatelessWidget {
+  final DateTime preferredDate;
+
+  const _PreferredDatePill({required this.preferredDate});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(preferredDate);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF7F0),
+        borderRadius: BorderRadius.circular(14),
       ),
-      bottomNavigationBar: const AppBottomNav(current: AppBottomTab.home),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.event_available_rounded,
+            size: 13,
+            color: AppColors.success,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'Preferred: $label',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.success,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -97,179 +142,199 @@ class _ProviderTopHeader extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
 
-  const _ProviderTopHeader({
-    required this.controller,
-    required this.onChanged,
-  });
+  const _ProviderTopHeader({required this.controller, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.splashStart, AppColors.splashEnd],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.all(Radius.circular(20)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return ValueListenableBuilder<ProfileFormData>(
+      valueListenable: ProfileSettingsState.providerProfile,
+      builder: (context, profile, _) {
+        final displayName = profile.name.trim().isEmpty
+            ? 'Service Provider'
+            : profile.name.trim();
+        final city = profile.city.trim().isEmpty
+            ? 'Phnom Penh'
+            : profile.city.trim();
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppColors.splashStart, AppColors.splashEnd],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 235),
-                  shape: BoxShape.circle,
-                ),
-                child: const CircleAvatar(
-                  radius: 19,
-                  backgroundImage: AssetImage('assets/images/profile.jpg'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome back',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 220),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 235),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const CircleAvatar(
+                      radius: 19,
+                      backgroundImage: AssetImage('assets/images/profile.jpg'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome back',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Colors.white.withValues(alpha: 220),
+                              ),
+                        ),
+                        Text(
+                          displayName,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PressableScale(
+                    onTap: () => Navigator.push(
+                      context,
+                      slideFadeRoute(const ChatListPage()),
+                    ),
+                    child: InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        slideFadeRoute(const ChatListPage()),
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        height: 34,
+                        width: 34,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryDark,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x20000000),
+                              blurRadius: 6,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.message_outlined,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ),
                     ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x18000000),
+                      blurRadius: 6,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 16,
+                      color: AppColors.primaryDark,
+                    ),
+                    const SizedBox(width: 6),
                     Text(
-                      'Eang Kimheng',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
+                      city,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.primaryDark,
                       ),
                     ),
                   ],
                 ),
               ),
-              PressableScale(
-                onTap: () => Navigator.push(
-                  context,
-                  slideFadeRoute(const ChatListPage()),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
                 ),
-                child: InkWell(
-                  onTap: () => Navigator.push(
-                    context,
-                    slideFadeRoute(const ChatListPage()),
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    height: 34,
-                    width: 34,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryDark,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x20000000),
-                          blurRadius: 6,
-                          offset: Offset(0, 3),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.divider),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x12000000),
+                      blurRadius: 12,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, color: AppColors.textSecondary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        onChanged: onChanged,
+                        decoration: const InputDecoration(
+                          hintText: 'Search name, service, location',
+                          border: InputBorder.none,
+                          isCollapsed: true,
                         ),
-                      ],
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.message_outlined,
-                      color: Colors.white,
-                      size: 18,
+                    const SizedBox(width: 10),
+                    Container(
+                      height: 36,
+                      width: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x22000000),
+                            blurRadius: 8,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.tune,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x18000000),
-                  blurRadius: 6,
-                  offset: Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  size: 16,
-                  color: AppColors.primaryDark,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Phnom Penh',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.primaryDark,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.divider),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x12000000),
-                  blurRadius: 12,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.search, color: AppColors.textSecondary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    onChanged: onChanged,
-                    decoration: const InputDecoration(
-                      hintText: 'Search name, service, location',
-                      border: InputBorder.none,
-                      isCollapsed: true,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  height: 36,
-                  width: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x22000000),
-                        blurRadius: 8,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.tune, color: Colors.white, size: 18),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -282,9 +347,7 @@ class _FinderPostTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PressableScale(
-      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Open request: ${post.service}')),
-      ),
+      onTap: () => AppToast.info(context, 'Open request: ${post.service}'),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(13),
@@ -317,10 +380,11 @@ class _FinderPostTile extends StatelessWidget {
                       Expanded(
                         child: Text(
                           post.clientName,
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
                         ),
                       ),
                       Container(
@@ -364,6 +428,8 @@ class _FinderPostTile extends StatelessWidget {
                       _MetaPill(text: post.category),
                       _MetaPill(text: post.service),
                       _MetaPill(text: post.location),
+                      if (post.preferredDate != null)
+                        _PreferredDatePill(preferredDate: post.preferredDate!),
                     ],
                   ),
                 ],

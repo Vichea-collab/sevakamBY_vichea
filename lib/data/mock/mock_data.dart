@@ -56,7 +56,7 @@ class MockData {
     'Door Repair',
   ];
 
-  static const List<FinderPostItem> finderPosts = [
+  static final List<FinderPostItem> finderPosts = [
     FinderPostItem(
       id: 'fp-1',
       clientName: 'Eang Kimheng',
@@ -66,6 +66,7 @@ class MockData {
       service: 'House Cleaning',
       location: 'Toul Kork, Phnom Penh',
       avatarPath: 'assets/images/profile.jpg',
+      preferredDate: DateTime(2026, 2, 12),
     ),
     FinderPostItem(
       id: 'fp-2',
@@ -76,6 +77,7 @@ class MockData {
       service: 'Toilet Repair',
       location: 'Sen Sok, Phnom Penh',
       avatarPath: 'assets/images/profile.jpg',
+      preferredDate: DateTime(2026, 2, 13),
     ),
     FinderPostItem(
       id: 'fp-3',
@@ -86,6 +88,7 @@ class MockData {
       service: 'Wiring Repair',
       location: 'Tuol Svay Prey, Phnom Penh',
       avatarPath: 'assets/images/profile.jpg',
+      preferredDate: DateTime(2026, 2, 14),
     ),
   ];
 

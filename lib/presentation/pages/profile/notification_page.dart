@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
+import '../../../domain/entities/profile_settings.dart';
+import '../../state/profile_settings_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 
@@ -10,7 +13,8 @@ class ProfileNotificationPage extends StatefulWidget {
   const ProfileNotificationPage({super.key});
 
   @override
-  State<ProfileNotificationPage> createState() => _ProfileNotificationPageState();
+  State<ProfileNotificationPage> createState() =>
+      _ProfileNotificationPageState();
 }
 
 class _ProfileNotificationPageState extends State<ProfileNotificationPage> {
@@ -19,6 +23,18 @@ class _ProfileNotificationPageState extends State<ProfileNotificationPage> {
   bool vibrate = true;
   bool newService = false;
   bool payment = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final values = ProfileSettingsState.currentNotification;
+    general = values.general;
+    sound = values.sound;
+    vibrate = values.vibrate;
+    newService = values.newService;
+    payment = values.payment;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,12 +78,31 @@ class _ProfileNotificationPageState extends State<ProfileNotificationPage> {
                 onChanged: (v) => setState(() => payment = v),
               ),
               const SizedBox(height: 18),
-              PrimaryButton(label: 'Save', onPressed: () {}),
+              PrimaryButton(
+                label: _saving ? 'Saving...' : 'Save',
+                onPressed: _saving ? null : _save,
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await ProfileSettingsState.saveCurrentNotifications(
+      NotificationPreference(
+        general: general,
+        sound: sound,
+        vibrate: vibrate,
+        newService: newService,
+        payment: payment,
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+    AppToast.success(context, 'Notification settings saved.');
   }
 }
 

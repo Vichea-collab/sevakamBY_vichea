@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../data/mock/mock_data.dart';
+import '../../state/finder_post_state.dart';
+import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
@@ -106,9 +109,9 @@ class _ClientPostPageState extends State<ClientPostPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      _FieldLabel(label: 'Preferred date'),
-                      _PickerField(
-                        label: _dateLabel(_preferredDate),
+                      _FieldLabel(label: 'Preferred date*'),
+                      _PreferredDateField(
+                        value: _preferredDate,
                         onTap: _pickPreferredDate,
                       ),
                       const SizedBox(height: 8),
@@ -146,20 +149,24 @@ class _ClientPostPageState extends State<ClientPostPage> {
         _selectedService.isEmpty ||
         location.isEmpty ||
         details.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all fields.')),
-      );
+      AppToast.error(context, 'Please complete all fields.');
       return;
     }
     setState(() => _submitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    await FinderPostState.createFinderRequest(
+      category: _selectedCategory,
+      service: _selectedService,
+      location: location,
+      message: details,
+      preferredDate: _preferredDate,
+      fallbackClientName: ProfileSettingsState.currentProfile.name,
+    );
     if (!mounted) return;
     _detailsController.clear();
     setState(() => _submitting = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Request posted for $_selectedService in $location.'),
-      ),
+    AppToast.success(
+      context,
+      'Request posted for $_selectedService in $location.',
     );
   }
 
@@ -193,19 +200,155 @@ class _ClientPostPageState extends State<ClientPostPage> {
 
   Future<void> _pickPreferredDate() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final options = List<DateTime>.generate(
+      30,
+      (index) => DateTime(now.year, now.month, now.day + index),
+    );
+    DateTime temp = _preferredDate;
+    final picked = await showModalBottomSheet<DateTime>(
       context: context,
-      initialDate: _preferredDate,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: DateTime(now.year + 2, now.month, now.day),
-      helpText: 'Preferred date',
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Choose preferred date',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 124,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: options.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) {
+                          final date = options[index];
+                          final selected = _sameDate(temp, date);
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => setModalState(() => temp = date),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: 88,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? const Color(0xFFEAF1FF)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: selected
+                                      ? AppColors.primary
+                                      : AppColors.divider,
+                                  width: selected ? 1.6 : 1,
+                                ),
+                                boxShadow: selected
+                                    ? const [
+                                        BoxShadow(
+                                          color: Color(0x181D4ED8),
+                                          blurRadius: 14,
+                                          offset: Offset(0, 6),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Column(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _weekdayShort(date),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.textSecondary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                  Text(
+                                    '${date.day}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          color: AppColors.textPrimary,
+                                          fontSize: 28,
+                                        ),
+                                  ),
+                                  Text(
+                                    _monthShort(date),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    PrimaryButton(
+                      label: 'Apply Date',
+                      onPressed: () => Navigator.pop(context, temp),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
     if (picked == null) return;
     setState(() => _preferredDate = picked);
   }
 
-  String _dateLabel(DateTime value) {
-    return MaterialLocalizations.of(context).formatMediumDate(value);
+  bool _sameDate(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  String _weekdayShort(DateTime date) {
+    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return names[date.weekday - 1];
+  }
+
+  String _monthShort(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return months[date.month - 1];
   }
 
   Future<T?> _showOptionSheet<T>({
@@ -315,6 +458,65 @@ class _ClientPostPageState extends State<ClientPostPage> {
           },
         );
       },
+    );
+  }
+}
+
+class _PreferredDateField extends StatelessWidget {
+  final DateTime value;
+  final VoidCallback onTap;
+
+  const _PreferredDateField({required this.value, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = MaterialLocalizations.of(context).formatMediumDate(value);
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.calendar_month_rounded,
+              size: 18,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    text,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Provider will prioritize this date',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

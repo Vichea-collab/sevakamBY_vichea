@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
+import '../../../domain/entities/order.dart';
+import '../../state/profile_settings_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 
@@ -14,7 +17,14 @@ class PaymentPage extends StatefulWidget {
 }
 
 class _PaymentPageState extends State<PaymentPage> {
-  int selected = 0;
+  late PaymentMethod _selected;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = ProfileSettingsState.currentPaymentMethod;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,37 +52,55 @@ class _PaymentPageState extends State<PaymentPage> {
               _PaymentTile(
                 label: 'Credit Card',
                 icon: Icons.credit_card,
-                selected: selected == 0,
-                onTap: () => setState(() => selected = 0),
+                selected: _selected == PaymentMethod.creditCard,
+                onTap: () =>
+                    setState(() => _selected = PaymentMethod.creditCard),
               ),
               _PaymentTile(
                 label: 'Bank account',
                 icon: Icons.account_balance,
-                selected: selected == 1,
-                onTap: () => setState(() => selected = 1),
+                selected: _selected == PaymentMethod.bankAccount,
+                onTap: () =>
+                    setState(() => _selected = PaymentMethod.bankAccount),
               ),
               _PaymentTile(
                 label: 'Cash Out',
                 icon: Icons.payments_outlined,
-                selected: selected == 2,
-                onTap: () => setState(() => selected = 2),
+                selected: _selected == PaymentMethod.cash,
+                onTap: () => setState(() => _selected = PaymentMethod.cash),
               ),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    AppToast.info(
+                      context,
+                      'Card management screen can be added next.',
+                    );
+                  },
                   icon: const Icon(Icons.add),
                   label: const Text('Add new card'),
                 ),
               ),
               const SizedBox(height: 16),
-              PrimaryButton(label: 'Save', onPressed: () {}),
+              PrimaryButton(
+                label: _saving ? 'Saving...' : 'Save',
+                onPressed: _saving ? null : _save,
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await ProfileSettingsState.saveCurrentPaymentMethod(_selected);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    AppToast.success(context, 'Payment preference saved.');
   }
 }
 
@@ -116,7 +144,10 @@ class _PaymentTile extends StatelessWidget {
                 ).textTheme.bodyLarge?.copyWith(color: AppColors.textPrimary),
               ),
             ),
-            Icon(Icons.check, color: selected ? AppColors.primary : AppColors.divider),
+            Icon(
+              Icons.check,
+              color: selected ? AppColors.primary : AppColors.divider,
+            ),
           ],
         ),
       ),

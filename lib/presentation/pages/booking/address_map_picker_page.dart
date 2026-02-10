@@ -1,11 +1,15 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart' as ll;
+import '../../../core/config/app_env.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
@@ -42,19 +46,28 @@ class AddressMapPickerPage extends StatefulWidget {
 class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   static const LatLng _phnomPenh = LatLng(11.5564, 104.9282);
   static const String _fixedCity = 'Phnom Penh';
-  static const String _apiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+  static const double _phnomPenhNorth = 11.71;
+  static const double _phnomPenhSouth = 11.46;
+  static const double _phnomPenhWest = 104.79;
+  static const double _phnomPenhEast = 105.03;
+  static const double _phnomPenhMaxDistanceMeters = 30000;
+
+  String get _apiKey => AppEnv.googleMapsApiKey();
 
   static const Map<String, LatLng> _cambodiaCities = {
     _fixedCity: LatLng(11.5564, 104.9282),
   };
 
   final TextEditingController _searchController = TextEditingController();
+  final fm.MapController _webMapController = fm.MapController();
   late LatLng _selectedPoint;
-  GoogleMapController? _mapController;
+  GoogleMapController? _googleMapController;
   String _selectedAddress = 'Phnom Penh, Cambodia';
   bool _searching = false;
   bool _locating = false;
   bool _hasLocationPermission = false;
+
+  bool get _useOpenStreetMap => kIsWeb || _apiKey.trim().isEmpty;
 
   bool get _mapSupported {
     if (kIsWeb) return true;
@@ -72,7 +85,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   @override
   void dispose() {
     _searchController.dispose();
-    _mapController?.dispose();
+    _googleMapController?.dispose();
     super.dispose();
   }
 
@@ -229,6 +242,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   }
 
   Widget _buildMap() {
+    if (_useOpenStreetMap) return _buildOpenStreetMap();
     return GoogleMap(
       initialCameraPosition: const CameraPosition(
         target: _phnomPenh,
@@ -237,8 +251,15 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       myLocationEnabled: _hasLocationPermission,
       myLocationButtonEnabled: _hasLocationPermission,
       zoomControlsEnabled: false,
-      onMapCreated: (controller) => _mapController = controller,
+      onMapCreated: (controller) => _googleMapController = controller,
       onTap: (point) {
+        if (!_isInsidePhnomPenh(point)) {
+          _showMessage(
+            'Please choose a location inside Phnom Penh.',
+            type: AppToastType.warning,
+          );
+          return;
+        }
         setState(() => _selectedPoint = point);
         _reverseGeocode(point);
       },
@@ -248,6 +269,53 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
           position: _selectedPoint,
         ),
       },
+    );
+  }
+
+  Widget _buildOpenStreetMap() {
+    return fm.FlutterMap(
+      mapController: _webMapController,
+      options: fm.MapOptions(
+        initialCenter: ll.LatLng(_phnomPenh.latitude, _phnomPenh.longitude),
+        initialZoom: 11.5,
+        minZoom: 10.5,
+        maxZoom: 18,
+        onTap: (_, point) {
+          final selected = LatLng(point.latitude, point.longitude);
+          if (!_isInsidePhnomPenh(selected)) {
+            _showMessage(
+              'Please choose a location inside Phnom Penh.',
+              type: AppToastType.warning,
+            );
+            return;
+          }
+          setState(() => _selectedPoint = selected);
+          _reverseGeocode(selected);
+        },
+      ),
+      children: [
+        fm.TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.example.servicefinder',
+        ),
+        fm.MarkerLayer(
+          markers: [
+            fm.Marker(
+              width: 42,
+              height: 42,
+              point: ll.LatLng(
+                _selectedPoint.latitude,
+                _selectedPoint.longitude,
+              ),
+              child: const Icon(
+                Icons.location_pin,
+                size: 38,
+                color: Colors.red,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -275,11 +343,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       _selectedAddress = '$city, Cambodia';
       _searchController.text = city;
     });
-    _mapController?.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: target, zoom: 12.4),
-      ),
-    );
+    _moveCamera(target, zoom: 12.4);
   }
 
   Future<void> _searchLocationByName(String rawQuery) async {
@@ -294,14 +358,20 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
 
     setState(() => _searching = true);
     try {
-      final success = _apiKey.isNotEmpty
-          ? await _searchWithGoogle(query)
-          : await _searchWithOpenStreetMap(query);
+      final success = _useOpenStreetMap
+          ? await _searchWithOpenStreetMap(query)
+          : await _searchWithGoogle(query);
       if (!success) {
-        _showMessage('No result found for "$query" in Phnom Penh.');
+        _showMessage(
+          'No result found for "$query" in Phnom Penh.',
+          type: AppToastType.warning,
+        );
       }
     } catch (_) {
-      _showMessage('Search failed. Please try again.');
+      _showMessage(
+        'Search failed. Please try again.',
+        type: AppToastType.error,
+      );
     } finally {
       if (mounted) {
         setState(() => _searching = false);
@@ -328,14 +398,13 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     final lng = (location['lng'] as num?)?.toDouble();
     if (lat == null || lng == null) return false;
     final point = LatLng(lat, lng);
+    if (!_isInsidePhnomPenh(point)) return false;
     setState(() {
       _selectedPoint = point;
       _selectedAddress =
           (first['formatted_address'] as String?) ?? 'Phnom Penh, Cambodia';
     });
-    await _mapController?.animateCamera(
-      CameraUpdate.newCameraPosition(CameraPosition(target: point, zoom: 14.8)),
-    );
+    await _moveCamera(point, zoom: 14.8);
     return true;
   }
 
@@ -361,14 +430,13 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     final lon = double.tryParse('${first['lon']}');
     if (lat == null || lon == null) return false;
     final point = LatLng(lat, lon);
+    if (!_isInsidePhnomPenh(point)) return false;
     setState(() {
       _selectedPoint = point;
       _selectedAddress =
           (first['display_name'] as String?) ?? 'Phnom Penh, Cambodia';
     });
-    await _mapController?.animateCamera(
-      CameraUpdate.newCameraPosition(CameraPosition(target: point, zoom: 14.8)),
-    );
+    await _moveCamera(point, zoom: 14.8);
     return true;
   }
 
@@ -377,7 +445,10 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        _showMessage('Location service is disabled. Please turn it on.');
+        _showMessage(
+          'Location service is disabled. Please turn it on.',
+          type: AppToastType.warning,
+        );
         if (!kIsWeb) {
           await Geolocator.openLocationSettings();
         }
@@ -394,7 +465,10 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         if (permission == LocationPermission.deniedForever) {
           _showPermissionDialog();
         } else {
-          _showMessage('Location permission denied.');
+          _showMessage(
+            'Location permission denied.',
+            type: AppToastType.warning,
+          );
         }
         return;
       }
@@ -411,19 +485,26 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         position = await Geolocator.getLastKnownPosition();
       }
       if (position == null) {
-        _showMessage('Unable to get your current location.');
+        _showMessage(
+          'Unable to get your current location.',
+          type: AppToastType.error,
+        );
         return;
       }
       final point = LatLng(position.latitude, position.longitude);
+      if (!_isInsidePhnomPenh(point)) {
+        _moveToCity(_fixedCity);
+        _showMessage(
+          'Current location is outside Phnom Penh. Only Phnom Penh locations are supported.',
+          type: AppToastType.warning,
+        );
+        return;
+      }
       setState(() => _selectedPoint = point);
-      await _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: point, zoom: 15.0),
-        ),
-      );
+      await _moveCamera(point, zoom: 15.0);
       await _reverseGeocode(point);
     } catch (_) {
-      _showMessage('Cannot access current location.');
+      _showMessage('Cannot access current location.', type: AppToastType.error);
     } finally {
       if (mounted) {
         setState(() => _locating = false);
@@ -455,12 +536,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   }
 
   Future<void> _reverseGeocode(LatLng point) async {
-    if (_apiKey.isEmpty) {
-      setState(() {
-        _selectedAddress = 'Phnom Penh, Cambodia';
-      });
-      return;
-    }
+    if (_useOpenStreetMap) return _reverseGeocodeWithOpenStreetMap(point);
     try {
       final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
         'latlng': '${point.latitude},${point.longitude}',
@@ -482,6 +558,46 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     } catch (_) {
       // Keep current label when reverse geocoding fails.
     }
+  }
+
+  Future<void> _reverseGeocodeWithOpenStreetMap(LatLng point) async {
+    try {
+      final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+        'lat': '${point.latitude}',
+        'lon': '${point.longitude}',
+        'format': 'jsonv2',
+      });
+      final response = await http.get(
+        uri,
+        headers: const {
+          'User-Agent':
+              'servicefinder/1.0 (contact: support@servicefinder.local)',
+        },
+      );
+      if (response.statusCode != 200) return;
+      final body = jsonDecode(response.body);
+      if (body is! Map<String, dynamic>) return;
+      final display = (body['display_name'] ?? '').toString().trim();
+      if (display.isEmpty) return;
+      setState(() => _selectedAddress = display);
+    } catch (_) {
+      // Keep current label when reverse geocoding fails.
+    }
+  }
+
+  Future<void> _moveCamera(LatLng target, {required double zoom}) async {
+    if (_useOpenStreetMap) {
+      _webMapController.move(
+        ll.LatLng(target.latitude, target.longitude),
+        zoom,
+      );
+      return;
+    }
+    await _googleMapController?.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: target, zoom: zoom),
+      ),
+    );
   }
 
   String? _matchCity(String query) {
@@ -566,9 +682,26 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     return _AddressParts(label: label, street: street, additional: additional);
   }
 
-  void _showMessage(String text) {
+  bool _isInsidePhnomPenh(LatLng point) {
+    final inBounds =
+        point.latitude >= _phnomPenhSouth &&
+        point.latitude <= _phnomPenhNorth &&
+        point.longitude >= _phnomPenhWest &&
+        point.longitude <= _phnomPenhEast;
+    if (!inBounds) return false;
+
+    final meters = Geolocator.distanceBetween(
+      _phnomPenh.latitude,
+      _phnomPenh.longitude,
+      point.latitude,
+      point.longitude,
+    );
+    return meters <= _phnomPenhMaxDistanceMeters;
+  }
+
+  void _showMessage(String text, {AppToastType type = AppToastType.info}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    AppToast.show(context, message: text, type: type);
   }
 
   Future<void> _showPermissionDialog() async {

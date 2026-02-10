@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../state/app_role_state.dart';
+import '../../state/auth_state.dart';
 import '../../state/profile_image_state.dart';
+import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
@@ -185,6 +187,8 @@ class ProfilePage extends StatelessWidget {
     );
     if (shouldLogout != true || !context.mounted) return;
 
+    await AuthState.signOut();
+    if (!context.mounted) return;
     AppRoleState.setProvider(false);
     Navigator.pushNamedAndRemoveUntil(
       context,
@@ -237,17 +241,24 @@ class _ProfileHero extends StatelessWidget {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Eang Kimheng',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+            child: ValueListenableBuilder(
+              valueListenable: ProfileSettingsState.finderProfile,
+              builder: (context, profile, _) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profile.name.trim().isEmpty
+                          ? 'Finder'
+                          : profile.name.trim(),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],

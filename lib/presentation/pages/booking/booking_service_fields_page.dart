@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/order.dart';
@@ -20,6 +21,7 @@ class BookingServiceFieldsPage extends StatefulWidget {
 
 class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
   late Map<String, dynamic> _serviceFields;
+  Map<String, String> _fieldErrors = const {};
 
   @override
   void initState() {
@@ -45,9 +47,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
           ),
           child: ListView(
             children: [
-              AppTopBar(
-                title: '${widget.draft.categoryName} Details',
-              ),
+              AppTopBar(title: '${widget.draft.categoryName} Details'),
               const SizedBox(height: 8),
               Text(
                 widget.draft.serviceName,
@@ -90,10 +90,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
             Expanded(
               child: PrimaryButton(
                 label: 'Next',
-                onPressed: () => Navigator.push(
-                  context,
-                  slideFadeRoute(BookingPaymentPage(draft: draft)),
-                ),
+                onPressed: () => _goNext(fieldDefs, draft),
               ),
             ),
           ],
@@ -105,6 +102,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
   Widget _buildDynamicField(BookingFieldDef field) {
     final title = field.required ? '${field.label}*' : field.label;
     final value = _serviceFields[field.key];
+    final errorText = _fieldErrors[field.key];
     switch (field.type) {
       case BookingFieldType.dropdown:
         return Padding(
@@ -129,6 +127,15 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
                 })(),
                 onTap: () => _pickDynamicOption(field),
               ),
+              if (errorText != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  errorText,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.danger),
+                ),
+              ],
             ],
           ),
         );
@@ -139,8 +146,13 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
             value: value == true,
             title: Text(title, style: Theme.of(context).textTheme.bodyLarge),
             activeThumbColor: AppColors.primary,
-            onChanged: (newValue) =>
-                setState(() => _serviceFields[field.key] = newValue),
+            onChanged: (newValue) => setState(() {
+              _serviceFields[field.key] = newValue;
+              if (_fieldErrors.containsKey(field.key)) {
+                _fieldErrors = Map<String, String>.from(_fieldErrors)
+                  ..remove(field.key);
+              }
+            }),
           ),
         );
       case BookingFieldType.number:
@@ -169,8 +181,15 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
                   hintText: field.type == BookingFieldType.number
                       ? 'Enter number'
                       : 'Enter ${field.label.toLowerCase()}',
+                  errorText: errorText,
                 ),
-                onChanged: (newValue) => _serviceFields[field.key] = newValue,
+                onChanged: (newValue) => setState(() {
+                  _serviceFields[field.key] = newValue;
+                  if (_fieldErrors.containsKey(field.key)) {
+                    _fieldErrors = Map<String, String>.from(_fieldErrors)
+                      ..remove(field.key);
+                  }
+                }),
               ),
             ],
           ),
@@ -179,40 +198,62 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
         final uploaded = value == true;
         return Padding(
           padding: const EdgeInsets.only(bottom: 14),
-          child: InkWell(
-            onTap: () => setState(() => _serviceFields[field.key] = !uploaded),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: uploaded ? const Color(0xFFE8F5EE) : Colors.white,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                onTap: () => setState(() {
+                  _serviceFields[field.key] = !uploaded;
+                  if (_fieldErrors.containsKey(field.key)) {
+                    _fieldErrors = Map<String, String>.from(_fieldErrors)
+                      ..remove(field.key);
+                  }
+                }),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: uploaded ? AppColors.success : AppColors.divider,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    uploaded ? Icons.check_circle : Icons.camera_alt_outlined,
-                    color: uploaded ? AppColors.success : AppColors.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      uploaded ? '${field.label} added' : field.label,
-                      style: Theme.of(context).textTheme.bodyLarge,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: uploaded ? const Color(0xFFE8F5EE) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: uploaded ? AppColors.success : AppColors.divider,
                     ),
                   ),
-                  Text(
-                    uploaded ? 'Change' : 'Upload',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: AppColors.primary),
+                  child: Row(
+                    children: [
+                      Icon(
+                        uploaded
+                            ? Icons.check_circle
+                            : Icons.camera_alt_outlined,
+                        color: uploaded ? AppColors.success : AppColors.primary,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          uploaded ? '${field.label} added' : field.label,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                      ),
+                      Text(
+                        uploaded ? 'Change' : 'Upload',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+              if (errorText != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  errorText,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.danger),
+                ),
+              ],
+            ],
           ),
         );
     }
@@ -239,7 +280,59 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
       labelBuilder: (item) => item,
     );
     if (picked == null) return;
-    setState(() => _serviceFields[field.key] = picked);
+    setState(() {
+      _serviceFields[field.key] = picked;
+      if (_fieldErrors.containsKey(field.key)) {
+        _fieldErrors = Map<String, String>.from(_fieldErrors)
+          ..remove(field.key);
+      }
+    });
+  }
+
+  void _goNext(List<BookingFieldDef> fieldDefs, BookingDraft draft) {
+    final errors = <String, String>{};
+    for (final field in fieldDefs) {
+      final error = _validateField(field);
+      if (error != null) {
+        errors[field.key] = error;
+      }
+    }
+    if (errors.isNotEmpty) {
+      setState(() => _fieldErrors = errors);
+      AppToast.error(context, 'Please complete all required fields.');
+      return;
+    }
+    Navigator.push(context, slideFadeRoute(BookingPaymentPage(draft: draft)));
+  }
+
+  String? _validateField(BookingFieldDef field) {
+    final value = _serviceFields[field.key];
+    final text = (value ?? '').toString().trim();
+
+    if (field.required) {
+      switch (field.type) {
+        case BookingFieldType.photo:
+          if (value != true) return '${field.label} is required';
+          break;
+        case BookingFieldType.toggle:
+          if (value != true) return '${field.label} is required';
+          break;
+        case BookingFieldType.text:
+        case BookingFieldType.multiline:
+        case BookingFieldType.dropdown:
+        case BookingFieldType.number:
+          if (text.isEmpty) return '${field.label} is required';
+          break;
+      }
+    }
+
+    if (field.type == BookingFieldType.number && text.isNotEmpty) {
+      final parsed = int.tryParse(text);
+      if (parsed == null || parsed <= 0) {
+        return '${field.label} must be a positive number';
+      }
+    }
+    return null;
   }
 
   Future<T?> _showOptionSheet<T>({
@@ -313,11 +406,12 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
                                   Expanded(
                                     child: Text(
                                       labelBuilder(option),
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyLarge?.copyWith(
-                                        color: AppColors.textPrimary,
-                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            color: AppColors.textPrimary,
+                                          ),
                                     ),
                                   ),
                                   AnimatedOpacity(

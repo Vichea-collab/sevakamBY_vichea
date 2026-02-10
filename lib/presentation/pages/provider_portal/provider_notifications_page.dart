@@ -4,6 +4,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/chat.dart';
 import '../../../domain/entities/provider_portal.dart';
+import '../../state/finder_post_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/notification_messenger_sheet.dart';
@@ -57,64 +58,74 @@ class ProviderNotificationsPage extends StatelessWidget {
             const SizedBox(height: 14),
             _NotificationTile(
               title: 'Order Incoming',
-              description: '$incoming new order request waiting for your action.',
+              description:
+                  '$incoming new order request waiting for your action.',
               timeLabel: '2 hrs ago',
               icon: Icons.inbox_rounded,
               color: const Color(0xFFF59E0B),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute<void>(
-                  builder: (_) =>
-                      const ProviderOrdersPage(initialTab: ProviderOrderTab.incoming),
+                  builder: (_) => const ProviderOrdersPage(
+                    initialTab: ProviderOrderTab.incoming,
+                  ),
                 ),
               ),
             ),
             _NotificationTile(
               title: 'Confirm Order',
-              description: '$active order in progress. Keep updating your client.',
+              description:
+                  '$active order in progress. Keep updating your client.',
               timeLabel: '2 hrs ago',
               icon: Icons.assignment_turned_in_rounded,
               color: const Color(0xFF7C6EF2),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute<void>(
-                  builder: (_) =>
-                      const ProviderOrdersPage(initialTab: ProviderOrderTab.active),
+                  builder: (_) => const ProviderOrdersPage(
+                    initialTab: ProviderOrderTab.active,
+                  ),
                 ),
               ),
             ),
             _NotificationTile(
               title: 'Order Completed',
-              description: '$completed completed orders. Check recent feedback.',
+              description:
+                  '$completed completed orders. Check recent feedback.',
               timeLabel: '2 hrs ago',
               icon: Icons.check_circle_rounded,
               color: AppColors.success,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute<void>(
-                  builder: (_) =>
-                      const ProviderOrdersPage(initialTab: ProviderOrderTab.completed),
+                  builder: (_) => const ProviderOrdersPage(
+                    initialTab: ProviderOrderTab.completed,
+                  ),
                 ),
               ),
             ),
             _NotificationTile(
               title: 'Order Cancelled',
-              description: 'Your cancelled order details are available to review.',
+              description:
+                  'Your cancelled order details are available to review.',
               timeLabel: '3 hrs ago',
               icon: Icons.cancel_rounded,
               color: AppColors.danger,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute<void>(
-                  builder: (_) =>
-                      const ProviderOrdersPage(initialTab: ProviderOrderTab.incoming),
+                  builder: (_) => const ProviderOrdersPage(
+                    initialTab: ProviderOrderTab.incoming,
+                  ),
                 ),
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: const AppBottomNav(current: AppBottomTab.notification),
+      bottomNavigationBar: const AppBottomNav(
+        current: AppBottomTab.notification,
+      ),
     );
   }
 
@@ -130,34 +141,30 @@ class ProviderNotificationsPage extends StatelessWidget {
 
   List<ChatThread> _providerMessengerThreads() {
     final now = DateTime.now();
-    return MockData.finderPosts
-        .asMap()
-        .entries
-        .map((entry) {
-          final index = entry.key;
-          final post = entry.value;
-          return ChatThread(
-            id: 'provider_msg_${post.id}',
-            title: post.clientName,
-            subtitle: '${post.service} • ${post.location}',
-            avatarPath: post.avatarPath,
-            updatedAt: now.subtract(Duration(minutes: 4 + index * 11)),
-            unreadCount: index < 2 ? 1 : 0,
-            messages: [
-              ChatMessage(
-                text: post.message,
-                fromMe: false,
-                sentAt: now.subtract(Duration(minutes: 9 + index * 11)),
-              ),
-              ChatMessage(
-                text: 'I can help with ${post.service}.',
-                fromMe: true,
-                sentAt: now.subtract(Duration(minutes: 5 + index * 11)),
-              ),
-            ],
-          );
-        })
-        .toList();
+    return FinderPostState.posts.value.asMap().entries.map((entry) {
+      final index = entry.key;
+      final post = entry.value;
+      return ChatThread(
+        id: 'provider_msg_${post.id}',
+        title: post.clientName,
+        subtitle: '${post.service} • ${post.location}',
+        avatarPath: post.avatarPath,
+        updatedAt: now.subtract(Duration(minutes: 4 + index * 11)),
+        unreadCount: index < 2 ? 1 : 0,
+        messages: [
+          ChatMessage(
+            text: post.message,
+            fromMe: false,
+            sentAt: now.subtract(Duration(minutes: 9 + index * 11)),
+          ),
+          ChatMessage(
+            text: 'I can help with ${post.service}.',
+            fromMe: true,
+            sentAt: now.subtract(Duration(minutes: 5 + index * 11)),
+          ),
+        ],
+      );
+    }).toList();
   }
 }
 
@@ -222,17 +229,17 @@ class _NotificationTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             title,
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
                         ),
                         Text(
                           timeLabel,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textSecondary),
                         ),
                       ],
                     ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
@@ -202,9 +203,7 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
 
   void _updateStatus(ProviderOrderState next) {
     setState(() => _order = _order.copyWith(state: next));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Status updated: ${_statusLabel(next)}')),
-    );
+    AppToast.success(context, 'Status updated: ${_statusLabel(next)}');
   }
 
   String _statusLabel(ProviderOrderState status) {

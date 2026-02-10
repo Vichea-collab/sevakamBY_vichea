@@ -32,6 +32,12 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+.env
+lib/backend/.env
+lib/backend/serviceAccountKey.json
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+ios/Flutter/FirebaseConfig.xcconfig
 
 # Symbolication related
 app.*.symbols

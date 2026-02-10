@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../data/mock/mock_data.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
@@ -167,9 +168,7 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
         price <= 0 ||
         _areaController.text.trim().isEmpty ||
         _detailsController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all fields.')),
-      );
+      AppToast.error(context, 'Please complete all fields.');
       return;
     }
     setState(() => _posting = true);
@@ -177,12 +176,9 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
     if (!mounted) return;
     _detailsController.clear();
     setState(() => _posting = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Provider post published for $_selectedService (${price.toStringAsFixed(0)}/hour).',
-        ),
-      ),
+    AppToast.success(
+      context,
+      'Provider post published for $_selectedService (${price.toStringAsFixed(0)}/hour).',
     );
   }
 

@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
+import '../../../domain/entities/profile_settings.dart';
+import '../../state/app_role_state.dart';
 import '../../state/profile_image_state.dart';
+import '../../state/profile_settings_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 
@@ -17,6 +21,35 @@ class EditProfilePage extends StatefulWidget {
 
 class _EditProfilePageState extends State<EditProfilePage> {
   final ImagePicker _picker = ImagePicker();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _dobController = TextEditingController();
+  final TextEditingController _countryController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _cityController = TextEditingController();
+  final TextEditingController _bioController = TextEditingController();
+  bool _saving = false;
+
+  bool get _isProvider => AppRoleState.isProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    _setForm(ProfileSettingsState.currentProfile);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _dobController.dispose();
+    _countryController.dispose();
+    _phoneController.dispose();
+    _cityController.dispose();
+    _bioController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,17 +113,86 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ),
               ),
               const SizedBox(height: 8),
-              const _LabeledField(label: 'Name', hint: 'Kimheng'),
-              const SizedBox(height: 10),
-              const _LabeledField(label: 'Email', hint: 'kimheng@gmail.com'),
-              const SizedBox(height: 10),
-              const _LabeledField(label: 'Date of Birth', hint: '28/11/2005'),
-              const SizedBox(height: 10),
-              const _LabeledField(label: 'Country', hint: 'Cambodia'),
-              const SizedBox(height: 10),
-              const _LabeledField(label: 'Phone number', hint: '+88 123456'),
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    _LabeledField(
+                      label: 'Name',
+                      hint: 'Enter your name',
+                      controller: _nameController,
+                      validator: (value) {
+                        if ((value ?? '').trim().isEmpty) {
+                          return 'Name is required';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _LabeledField(
+                      label: 'Email',
+                      hint: 'Enter your email',
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        final email = (value ?? '').trim();
+                        if (email.isEmpty) return 'Email is required';
+                        final regex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                        if (!regex.hasMatch(email)) {
+                          return 'Invalid email format';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _LabeledField(
+                      label: 'Date of Birth',
+                      hint: 'DD/MM/YYYY',
+                      controller: _dobController,
+                    ),
+                    const SizedBox(height: 10),
+                    _LabeledField(
+                      label: 'Country',
+                      hint: 'Enter country',
+                      controller: _countryController,
+                    ),
+                    const SizedBox(height: 10),
+                    _LabeledField(
+                      label: 'Phone number',
+                      hint: '+855 ...',
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if ((value ?? '').trim().isEmpty) {
+                          return 'Phone number is required';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _LabeledField(
+                      label: 'City',
+                      hint: 'Enter city',
+                      controller: _cityController,
+                    ),
+                    if (_isProvider) ...[
+                      const SizedBox(height: 10),
+                      _LabeledField(
+                        label: 'Bio',
+                        hint: 'Tell clients about your service',
+                        controller: _bioController,
+                        minLines: 3,
+                        maxLines: 5,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
               const SizedBox(height: 18),
-              PrimaryButton(label: 'Save', onPressed: () {}),
+              PrimaryButton(
+                label: _saving ? 'Saving...' : 'Save',
+                onPressed: _saving ? null : _saveProfile,
+              ),
             ],
           ),
         ),
@@ -158,6 +260,37 @@ class _EditProfilePageState extends State<EditProfilePage> {
     if (!mounted) return;
     ProfileImageState.setCustomAvatar(bytes);
   }
+
+  void _setForm(ProfileFormData profile) {
+    _nameController.text = profile.name;
+    _emailController.text = profile.email;
+    _dobController.text = profile.dateOfBirth;
+    _countryController.text = profile.country;
+    _phoneController.text = profile.phoneNumber;
+    _cityController.text = profile.city;
+    _bioController.text = profile.bio;
+  }
+
+  Future<void> _saveProfile() async {
+    final form = _formKey.currentState;
+    if (form == null || !form.validate()) return;
+
+    final payload = ProfileFormData(
+      name: _nameController.text.trim(),
+      email: _emailController.text.trim(),
+      dateOfBirth: _dobController.text.trim(),
+      country: _countryController.text.trim(),
+      phoneNumber: _phoneController.text.trim(),
+      city: _cityController.text.trim(),
+      bio: _bioController.text.trim(),
+    );
+
+    setState(() => _saving = true);
+    await ProfileSettingsState.saveCurrentProfile(payload);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    AppToast.success(context, 'Profile saved successfully.');
+  }
 }
 
 class _PhotoOptionTile extends StatelessWidget {
@@ -198,8 +331,21 @@ class _PhotoOptionTile extends StatelessWidget {
 class _LabeledField extends StatelessWidget {
   final String label;
   final String hint;
+  final TextEditingController controller;
+  final String? Function(String?)? validator;
+  final TextInputType? keyboardType;
+  final int minLines;
+  final int maxLines;
 
-  const _LabeledField({required this.label, required this.hint});
+  const _LabeledField({
+    required this.label,
+    required this.hint,
+    required this.controller,
+    this.validator,
+    this.keyboardType,
+    this.minLines = 1,
+    this.maxLines = 1,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +359,14 @@ class _LabeledField extends StatelessWidget {
           ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
         ),
         const SizedBox(height: 6),
-        TextField(decoration: InputDecoration(hintText: hint)),
+        TextFormField(
+          controller: controller,
+          validator: validator,
+          keyboardType: keyboardType,
+          minLines: minLines,
+          maxLines: maxLines,
+          decoration: InputDecoration(hintText: hint),
+        ),
       ],
     );
   }
