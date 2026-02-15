@@ -32,6 +32,8 @@ class _CustomerAuthPageState extends State<CustomerAuthPage> {
   bool _isSignUp = true;
   bool _authLoading = false;
   bool _googleLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   void dispose() {
@@ -146,9 +148,19 @@ class _CustomerAuthPageState extends State<CustomerAuthPage> {
                             AppTextField(
                               hint: 'Enter Your Password',
                               controller: _passwordController,
-                              obscureText: true,
+                              obscureText: _obscurePassword,
                               autofillHints: const [AutofillHints.password],
                               textInputAction: TextInputAction.next,
+                              suffixIcon: IconButton(
+                                onPressed: () => setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                }),
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                ),
+                              ),
                               validator: _validatePassword,
                             ),
                             if (_isSignUp) ...[
@@ -156,8 +168,19 @@ class _CustomerAuthPageState extends State<CustomerAuthPage> {
                               AppTextField(
                                 hint: 'Re-Enter Your Password',
                                 controller: _confirmPasswordController,
-                                obscureText: true,
+                                obscureText: _obscureConfirmPassword,
                                 textInputAction: TextInputAction.done,
+                                suffixIcon: IconButton(
+                                  onPressed: () => setState(() {
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
+                                  }),
+                                  icon: Icon(
+                                    _obscureConfirmPassword
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
+                                  ),
+                                ),
                                 validator: _validateConfirmPassword,
                               ),
                             ],
@@ -230,7 +253,10 @@ class _CustomerAuthPageState extends State<CustomerAuthPage> {
 
   Future<void> _continueWithGoogle() async {
     setState(() => _googleLoading = true);
-    final error = await AuthState.signInWithGoogle(isProvider: false);
+    final error = await AuthState.signInWithGoogle(
+      isProvider: false,
+      registerIfMissing: _isSignUp,
+    );
     if (!mounted) return;
     setState(() => _googleLoading = false);
 

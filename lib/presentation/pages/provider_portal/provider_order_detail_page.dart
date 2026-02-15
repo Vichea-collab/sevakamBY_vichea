@@ -3,6 +3,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/provider_portal.dart';
+import '../../state/order_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
@@ -19,6 +20,7 @@ class ProviderOrderDetailPage extends StatefulWidget {
 
 class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
   late ProviderOrderItem _order;
+  bool _updatingStatus = false;
 
   @override
   void initState() {
@@ -44,7 +46,7 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
               Text(
                 _order.serviceName,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.primary,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -52,6 +54,8 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
                 'Project ID: #${_order.id}',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
+              const SizedBox(height: 8),
+              _ProviderStatusChip(status: _order.state),
               const SizedBox(height: 14),
               Container(
                 width: double.infinity,
@@ -87,6 +91,8 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              const SizedBox(height: 10),
+              _ProviderStatusBanner(status: _order.state),
               const SizedBox(height: 10),
               _StatusStepper(status: _order.state),
               const SizedBox(height: 16),
@@ -180,18 +186,20 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
               const SizedBox(height: 18),
               _ActionPanel(
                 status: _order.state,
+                busy: _updatingStatus,
                 onAccept: () => _updateStatus(ProviderOrderState.onTheWay),
                 onDecline: () => _updateStatus(ProviderOrderState.declined),
-                onMarkOnTheWay: () =>
-                    _updateStatus(ProviderOrderState.onTheWay),
                 onMarkStarted: () => _updateStatus(ProviderOrderState.started),
                 onMarkCompleted: () =>
                     _updateStatus(ProviderOrderState.completed),
               ),
               const SizedBox(height: 10),
               PrimaryButton(
-                label: 'Done',
-                onPressed: () => Navigator.pop(context, _order),
+                label: _updatingStatus ? 'Updating...' : 'Done',
+                icon: Icons.check_rounded,
+                onPressed: _updatingStatus
+                    ? null
+                    : () => Navigator.pop(context, _order),
               ),
             ],
           ),
@@ -201,9 +209,25 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
     );
   }
 
-  void _updateStatus(ProviderOrderState next) {
-    setState(() => _order = _order.copyWith(state: next));
-    AppToast.success(context, 'Status updated: ${_statusLabel(next)}');
+  Future<void> _updateStatus(ProviderOrderState next) async {
+    if (_updatingStatus || _order.state == next) return;
+    setState(() => _updatingStatus = true);
+    try {
+      final updated = await OrderState.updateProviderOrderStatus(
+        orderId: _order.id,
+        state: next,
+      );
+      if (!mounted) return;
+      setState(() => _order = updated);
+      AppToast.success(context, 'Status updated: ${_statusLabel(next)}');
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.error(context, 'Failed to update order status.');
+    } finally {
+      if (mounted) {
+        setState(() => _updatingStatus = false);
+      }
+    }
   }
 
   String _statusLabel(ProviderOrderState status) {
@@ -231,17 +255,17 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
 
 class _ActionPanel extends StatelessWidget {
   final ProviderOrderState status;
+  final bool busy;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
-  final VoidCallback onMarkOnTheWay;
   final VoidCallback onMarkStarted;
   final VoidCallback onMarkCompleted;
 
   const _ActionPanel({
     required this.status,
+    required this.busy,
     required this.onAccept,
     required this.onDecline,
-    required this.onMarkOnTheWay,
     required this.onMarkStarted,
     required this.onMarkCompleted,
   });
@@ -286,33 +310,61 @@ class _ActionPanel extends StatelessWidget {
         border: Border.all(color: AppColors.divider),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Update order status',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
           if (status == ProviderOrderState.incoming) ...[
             Row(
               children: [
                 Expanded(
-                  child: PrimaryButton(label: 'Accept', onPressed: onAccept),
+                  child: PrimaryButton(
+                    label: 'Accept',
+                    icon: Icons.check_circle_outline_rounded,
+                    tone: PrimaryButtonTone.success,
+                    onPressed: busy ? null : onAccept,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: PrimaryButton(
                     label: 'Decline',
+                    icon: Icons.close_rounded,
                     isOutlined: true,
-                    onPressed: onDecline,
+                    tone: PrimaryButtonTone.danger,
+                    onPressed: busy ? null : onDecline,
                   ),
                 ),
               ],
             ),
           ] else if (status == ProviderOrderState.onTheWay) ...[
-            PrimaryButton(label: 'Mark Started', onPressed: onMarkStarted),
+            PrimaryButton(
+              label: 'Mark Started',
+              icon: Icons.play_circle_fill_rounded,
+              tone: PrimaryButtonTone.primary,
+              onPressed: busy ? null : onMarkStarted,
+            ),
             const SizedBox(height: 10),
             PrimaryButton(
               label: 'Mark Complete',
-              onPressed: onMarkCompleted,
+              icon: Icons.task_alt_rounded,
               isOutlined: true,
+              tone: PrimaryButtonTone.success,
+              onPressed: busy ? null : onMarkCompleted,
             ),
           ] else if (status == ProviderOrderState.started) ...[
-            PrimaryButton(label: 'Mark Complete', onPressed: onMarkCompleted),
+            PrimaryButton(
+              label: 'Mark Complete',
+              icon: Icons.task_alt_rounded,
+              tone: PrimaryButtonTone.success,
+              onPressed: busy ? null : onMarkCompleted,
+            ),
           ],
         ],
       ),
@@ -332,6 +384,7 @@ class _StatusStepper extends StatelessWidget {
     return Row(
       children: List.generate(steps.length, (i) {
         final reached = i <= index;
+        final isCurrent = i == index;
         return Expanded(
           child: Column(
             children: [
@@ -347,14 +400,23 @@ class _StatusStepper extends StatelessWidget {
                           : AppColors.divider,
                     ),
                   ),
-                  CircleAvatar(
-                    radius: 11,
-                    backgroundColor: reached
-                        ? AppColors.primary
-                        : AppColors.divider,
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: isCurrent ? 25 : 21,
+                    height: isCurrent ? 25 : 21,
+                    decoration: BoxDecoration(
+                      color: reached ? AppColors.primary : AppColors.divider,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isCurrent
+                            ? AppColors.primary.withValues(alpha: 89)
+                            : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
                     child: Icon(
-                      Icons.check_rounded,
-                      size: 14,
+                      reached ? Icons.check_rounded : Icons.circle,
+                      size: reached ? 14 : 8,
                       color: reached ? Colors.white : AppColors.textSecondary,
                     ),
                   ),
@@ -376,7 +438,7 @@ class _StatusStepper extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: reached ? AppColors.primary : AppColors.textSecondary,
-                  fontWeight: reached ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ],
@@ -402,6 +464,102 @@ class _StatusStepper extends StatelessWidget {
   }
 }
 
+class _ProviderStatusBanner extends StatelessWidget {
+  final ProviderOrderState status;
+
+  const _ProviderStatusBanner({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, icon, bg, fg) = switch (status) {
+      ProviderOrderState.incoming => (
+        'New request waiting for your action',
+        Icons.inbox_rounded,
+        const Color(0xFFFFF4E5),
+        const Color(0xFFD97706),
+      ),
+      ProviderOrderState.onTheWay => (
+        'You accepted and are on the way',
+        Icons.local_shipping_outlined,
+        const Color(0xFFEAF1FF),
+        AppColors.primary,
+      ),
+      ProviderOrderState.started => (
+        'Service started, keep client updated',
+        Icons.handyman_rounded,
+        const Color(0xFFE9FDF4),
+        AppColors.success,
+      ),
+      ProviderOrderState.completed => (
+        'Order successfully completed',
+        Icons.verified_rounded,
+        const Color(0xFFE9FDF4),
+        AppColors.success,
+      ),
+      ProviderOrderState.declined => (
+        'You declined this request',
+        Icons.cancel_outlined,
+        const Color(0xFFFFEFEF),
+        AppColors.danger,
+      ),
+    };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: fg, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderStatusChip extends StatelessWidget {
+  final ProviderOrderState status;
+
+  const _ProviderStatusChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      ProviderOrderState.incoming => ('Incoming', const Color(0xFFD97706)),
+      ProviderOrderState.onTheWay => ('On the way', AppColors.primary),
+      ProviderOrderState.started => ('Started', AppColors.success),
+      ProviderOrderState.completed => ('Completed', AppColors.success),
+      ProviderOrderState.declined => ('Declined', AppColors.danger),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
@@ -423,7 +581,7 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               value,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppColors.primary,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.w600,
               ),
             ),

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
-import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/order.dart';
+import '../../../domain/entities/provider.dart';
+import '../../state/order_state.dart';
+import '../../state/booking_catalog_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
@@ -22,157 +25,192 @@ class OrdersPage extends StatefulWidget {
 
 enum _FinderOrderTab { pending, inProgress, completed }
 
-class _OrdersPageState extends State<OrdersPage> {
-  late List<OrderItem> _pending;
-  late List<OrderItem> _inProgress;
-  late List<OrderItem> _completed;
+class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
   _FinderOrderTab _activeTab = _FinderOrderTab.pending;
   String _filter = 'all';
 
   @override
   void initState() {
     super.initState();
-    _pending = <OrderItem>[];
-    _inProgress = <OrderItem>[];
-    _completed = <OrderItem>[];
+    WidgetsBinding.instance.addObserver(this);
+    _loadOrders(forceNetwork: true);
+  }
 
-    final seeded = <OrderItem>[...MockData.orders];
-    if (widget.latestOrder != null) {
-      seeded.insert(0, widget.latestOrder!);
-    }
-    for (final order in seeded) {
-      _insertOrder(order);
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadOrders(forceNetwork: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final sourceOrders = switch (_activeTab) {
-      _FinderOrderTab.pending => _pending,
-      _FinderOrderTab.inProgress => _inProgress,
-      _FinderOrderTab.completed => _completed,
-    };
-    final visibleOrders = sourceOrders
-        .where((order) => _matchesFilter(order))
-        .toList();
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            children: [
-              AppTopBar(
-                title: 'Orders',
-                showBack: false,
-                actions: [
-                  PopupMenuButton<String>(
-                    initialValue: _filter,
-                    onSelected: (value) => setState(() => _filter = value),
-                    color: Colors.white,
-                    elevation: 8,
-                    offset: const Offset(0, 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: const BorderSide(color: AppColors.divider),
-                    ),
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'all', child: Text('All')),
-                      PopupMenuItem(value: 'today', child: Text('Today')),
-                      PopupMenuItem(value: 'upcoming', child: Text('Upcoming')),
-                    ],
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(_filterLabel(_filter)),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.expand_more, size: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
+    return ValueListenableBuilder<List<OrderItem>>(
+      valueListenable: OrderState.finderOrders,
+      builder: (context, allOrders, _) {
+        final sourceOrders = _ordersForTab(_activeTab, allOrders);
+        final visibleOrders = sourceOrders
+            .where((order) => _matchesFilter(order))
+            .toList();
+        return Scaffold(
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
                 children: [
-                  _TabChip(
-                    label: 'Incoming',
-                    active: _activeTab == _FinderOrderTab.pending,
-                    onTap: () =>
-                        setState(() => _activeTab = _FinderOrderTab.pending),
-                  ),
-                  const SizedBox(width: 8),
-                  _TabChip(
-                    label: 'In Progress',
-                    active: _activeTab == _FinderOrderTab.inProgress,
-                    onTap: () => setState(
-                      () => _activeTab = _FinderOrderTab.inProgress,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _TabChip(
-                    label: 'Completed',
-                    active: _activeTab == _FinderOrderTab.completed,
-                    onTap: () => setState(
-                      () => _activeTab = _FinderOrderTab.completed,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Expanded(
-                child: visibleOrders.isEmpty
-                    ? _EmptyOrders(activeTab: _activeTab)
-                    : ListView.separated(
-                        itemCount: visibleOrders.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: AppSpacing.md),
-                        itemBuilder: (context, index) {
-                          final order = visibleOrders[index];
-                          return _OrderCard(
-                            order: order,
-                            onTap: () => _openOrder(order),
-                            onMarkCompleted: order.status == OrderStatus.started
-                                ? () => _markCompleted(order)
-                                : null,
-                          );
-                        },
+                  AppTopBar(
+                    title: 'Orders',
+                    showBack: false,
+                    actions: [
+                      PopupMenuButton<String>(
+                        initialValue: _filter,
+                        onSelected: (value) => setState(() => _filter = value),
+                        color: Colors.white,
+                        elevation: 8,
+                        offset: const Offset(0, 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: AppColors.divider),
+                        ),
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: 'all', child: Text('All')),
+                          PopupMenuItem(value: 'today', child: Text('Today')),
+                          PopupMenuItem(
+                            value: 'upcoming',
+                            child: Text('Upcoming'),
+                          ),
+                        ],
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(_filterLabel(_filter)),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.expand_more, size: 16),
+                            ],
+                          ),
+                        ),
                       ),
-              ),
-              if (_activeTab == _FinderOrderTab.inProgress &&
-                  visibleOrders.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: PrimaryButton(
-                    label: 'Make another booking',
-                    onPressed: () => Navigator.push(
-                      context,
-                      slideFadeRoute(
-                        BookingAddressPage(
-                          draft: MockData.defaultBookingDraft(
-                            provider: MockData.cleanerProviders.first,
-                            serviceName: 'Indoor Cleaning',
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _TabChip(
+                        label: 'Incoming',
+                        active: _activeTab == _FinderOrderTab.pending,
+                        onTap: () => setState(
+                          () => _activeTab = _FinderOrderTab.pending,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _TabChip(
+                        label: 'In Progress',
+                        active: _activeTab == _FinderOrderTab.inProgress,
+                        onTap: () => setState(
+                          () => _activeTab = _FinderOrderTab.inProgress,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _TabChip(
+                        label: 'History',
+                        active: _activeTab == _FinderOrderTab.completed,
+                        onTap: () => setState(
+                          () => _activeTab = _FinderOrderTab.completed,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: () => _loadOrders(forceNetwork: true),
+                      child: visibleOrders.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: [
+                                const SizedBox(height: 80),
+                                _EmptyOrders(activeTab: _activeTab),
+                              ],
+                            )
+                          : ListView.separated(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: visibleOrders.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: AppSpacing.md),
+                              itemBuilder: (context, index) {
+                                final order = visibleOrders[index];
+                                return _OrderCard(
+                                  order: order,
+                                  onTap: () => _openOrder(order),
+                                  onMarkCompleted:
+                                      order.status == OrderStatus.started
+                                      ? () => _markCompleted(order)
+                                      : null,
+                                );
+                              },
+                            ),
+                    ),
+                  ),
+                  if (_activeTab == _FinderOrderTab.inProgress &&
+                      visibleOrders.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: PrimaryButton(
+                        label: 'Make another booking',
+                        onPressed: () => Navigator.push(
+                          context,
+                          slideFadeRoute(
+                            BookingAddressPage(
+                              draft: BookingCatalogState.defaultBookingDraft(
+                                provider: const ProviderItem(
+                                  name: 'Service Provider',
+                                  role: 'Cleaner',
+                                  rating: 4.8,
+                                  imagePath: 'assets/images/profile.jpg',
+                                  accentColor: Color(0xFFEAF1FF),
+                                ),
+                                serviceName: 'House Cleaning',
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-            ],
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
-      bottomNavigationBar: const AppBottomNav(current: AppBottomTab.order),
+          bottomNavigationBar: const AppBottomNav(current: AppBottomTab.order),
+        );
+      },
     );
+  }
+
+  Future<void> _loadOrders({bool forceNetwork = false}) async {
+    await OrderState.refreshCurrentRole(forceNetwork: forceNetwork);
+    final latest = widget.latestOrder;
+    if (latest == null) return;
+    final hasLatest = OrderState.finderOrders.value.any(
+      (item) => item.id == latest.id,
+    );
+    if (!hasLatest) {
+      OrderState.replaceFinderOrderLocal(latest);
+    }
   }
 
   Future<void> _openOrder(OrderItem order) async {
@@ -181,39 +219,70 @@ class _OrdersPageState extends State<OrdersPage> {
       slideFadeRoute(OrderDetailPage(order: order)),
     );
     if (!mounted || updated == null) return;
-    _replaceOrder(updated);
+    await _replaceOrder(updated);
   }
 
-  void _markCompleted(OrderItem order) {
-    final completedOrder = order.copyWith(status: OrderStatus.completed);
-    setState(() {
-      _pending.removeWhere((item) => item.id == order.id);
-      _inProgress.removeWhere((item) => item.id == order.id);
-      _completed.removeWhere((item) => item.id == order.id);
-      _insertOrder(completedOrder, atStart: true);
-      _activeTab = _FinderOrderTab.completed;
-    });
+  Future<void> _markCompleted(OrderItem order) async {
+    try {
+      await OrderState.updateFinderOrderStatus(
+        orderId: order.id,
+        status: OrderStatus.completed,
+      );
+      setState(() => _activeTab = _FinderOrderTab.completed);
+      if (!mounted) return;
+      AppToast.success(context, 'Order marked as completed.');
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.error(context, 'Failed to update order status.');
+    }
   }
 
-  void _replaceOrder(OrderItem order) {
-    setState(() {
-      _pending.removeWhere((item) => item.id == order.id);
-      _inProgress.removeWhere((item) => item.id == order.id);
-      _completed.removeWhere((item) => item.id == order.id);
-      _insertOrder(order, atStart: true);
-    });
-  }
-
-  void _insertOrder(OrderItem order, {bool atStart = false}) {
-    final target = switch (order.status) {
-      OrderStatus.booked || OrderStatus.cancelled => _pending,
-      OrderStatus.onTheWay || OrderStatus.started => _inProgress,
-      OrderStatus.completed => _completed,
-    };
-    if (atStart) {
-      target.insert(0, order);
+  Future<void> _replaceOrder(OrderItem order) async {
+    OrderItem? existing;
+    for (final row in OrderState.finderOrders.value) {
+      if (row.id == order.id) {
+        existing = row;
+        break;
+      }
+    }
+    final changedStatus = existing != null && existing.status != order.status;
+    if (changedStatus &&
+        (order.status == OrderStatus.cancelled ||
+            order.status == OrderStatus.completed)) {
+      try {
+        await OrderState.updateFinderOrderStatus(
+          orderId: order.id,
+          status: order.status,
+        );
+      } catch (_) {
+        if (mounted) {
+          AppToast.error(context, 'Failed to sync order status.');
+        }
+      }
     } else {
-      target.add(order);
+      OrderState.replaceFinderOrderLocal(order);
+    }
+  }
+
+  List<OrderItem> _ordersForTab(_FinderOrderTab tab, List<OrderItem> source) {
+    switch (tab) {
+      case _FinderOrderTab.pending:
+        return source
+            .where((order) => order.status == OrderStatus.booked)
+            .toList();
+      case _FinderOrderTab.inProgress:
+        return source
+            .where(
+              (order) =>
+                  order.status == OrderStatus.onTheWay ||
+                  order.status == OrderStatus.started,
+            )
+            .toList();
+      case _FinderOrderTab.completed:
+        return source.where((order) {
+          return order.status == OrderStatus.completed ||
+              order.status == OrderStatus.cancelled;
+        }).toList();
     }
   }
 
@@ -320,9 +389,9 @@ class _OrderCard extends StatelessWidget {
                   child: Text(
                     order.serviceName,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                      ),
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 _OrderStatusPill(status: order.status),
@@ -347,17 +416,25 @@ class _OrderCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                OutlinedButton(
-                  onPressed: onTap,
-                  child: Text(order.status == OrderStatus.completed
-                      ? 'Rate service'
-                      : 'View details'),
+                Expanded(
+                  child: PrimaryButton(
+                    label: order.status == OrderStatus.completed
+                        ? 'Rate service'
+                        : 'View details',
+                    icon: order.status == OrderStatus.completed
+                        ? Icons.star_rate_rounded
+                        : Icons.receipt_long_rounded,
+                    isOutlined: true,
+                    onPressed: onTap,
+                  ),
                 ),
                 if (onMarkCompleted != null) ...[
                   const SizedBox(width: 8),
                   Expanded(
                     child: PrimaryButton(
                       label: 'Mark as completed',
+                      icon: Icons.task_alt_rounded,
+                      tone: PrimaryButtonTone.success,
                       onPressed: onMarkCompleted,
                     ),
                   ),
@@ -404,13 +481,10 @@ class _EmptyOrders extends StatelessWidget {
     final label = switch (activeTab) {
       _FinderOrderTab.pending => 'No incoming orders.',
       _FinderOrderTab.inProgress => 'No orders in progress.',
-      _FinderOrderTab.completed => 'No completed orders yet.',
+      _FinderOrderTab.completed => 'No order history yet.',
     };
     return Center(
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodyLarge,
-      ),
+      child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
     );
   }
 }
@@ -422,32 +496,12 @@ class _OrderStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, bg, fg) = switch (status) {
-      OrderStatus.booked => (
-          'Incoming',
-          const Color(0xFFFFF4E5),
-          const Color(0xFFD97706),
-        ),
-      OrderStatus.onTheWay => (
-          'On the way',
-          const Color(0xFFEAF1FF),
-          AppColors.primary,
-        ),
-      OrderStatus.started => (
-          'Started',
-          const Color(0xFFE9FDF4),
-          AppColors.success,
-        ),
-      OrderStatus.completed => (
-          'Completed',
-          const Color(0xFFE9FDF4),
-          AppColors.success,
-        ),
-      OrderStatus.cancelled => (
-          'Cancelled',
-          const Color(0xFFFFEFEF),
-          AppColors.danger,
-        ),
+    final (label, bg) = switch (status) {
+      OrderStatus.booked => ('Incoming', const Color(0xFFD97706)),
+      OrderStatus.onTheWay => ('On the way', AppColors.primary),
+      OrderStatus.started => ('Started', AppColors.success),
+      OrderStatus.completed => ('Completed', AppColors.success),
+      OrderStatus.cancelled => ('Cancelled', AppColors.danger),
     };
 
     return Container(
@@ -459,7 +513,7 @@ class _OrderStatusPill extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: fg,
+          color: Colors.white,
           fontWeight: FontWeight.w700,
         ),
       ),

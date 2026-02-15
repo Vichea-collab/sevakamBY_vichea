@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
-import '../../../data/mock/mock_data.dart';
+import '../../../data/network/backend_api_client.dart';
 import '../../../domain/entities/order.dart';
+import '../../state/order_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 import 'booking_confirmation_page.dart';
@@ -57,6 +59,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
               _PaymentTile(
                 label: 'Credit Card',
                 icon: Icons.credit_card,
+                subtitle: 'Visa / Mastercard',
                 selected: _selectedMethod == PaymentMethod.creditCard,
                 onTap: () =>
                     setState(() => _selectedMethod = PaymentMethod.creditCard),
@@ -64,6 +67,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
               _PaymentTile(
                 label: 'Bank account',
                 icon: Icons.account_balance,
+                subtitle: 'ABA, Acleda, Wing',
                 selected: _selectedMethod == PaymentMethod.bankAccount,
                 onTap: () =>
                     setState(() => _selectedMethod = PaymentMethod.bankAccount),
@@ -71,6 +75,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
               _PaymentTile(
                 label: 'Cash',
                 icon: Icons.payments_outlined,
+                subtitle: 'Pay after service completion',
                 selected: _selectedMethod == PaymentMethod.cash,
                 onTap: () =>
                     setState(() => _selectedMethod = PaymentMethod.cash),
@@ -171,7 +176,8 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
               ),
               const SizedBox(height: 16),
               PrimaryButton(
-                label: _submitting ? 'Processing...' : 'Place Booking',
+                label: _submitting ? 'Processing...' : 'Confirm Booking',
+                icon: Icons.check_circle_outline_rounded,
                 onPressed: _submitting ? null : () => _placeBooking(draft),
               ),
             ],
@@ -183,13 +189,24 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
 
   Future<void> _placeBooking(BookingDraft draft) async {
     setState(() => _submitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-    if (!mounted) return;
-    final order = MockData.createOrderFromDraft(draft);
-    Navigator.pushReplacement(
-      context,
-      slideFadeRoute(BookingConfirmationPage(order: order)),
-    );
+    try {
+      final order = await OrderState.createFinderOrder(draft);
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        slideFadeRoute(BookingConfirmationPage(order: order)),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final reason = error is BackendApiException
+          ? error.message
+          : 'Please check backend connection and try again.';
+      AppToast.error(context, 'Failed to place booking. $reason');
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   String _paymentLabel(PaymentMethod method) {
@@ -255,12 +272,14 @@ class _AmountRow extends StatelessWidget {
 
 class _PaymentTile extends StatelessWidget {
   final String label;
+  final String subtitle;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
 
   const _PaymentTile({
     required this.label,
+    required this.subtitle,
     required this.icon,
     required this.selected,
     required this.onTap,
@@ -273,22 +292,64 @@ class _PaymentTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFDCEBFF) : Colors.white,
-          borderRadius: BorderRadius.circular(10),
+          color: selected ? const Color(0xFFEAF1FF) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? AppColors.primary : AppColors.divider,
+            width: selected ? 1.6 : 1,
           ),
+          boxShadow: selected
+              ? const [
+                  BoxShadow(
+                    color: Color(0x1F1D4ED8),
+                    blurRadius: 14,
+                    offset: Offset(0, 5),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(icon, color: AppColors.primary),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primary : const Color(0xFFEAF1FF),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(
+                icon,
+                size: 19,
+                color: selected ? Colors.white : AppColors.primary,
+              ),
+            ),
             const SizedBox(width: 10),
-            Expanded(child: Text(label)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Icon(
-              Icons.check,
-              color: selected ? AppColors.primary : AppColors.divider,
+              selected ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: selected ? AppColors.primary : AppColors.textSecondary,
             ),
           ],
         ),

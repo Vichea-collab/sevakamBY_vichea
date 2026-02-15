@@ -11,6 +11,5 @@ abstract class FinderPostRepository {
     required String location,
     required String message,
     required DateTime preferredDate,
-    required String fallbackClientName,
   });
 }

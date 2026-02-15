@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/chat.dart';
+import '../../state/chat_state.dart';
 import '../../widgets/pressable_scale.dart';
 
 class ChatConversationPage extends StatefulWidget {
@@ -14,12 +16,12 @@ class ChatConversationPage extends StatefulWidget {
 
 class _ChatConversationPageState extends State<ChatConversationPage> {
   final TextEditingController _inputController = TextEditingController();
-  late List<ChatMessage> _messages;
+  bool _sending = false;
 
   @override
   void initState() {
     super.initState();
-    _messages = List<ChatMessage>.from(widget.thread.messages);
+    ChatState.markThreadAsRead(widget.thread.id);
   }
 
   @override
@@ -38,36 +40,56 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
             Expanded(
               child: Container(
                 color: const Color(0xFFEAF1FF),
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
-                  itemCount: _messages.length,
-                  itemBuilder: (context, index) {
-                    return _MessageBubble(message: _messages[index]);
+                child: StreamBuilder<List<ChatMessage>>(
+                  stream: ChatState.messageStream(widget.thread.id),
+                  builder: (context, snapshot) {
+                    final messages = snapshot.data ?? widget.thread.messages;
+                    if (messages.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'Start your conversation',
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(color: AppColors.textSecondary),
+                        ),
+                      );
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        return _MessageBubble(message: messages[index]);
+                      },
+                    );
                   },
                 ),
               ),
             ),
-            _Composer(controller: _inputController, onSend: _sendMessage),
+            _Composer(
+              controller: _inputController,
+              onSend: _sending ? null : _sendMessage,
+            ),
           ],
         ),
       ),
     );
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
-    setState(() {
-      _messages.add(
-        ChatMessage(
-          text: text,
-          fromMe: true,
-          sentAt: DateTime.now(),
-          seen: true,
-        ),
-      );
+    setState(() => _sending = true);
+    try {
+      await ChatState.sendMessage(threadId: widget.thread.id, text: text);
       _inputController.clear();
-    });
+    } catch (_) {
+      if (mounted) {
+        AppToast.error(context, 'Unable to send message right now.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _sending = false);
+      }
+    }
   }
 }
 
@@ -166,7 +188,7 @@ class _MessageBubble extends StatelessWidget {
 
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
-  final VoidCallback onSend;
+  final VoidCallback? onSend;
 
   const _Composer({required this.controller, required this.onSend});
 

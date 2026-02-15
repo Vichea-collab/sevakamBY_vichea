@@ -5,8 +5,13 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../core/config/app_env.dart';
 import '../../core/firebase/firebase_bootstrap.dart';
 import '../../domain/entities/profile_settings.dart';
+import 'app_sync_state.dart';
 import 'app_role_state.dart';
+import 'chat_state.dart';
 import 'finder_post_state.dart';
+import 'order_state.dart';
+import 'profile_image_state.dart';
+import 'provider_post_state.dart';
 import 'profile_settings_state.dart';
 
 class AuthState {
@@ -31,27 +36,50 @@ class AuthState {
     if (auth.currentUser != null) {
       final token = await auth.currentUser!.getIdToken();
       ProfileSettingsState.setBackendToken(token ?? '');
+      ChatState.setBackendToken(token ?? '');
       FinderPostState.setBackendToken(token ?? '');
+      ProviderPostState.setBackendToken(token ?? '');
+      OrderState.setBackendToken(token ?? '');
+      await ChatState.refresh();
       await FinderPostState.refresh();
+      await ProviderPostState.refresh();
+      await OrderState.refreshCurrentRole();
+      await AppSyncState.setSignedIn(true);
+    } else {
+      await AppSyncState.setSignedIn(false);
     }
     auth.authStateChanges().listen((user) async {
       currentUser.value = user;
       if (user == null) {
         ProfileSettingsState.setBackendToken('');
+        ChatState.setBackendToken('');
         FinderPostState.setBackendToken('');
+        ProviderPostState.setBackendToken('');
+        OrderState.setBackendToken('');
+        await AppSyncState.setSignedIn(false);
         return;
       }
       final token = await user.getIdToken();
       ProfileSettingsState.setBackendToken(token ?? '');
+      ChatState.setBackendToken(token ?? '');
       FinderPostState.setBackendToken(token ?? '');
+      ProviderPostState.setBackendToken(token ?? '');
+      OrderState.setBackendToken(token ?? '');
+      await ChatState.refresh();
       await FinderPostState.refresh();
+      await ProviderPostState.refresh();
+      await OrderState.refreshCurrentRole();
+      await AppSyncState.setSignedIn(true);
     });
     ready.value = true;
   }
 
   static bool get isSignedIn => currentUser.value != null;
 
-  static Future<String?> signInWithGoogle({required bool isProvider}) async {
+  static Future<String?> signInWithGoogle({
+    required bool isProvider,
+    bool registerIfMissing = true,
+  }) async {
     final configured = await FirebaseBootstrap.initializeIfConfigured();
     if (!configured) return FirebaseBootstrap.setupHint();
 
@@ -71,17 +99,29 @@ class AuthState {
       }
       final user = result.user;
       if (user == null) return 'Google sign-in failed.';
-      await _applyAuthenticatedSession(user, isProvider: isProvider);
-
-      final fullName = user.displayName?.trim().isNotEmpty == true
-          ? user.displayName!.trim()
-          : (isProvider ? 'Service Provider' : 'Service Finder');
-      final email = user.email?.trim() ?? '';
-      await _seedProfileAfterRegistration(
+      final sessionError = await _applyAuthenticatedSession(
+        user,
         isProvider: isProvider,
-        fullName: fullName,
-        email: email,
+        registerRoleIfMissing: registerIfMissing,
       );
+      if (sessionError != null) return sessionError;
+
+      if (registerIfMissing) {
+        final fullName = user.displayName?.trim().isNotEmpty == true
+            ? user.displayName!.trim()
+            : (isProvider ? 'Service Provider' : 'Service Finder');
+        final email = user.email?.trim() ?? '';
+        await _seedProfileAfterRegistration(
+          isProvider: isProvider,
+          fullName: fullName,
+          email: email,
+        );
+        ProfileImageState.useDefaultAvatar(isProvider: isProvider);
+      } else {
+        await ProfileSettingsState.syncRoleProfileFromBackend(
+          isProvider: isProvider,
+        );
+      }
       return null;
     } on GoogleSignInException catch (error) {
       debugPrint(
@@ -114,7 +154,32 @@ class AuthState {
       );
       final user = result.user;
       if (user == null) return 'Sign-in failed.';
-      await _applyAuthenticatedSession(user, isProvider: isProvider);
+      final sessionError = await _applyAuthenticatedSession(
+        user,
+        isProvider: isProvider,
+        registerRoleIfMissing: false,
+      );
+      if (sessionError != null) return sessionError;
+      await ProfileSettingsState.syncRoleProfileFromBackend(
+        isProvider: isProvider,
+      );
+      return null;
+    } on FirebaseAuthException catch (error) {
+      return _friendlyAuthError(error);
+    } catch (error) {
+      return error.toString();
+    }
+  }
+
+  static Future<String?> sendPasswordResetEmail({required String email}) async {
+    final configured = await FirebaseBootstrap.initializeIfConfigured();
+    if (!configured) return FirebaseBootstrap.setupHint();
+
+    final trimmed = email.trim();
+    if (trimmed.isEmpty) return 'Email is required.';
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: trimmed);
       return null;
     } on FirebaseAuthException catch (error) {
       return _friendlyAuthError(error);
@@ -138,16 +203,33 @@ class AuthState {
     if (!configured) return FirebaseBootstrap.setupHint();
 
     try {
-      final result = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-      final user = result.user;
+      User? user;
+      try {
+        final result = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(
+              email: email.trim(),
+              password: password,
+            );
+        user = result.user;
+      } on FirebaseAuthException catch (error) {
+        if (error.code != 'email-already-in-use') rethrow;
+        final existing = await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email.trim(),
+          password: password,
+        );
+        user = existing.user;
+      }
+
       if (user == null) return 'Sign-up failed.';
       if (fullName.trim().isNotEmpty) {
         await user.updateDisplayName(fullName.trim());
       }
-      await _applyAuthenticatedSession(user, isProvider: isProvider);
+      final sessionError = await _applyAuthenticatedSession(
+        user,
+        isProvider: isProvider,
+        registerRoleIfMissing: true,
+      );
+      if (sessionError != null) return sessionError;
       await _seedProfileAfterRegistration(
         isProvider: isProvider,
         fullName: fullName.trim(),
@@ -158,6 +240,7 @@ class AuthState {
         dateOfBirth: dateOfBirth.trim(),
         bio: bio.trim(),
       );
+      ProfileImageState.useDefaultAvatar(isProvider: isProvider);
       return null;
     } on FirebaseAuthException catch (error) {
       return _friendlyAuthError(error);
@@ -176,7 +259,40 @@ class AuthState {
       }
     } catch (_) {}
     ProfileSettingsState.setBackendToken('');
+    ChatState.setBackendToken('');
     FinderPostState.setBackendToken('');
+    ProviderPostState.setBackendToken('');
+    OrderState.setBackendToken('');
+    await AppSyncState.setSignedIn(false);
+  }
+
+  static Future<String?> switchRole({required bool toProvider}) async {
+    final user = currentUser.value;
+    if (user == null) {
+      return 'Please sign in first.';
+    }
+    final token = await user.getIdToken(true);
+    ProfileSettingsState.setBackendToken(token ?? '');
+    ChatState.setBackendToken(token ?? '');
+    FinderPostState.setBackendToken(token ?? '');
+    ProviderPostState.setBackendToken(token ?? '');
+    OrderState.setBackendToken(token ?? '');
+    final hasRole = await ProfileSettingsState.hasRoleRegisteredOnBackend(
+      isProvider: toProvider,
+    );
+    if (!hasRole) {
+      return _missingRoleMessage(toProvider);
+    }
+
+    AppRoleState.setProvider(toProvider);
+    await ChatState.refresh();
+    await ProfileSettingsState.syncRoleProfileFromBackend(
+      isProvider: toProvider,
+    );
+    await FinderPostState.refresh();
+    await ProviderPostState.refresh();
+    await OrderState.refreshCurrentRole();
+    return null;
   }
 
   static Future<void> _ensureGoogleInitialized() async {
@@ -188,16 +304,32 @@ class AuthState {
     _googleInitialized = true;
   }
 
-  static Future<void> _applyAuthenticatedSession(
+  static Future<String?> _applyAuthenticatedSession(
     User user, {
     required bool isProvider,
+    required bool registerRoleIfMissing,
   }) async {
     final token = await user.getIdToken(true);
     ProfileSettingsState.setBackendToken(token ?? '');
+    ChatState.setBackendToken(token ?? '');
     FinderPostState.setBackendToken(token ?? '');
+    ProviderPostState.setBackendToken(token ?? '');
+    OrderState.setBackendToken(token ?? '');
+    if (registerRoleIfMissing) {
+      await ProfileSettingsState.initUserRoleOnBackend(isProvider: isProvider);
+    }
+    final hasRole = await ProfileSettingsState.hasRoleRegisteredOnBackend(
+      isProvider: isProvider,
+    );
+    if (!hasRole) {
+      return _missingRoleMessage(isProvider);
+    }
     AppRoleState.setProvider(isProvider);
-    await ProfileSettingsState.initUserRoleOnBackend(isProvider: isProvider);
+    await ChatState.refresh();
     await FinderPostState.refresh();
+    await ProviderPostState.refresh();
+    await OrderState.refreshCurrentRole();
+    return null;
   }
 
   static Future<void> _seedProfileAfterRegistration({
@@ -223,6 +355,16 @@ class AuthState {
       bio: bio.isEmpty ? base.bio : bio,
     );
     await ProfileSettingsState.saveCurrentProfile(seeded);
+    await ProfileSettingsState.syncRoleProfileFromBackend(
+      isProvider: isProvider,
+    );
+  }
+
+  static String _missingRoleMessage(bool isProvider) {
+    if (isProvider) {
+      return 'Provider account is not registered for this email. Please register provider role first.';
+    }
+    return 'Finder account is not registered for this email. Please register finder role first.';
   }
 
   static String _friendlyAuthError(FirebaseAuthException error) {

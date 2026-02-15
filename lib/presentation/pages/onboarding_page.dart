@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
-import '../../data/mock/mock_data.dart';
+import '../../domain/entities/onboarding_step.dart';
 import '../widgets/step_indicator.dart';
 import 'auth/customer_auth_page.dart';
 
@@ -14,11 +14,41 @@ class OnboardingPage extends StatefulWidget {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
+  static const List<OnboardingStep> _steps = <OnboardingStep>[
+    OnboardingStep(
+      title: 'Best Helping Hands for you',
+      description:
+          'With our on-demand services app, we give better services to you.',
+      actionLabel: 'Get Started',
+      iconLabel: 'tools',
+    ),
+    OnboardingStep(
+      title: 'Choose a service',
+      description:
+          'Find the right service for your needs easily, with a variety of options.',
+      actionLabel: 'Next',
+      iconLabel: 'grid',
+    ),
+    OnboardingStep(
+      title: 'Get a quote',
+      description:
+          'Request price estimates from professionals to help you make decisions.',
+      actionLabel: 'Next',
+      iconLabel: 'chat',
+    ),
+    OnboardingStep(
+      title: 'Work done',
+      description: 'Sit back and relax while experts take care of your tasks.',
+      actionLabel: 'Start',
+      iconLabel: 'map',
+    ),
+  ];
+
   final PageController _controller = PageController();
   int _index = 0;
 
   void _next() {
-    if (_index < MockData.onboarding.length - 1) {
+    if (_index < _steps.length - 1) {
       _controller.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
@@ -70,9 +100,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
               child: PageView.builder(
                 controller: _controller,
                 onPageChanged: (value) => setState(() => _index = value),
-                itemCount: MockData.onboarding.length,
+                itemCount: _steps.length,
                 itemBuilder: (context, i) {
-                  final step = MockData.onboarding[i];
+                  final step = _steps[i];
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Column(
@@ -103,18 +133,15 @@ class _OnboardingPageState extends State<OnboardingPage> {
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
               child: Row(
                 children: [
-                  StepIndicator(
-                    count: MockData.onboarding.length,
-                    index: _index,
-                  ),
+                  StepIndicator(count: _steps.length, index: _index),
                   const Spacer(),
                   SizedBox(
                     height: 44,
                     child: ElevatedButton(
                       onPressed: _next,
-                      child: Text(_index == MockData.onboarding.length - 1
-                          ? 'Get Started'
-                          : 'Next'),
+                      child: Text(
+                        _index == _steps.length - 1 ? 'Get Started' : 'Next',
+                      ),
                     ),
                   ),
                 ],
@@ -165,9 +192,7 @@ class _IllustrationBadge extends StatelessWidget {
           ),
         ],
       ),
-      child: Center(
-        child: Icon(_icon(), size: 92, color: Colors.white),
-      ),
+      child: Center(child: Icon(_icon(), size: 92, color: Colors.white)),
     );
   }
 }

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/page_transition.dart';
-import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/order.dart';
+import '../../state/booking_catalog_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 import 'address_map_picker_page.dart';
@@ -25,7 +25,7 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
   @override
   void initState() {
     super.initState();
-    _addresses = List<HomeAddress>.from(MockData.homeAddresses);
+    _addresses = List<HomeAddress>.from(BookingCatalogState.homeAddresses);
     _selectedId = widget.draft.address?.id ?? _addresses.first.id;
   }
 
@@ -74,16 +74,22 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                                 children: [
                                   Text(
                                     address.label,
-                                    style: Theme.of(context).textTheme.bodyLarge,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge,
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     address.street,
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                                   Text(
                                     address.city,
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                                 ],
                               ),
@@ -103,6 +109,7 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
               ),
               PrimaryButton(
                 label: 'Select Address',
+                icon: Icons.my_location_rounded,
                 onPressed: _selectedId == null ? null : _goNext,
               ),
             ],
@@ -117,9 +124,7 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
     Navigator.push(
       context,
       slideFadeRoute(
-        BookingDetailsPage(
-          draft: widget.draft.copyWith(address: selected),
-        ),
+        BookingDetailsPage(draft: widget.draft.copyWith(address: selected)),
       ),
     );
   }
@@ -202,19 +207,19 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                           Expanded(
                             child: Text(
                               'Pick location from Google Map',
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodyMedium?.copyWith(
-                                color: AppColors.textPrimary,
-                              ),
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppColors.textPrimary),
                             ),
                           ),
                           TextButton(
                             onPressed: () async {
-                              final picked = await Navigator.push<PickedMapLocation>(
-                                context,
-                                slideFadeRoute(const AddressMapPickerPage()),
-                              );
+                              final picked =
+                                  await Navigator.push<PickedMapLocation>(
+                                    context,
+                                    slideFadeRoute(
+                                      const AddressMapPickerPage(),
+                                    ),
+                                  );
                               if (picked == null || !context.mounted) return;
                               labelController.text = picked.label;
                               mapLinkController.text = picked.mapLink;
@@ -267,6 +272,7 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                     const SizedBox(height: 18),
                     PrimaryButton(
                       label: 'Save Changes',
+                      icon: Icons.save_outlined,
                       onPressed: () => _saveAddressFromSheet(
                         labelController: labelController,
                         mapLinkController: mapLinkController,

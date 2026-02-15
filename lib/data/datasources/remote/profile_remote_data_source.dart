@@ -38,6 +38,21 @@ class ProfileRemoteDataSource {
         );
   }
 
+  Future<bool> hasRoleProfile({required bool isProvider}) async {
+    final rolePath = isProvider
+        ? '/api/providers/provider-profile'
+        : '/api/finders/finder-profile';
+    try {
+      await _apiClient.getJson(rolePath);
+      return true;
+    } on BackendApiException catch (error) {
+      if (error.statusCode == 403 || error.statusCode == 404) {
+        return false;
+      }
+      rethrow;
+    }
+  }
+
   Future<void> initUserRole({required bool isProvider}) async {
     await _apiClient.postJson('/api/users/init', {
       'role': isProvider ? 'provider' : 'finder',

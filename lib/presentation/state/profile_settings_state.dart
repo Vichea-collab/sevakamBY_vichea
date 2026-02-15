@@ -95,6 +95,34 @@ class ProfileSettingsState {
     return _repository.initUserRole(isProvider: isProvider);
   }
 
+  static Future<bool> hasRoleRegisteredOnBackend({
+    required bool isProvider,
+  }) async {
+    try {
+      return await _repository.hasRoleProfile(isProvider: isProvider);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> syncRoleProfileFromBackend({
+    required bool isProvider,
+  }) async {
+    try {
+      final profile = await _repository.loadProfileFromBackend(
+        isProvider: isProvider,
+      );
+      if (isProvider) {
+        providerProfile.value = profile;
+      } else {
+        finderProfile.value = profile;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> saveCurrentProfile(ProfileFormData profile) async {
     await _repository.saveProfile(isProvider: isProvider, profile: profile);
     if (isProvider) {

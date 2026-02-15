@@ -1,17 +1,25 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
-import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/profile_settings.dart';
+import '../../../domain/entities/provider_portal.dart';
+import '../../state/chat_state.dart';
+import '../../state/catalog_state.dart';
+import '../../state/profile_image_state.dart';
 import '../../state/profile_settings_state.dart';
+import '../../state/provider_post_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/category_chip.dart';
 import '../../widgets/pressable_scale.dart';
 import '../../widgets/section_title.dart';
 import '../../widgets/service_card.dart';
+import '../chat/chat_conversation_page.dart';
 import '../chat/chat_list_page.dart';
 import '../providers/provider_home_page.dart';
+import '../providers/provider_posts_page.dart';
 import '../search/search_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -39,6 +47,7 @@ class HomePage extends StatelessWidget {
                   const SizedBox(height: AppSpacing.md),
                   const _FeaturedBanner(),
                   const SizedBox(height: AppSpacing.lg),
+                  const _ProviderPostSection(),
                   SectionTitle(
                     title: 'Browse all categories',
                     actionLabel: 'View all',
@@ -48,26 +57,34 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  SizedBox(
-                    height: 150,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemBuilder: (context, index) {
-                        final category = MockData.categories[index];
-                        return CategoryChip(
-                          category: category,
-                          onTap: () => Navigator.push(
-                            context,
-                            slideFadeRoute(
-                              SearchPage(initialCategory: category.name),
-                            ),
-                          ),
-                        );
-                      },
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(width: AppSpacing.md),
-                      itemCount: MockData.categories.length,
-                    ),
+                  ValueListenableBuilder(
+                    valueListenable: CatalogState.categories,
+                    builder: (context, categories, _) {
+                      if (categories.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return SizedBox(
+                        height: 150,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemBuilder: (context, index) {
+                            final category = categories[index];
+                            return CategoryChip(
+                              category: category,
+                              onTap: () => Navigator.push(
+                                context,
+                                slideFadeRoute(
+                                  SearchPage(initialCategory: category.name),
+                                ),
+                              ),
+                            );
+                          },
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(width: AppSpacing.md),
+                          itemCount: categories.length,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   SectionTitle(
@@ -79,29 +96,38 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  SizedBox(
-                    height: 230,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemBuilder: (context, index) {
-                        final service = MockData.popular[index];
-                        return ServiceCard(
-                          item: service,
-                          onTap: () => Navigator.push(
-                            context,
-                            slideFadeRoute(
-                              SearchPage(
-                                initialQuery: service.title,
-                                initialCategory: service.category,
+                  ValueListenableBuilder(
+                    valueListenable: CatalogState.services,
+                    builder: (context, services, child) {
+                      final popular = CatalogState.popularServices(limit: 6);
+                      if (popular.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return SizedBox(
+                        height: 230,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemBuilder: (context, index) {
+                            final service = popular[index];
+                            return ServiceCard(
+                              item: service,
+                              onTap: () => Navigator.push(
+                                context,
+                                slideFadeRoute(
+                                  SearchPage(
+                                    initialQuery: service.title,
+                                    initialCategory: service.category,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        );
-                      },
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(width: AppSpacing.md),
-                      itemCount: MockData.popular.length,
-                    ),
+                            );
+                          },
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(width: AppSpacing.md),
+                          itemCount: popular.length,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   const SectionTitle(title: 'For your home'),
@@ -184,9 +210,27 @@ class _TopHeader extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 230),
                       shape: BoxShape.circle,
                     ),
-                    child: const CircleAvatar(
-                      radius: 19,
-                      backgroundImage: AssetImage('assets/images/profile.jpg'),
+                    child: ValueListenableBuilder(
+                      valueListenable: ProfileImageState.listenableForRole(
+                        isProvider: false,
+                      ),
+                      builder: (context, value, child) {
+                        final image = ProfileImageState.avatarProvider(
+                          isProvider: false,
+                        );
+                        return CircleAvatar(
+                          radius: 19,
+                          backgroundColor: const Color(0xFFEAF1FF),
+                          backgroundImage: image,
+                          child: image == null
+                              ? const Icon(
+                                  Icons.person,
+                                  color: AppColors.primary,
+                                  size: 18,
+                                )
+                              : null,
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -299,13 +343,6 @@ class _SearchBar extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.divider),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x12000000),
-              blurRadius: 12,
-              offset: Offset(0, 8),
-            ),
-          ],
         ),
         child: Row(
           children: [
@@ -419,6 +456,172 @@ class _FeaturedBanner extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProviderPostSection extends StatelessWidget {
+  const _ProviderPostSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<ProviderPostItem>>(
+      valueListenable: ProviderPostState.posts,
+      builder: (context, posts, _) {
+        if (posts.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Column(
+          children: [
+            SectionTitle(
+              title: 'Latest provider posts',
+              actionLabel: 'View all',
+              onAction: () => Navigator.push(
+                context,
+                slideFadeRoute(const ProviderPostsPage()),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            ...posts.take(3).map((item) => _ProviderPostTile(post: item)),
+            const SizedBox(height: AppSpacing.lg),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ProviderPostTile extends StatelessWidget {
+  final ProviderPostItem post;
+
+  const _ProviderPostTile({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: () => _openChat(context),
+      child: InkWell(
+        onTap: () => _openChat(context),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundImage: AssetImage(post.avatarPath),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      post.providerName,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '\$${post.ratePerHour.toStringAsFixed(0)}/hr',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${post.service} • ${post.timeLabel}',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                post.details,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _HomePostPill(text: post.category),
+                  _HomePostPill(text: post.area),
+                  if (post.availableNow)
+                    const _HomePostPill(text: 'Available now'),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openChat(BuildContext context) async {
+    if (post.providerUid.trim().isEmpty) {
+      AppToast.warning(context, 'Provider account unavailable for chat.');
+      return;
+    }
+    final currentUid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
+    if (currentUid.isNotEmpty && currentUid == post.providerUid.trim()) {
+      AppToast.info(
+        context,
+        'Switch to a finder account to chat with this provider post.',
+      );
+      return;
+    }
+    try {
+      final thread = await ChatState.openDirectThread(
+        peerUid: post.providerUid,
+        peerName: post.providerName,
+        peerIsProvider: true,
+      );
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        slideFadeRoute(ChatConversationPage(thread: thread)),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      AppToast.error(context, 'Unable to open live chat.');
+    }
+  }
+}
+
+class _HomePostPill extends StatelessWidget {
+  final String text;
+
+  const _HomePostPill({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF1FF),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

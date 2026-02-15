@@ -20,6 +20,34 @@ class ProviderAuthPage extends StatefulWidget {
 }
 
 class _ProviderAuthPageState extends State<ProviderAuthPage> {
+  static const Map<String, List<String>> _cityDistrictOptions = {
+    'Phnom Penh': [
+      'Chamkar Mon',
+      'Daun Penh',
+      '7 Makara',
+      'Toul Kork',
+      'Sen Sok',
+      'Mean Chey',
+      'Chbar Ampov',
+      'Russey Keo',
+      'Por Senchey',
+      'Dangkao',
+      'Prek Pnov',
+      'Chroy Changvar',
+      'Boeng Keng Kang',
+      'Kamboul',
+    ],
+    'Siem Reap': ['Siem Reap', 'Prasat Bakong', 'Angkor Thom', 'Banteay Srei'],
+    'Battambang': ['Battambang', 'Sangkae', 'Banan', 'Thma Koul'],
+    'Kampot': ['Kampot', 'Teuk Chhou', 'Dang Tong', 'Chhuk'],
+    'Sihanoukville': [
+      'Sihanoukville',
+      'Prey Nob',
+      'Stueng Hav',
+      'Kampong Seila',
+    ],
+  };
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
@@ -34,6 +62,15 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
   bool _isSignUp = true;
   bool _authLoading = false;
   bool _googleLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+
+  List<String> get _cities => _cityDistrictOptions.keys.toList(growable: false);
+
+  List<String> get _districtsForSelectedCity {
+    final city = _cityController.text.trim();
+    return _cityDistrictOptions[city] ?? const <String>[];
+  }
 
   @override
   void dispose() {
@@ -151,9 +188,19 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
                             AppTextField(
                               hint: 'Enter Your Password',
                               controller: _passwordController,
-                              obscureText: true,
+                              obscureText: _obscurePassword,
                               autofillHints: const [AutofillHints.password],
                               textInputAction: TextInputAction.next,
+                              suffixIcon: IconButton(
+                                onPressed: () => setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                }),
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                ),
+                              ),
                               validator: _validatePassword,
                             ),
                             if (_isSignUp) ...[
@@ -161,8 +208,19 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
                               AppTextField(
                                 hint: 'Re-Enter Your Password',
                                 controller: _confirmPasswordController,
-                                obscureText: true,
+                                obscureText: _obscureConfirmPassword,
                                 textInputAction: TextInputAction.next,
+                                suffixIcon: IconButton(
+                                  onPressed: () => setState(() {
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
+                                  }),
+                                  icon: Icon(
+                                    _obscureConfirmPassword
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
+                                  ),
+                                ),
                                 validator: _validateConfirmPassword,
                               ),
                               const SizedBox(height: 12),
@@ -172,7 +230,8 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
                                     child: AppTextField(
                                       hint: 'Select your City/Province',
                                       controller: _cityController,
-                                      textInputAction: TextInputAction.next,
+                                      readOnly: true,
+                                      onTap: _pickCity,
                                       suffixIcon: const Icon(
                                         Icons.keyboard_arrow_down,
                                       ),
@@ -186,7 +245,8 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
                                     child: AppTextField(
                                       hint: 'Select your District',
                                       controller: _districtController,
-                                      textInputAction: TextInputAction.done,
+                                      readOnly: true,
+                                      onTap: _pickDistrict,
                                       suffixIcon: const Icon(
                                         Icons.keyboard_arrow_down,
                                       ),
@@ -265,7 +325,10 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
 
   Future<void> _continueWithGoogle() async {
     setState(() => _googleLoading = true);
-    final error = await AuthState.signInWithGoogle(isProvider: true);
+    final error = await AuthState.signInWithGoogle(
+      isProvider: true,
+      registerIfMissing: _isSignUp,
+    );
     if (!mounted) return;
     setState(() => _googleLoading = false);
 
@@ -331,6 +394,100 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
     final city = _cityController.text.trim();
     final district = _districtController.text.trim();
     return [city, district].where((item) => item.isNotEmpty).join(', ');
+  }
+
+  Future<void> _pickCity() async {
+    final picked = await _showOptionSheet(
+      title: 'Select your city/province',
+      options: _cities,
+      selected: _cityController.text.trim(),
+    );
+    if (picked == null) return;
+    setState(() {
+      _cityController.text = picked;
+      if (!_districtsForSelectedCity.contains(
+        _districtController.text.trim(),
+      )) {
+        _districtController.clear();
+      }
+    });
+  }
+
+  Future<void> _pickDistrict() async {
+    if (_cityController.text.trim().isEmpty) {
+      AppToast.warning(context, 'Please select city/province first.');
+      return;
+    }
+
+    final options = _districtsForSelectedCity;
+    if (options.isEmpty) {
+      AppToast.warning(context, 'No district options available for this city.');
+      return;
+    }
+
+    final picked = await _showOptionSheet(
+      title: 'Select your district',
+      options: options,
+      selected: _districtController.text.trim(),
+    );
+    if (picked == null) return;
+    setState(() => _districtController.text = picked);
+  }
+
+  Future<String?> _showOptionSheet({
+    required String title,
+    required List<String> options,
+    required String selected,
+  }) {
+    return showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final option = options[index];
+                      final active = option == selected;
+                      return ListTile(
+                        title: Text(option),
+                        trailing: active
+                            ? const Icon(
+                                Icons.check_circle,
+                                color: AppColors.primary,
+                              )
+                            : null,
+                        onTap: () => Navigator.pop(context, option),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   String? Function(String?) _validateRequired(String label) {

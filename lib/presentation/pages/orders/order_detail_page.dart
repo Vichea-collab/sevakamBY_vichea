@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/order.dart';
+import '../../state/chat_state.dart';
+import '../../state/order_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 import '../booking/booking_address_page.dart';
-import '../../../data/mock/mock_data.dart';
+import '../chat/chat_conversation_page.dart';
+import '../../state/booking_catalog_state.dart';
 import 'manage_order_page.dart';
 import 'order_feedback_page.dart';
 
@@ -48,12 +52,14 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                 _order.serviceName,
                 style: Theme.of(
                   context,
-                ).textTheme.titleLarge?.copyWith(color: AppColors.primary),
+                ).textTheme.titleLarge?.copyWith(color: AppColors.textPrimary),
               ),
               Text(
                 'Project ID: #${_order.id}',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
+              const SizedBox(height: 8),
+              _OrderStatusChip(status: _order.status),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(14),
@@ -81,26 +87,31 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton(
+                          child: PrimaryButton(
+                            label: _order.status == OrderStatus.completed
+                                ? 'Rate service'
+                                : 'Manage order',
+                            icon: _order.status == OrderStatus.completed
+                                ? Icons.star_rate_rounded
+                                : Icons.tune_rounded,
+                            isOutlined: true,
                             onPressed: _order.status == OrderStatus.completed
                                 ? () => _openRating()
                                 : () => _openManage(),
-                            child: Text(
-                              _order.status == OrderStatus.completed
-                                  ? 'Rate service'
-                                  : 'Manage Orders',
-                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: OutlinedButton(
+                          child: PrimaryButton(
+                            isOutlined: true,
+                            tone: PrimaryButtonTone.neutral,
+                            icon: _order.status == OrderStatus.completed
+                                ? Icons.replay_rounded
+                                : Icons.event_note_rounded,
                             onPressed: () => _reorder(),
-                            child: Text(
-                              _order.status == OrderStatus.completed
-                                  ? 'Reorder service'
-                                  : 'Add to calendar',
-                            ),
+                            label: _order.status == OrderStatus.completed
+                                ? 'Reorder'
+                                : 'Add calendar',
                           ),
                         ),
                       ],
@@ -120,6 +131,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              const SizedBox(height: 8),
+              _StatusBanner(status: _order.status),
               const SizedBox(height: 8),
               _StatusStepper(status: _order.status),
               const SizedBox(height: 12),
@@ -144,7 +157,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                             _order.provider.name,
                             style: Theme.of(context).textTheme.bodyLarge
                                 ?.copyWith(
-                                  color: AppColors.primary,
+                                  color: AppColors.textPrimary,
                                   fontWeight: FontWeight.w600,
                                 ),
                           ),
@@ -166,8 +179,15 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () {},
-                      child: const Text('View Profile'),
+                      onPressed: _openProviderChat,
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                          SizedBox(width: 4),
+                          Text('Chat now'),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -270,6 +290,24 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       slideFadeRoute(ManageOrderPage(order: _order)),
     );
     if (result == null) return;
+    final changedStatus = result.status != _order.status;
+    if (changedStatus &&
+        (result.status == OrderStatus.cancelled ||
+            result.status == OrderStatus.completed)) {
+      try {
+        final synced = await OrderState.updateFinderOrderStatus(
+          orderId: result.id,
+          status: result.status,
+        );
+        if (!mounted) return;
+        setState(() => _order = synced);
+        return;
+      } catch (_) {
+        if (!mounted) return;
+        AppToast.error(context, 'Failed to sync order status.');
+      }
+    }
+    if (!mounted) return;
     setState(() => _order = result);
   }
 
@@ -287,13 +325,39 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       context,
       slideFadeRoute(
         BookingAddressPage(
-          draft: MockData.defaultBookingDraft(
+          draft: BookingCatalogState.defaultBookingDraft(
             provider: _order.provider,
             serviceName: _order.serviceName,
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _openProviderChat() async {
+    final providerUid = _order.provider.uid.trim();
+    if (providerUid.isEmpty) {
+      AppToast.info(
+        context,
+        'Chat will be available once provider accepts the order.',
+      );
+      return;
+    }
+    try {
+      final thread = await ChatState.openDirectThread(
+        peerUid: providerUid,
+        peerName: _order.provider.name,
+        peerIsProvider: true,
+      );
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        slideFadeRoute(ChatConversationPage(thread: thread)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.error(context, 'Unable to open live chat.');
+    }
   }
 
   String _dateLabel(DateTime dateTime) {
@@ -344,6 +408,7 @@ class _StatusStepper extends StatelessWidget {
     return Row(
       children: List.generate(steps.length, (index) {
         final reached = index <= activeIndex;
+        final isCurrent = index == activeIndex;
         return Expanded(
           child: Column(
             children: [
@@ -359,14 +424,23 @@ class _StatusStepper extends StatelessWidget {
                           : AppColors.divider,
                     ),
                   ),
-                  CircleAvatar(
-                    radius: 10,
-                    backgroundColor: reached
-                        ? AppColors.primary
-                        : AppColors.divider,
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: isCurrent ? 24 : 20,
+                    height: isCurrent ? 24 : 20,
+                    decoration: BoxDecoration(
+                      color: reached ? AppColors.primary : AppColors.divider,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isCurrent
+                            ? AppColors.primary.withValues(alpha: 89)
+                            : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
                     child: Icon(
-                      Icons.check,
-                      size: 12,
+                      reached ? Icons.check : Icons.circle,
+                      size: reached ? 12 : 8,
                       color: reached ? Colors.white : AppColors.textSecondary,
                     ),
                   ),
@@ -387,6 +461,7 @@ class _StatusStepper extends StatelessWidget {
                 steps[index],
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: reached ? AppColors.primary : AppColors.textSecondary,
+                  fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ],
@@ -412,6 +487,102 @@ class _StatusStepper extends StatelessWidget {
   }
 }
 
+class _StatusBanner extends StatelessWidget {
+  final OrderStatus status;
+
+  const _StatusBanner({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, icon, bg, fg) = switch (status) {
+      OrderStatus.booked => (
+        'Waiting for provider confirmation',
+        Icons.pending_actions_rounded,
+        const Color(0xFFFFF4E5),
+        const Color(0xFFD97706),
+      ),
+      OrderStatus.onTheWay => (
+        'Provider is on the way',
+        Icons.local_shipping_outlined,
+        const Color(0xFFEAF1FF),
+        AppColors.primary,
+      ),
+      OrderStatus.started => (
+        'Service in progress',
+        Icons.handyman_rounded,
+        const Color(0xFFE9FDF4),
+        AppColors.success,
+      ),
+      OrderStatus.completed => (
+        'Service completed',
+        Icons.verified_rounded,
+        const Color(0xFFE9FDF4),
+        AppColors.success,
+      ),
+      OrderStatus.cancelled => (
+        'Booking cancelled',
+        Icons.cancel_outlined,
+        const Color(0xFFFFEFEF),
+        AppColors.danger,
+      ),
+    };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: fg, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderStatusChip extends StatelessWidget {
+  final OrderStatus status;
+
+  const _OrderStatusChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      OrderStatus.booked => ('Incoming', const Color(0xFFD97706)),
+      OrderStatus.onTheWay => ('On the way', AppColors.primary),
+      OrderStatus.started => ('Started', AppColors.success),
+      OrderStatus.completed => ('Completed', AppColors.success),
+      OrderStatus.cancelled => ('Cancelled', AppColors.danger),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
@@ -433,7 +604,7 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               value,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppColors.primary,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.w500,
               ),
             ),

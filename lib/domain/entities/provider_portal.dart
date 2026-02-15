@@ -2,6 +2,7 @@ enum ProviderOrderState { incoming, onTheWay, started, completed, declined }
 
 class FinderPostItem {
   final String id;
+  final String finderUid;
   final String clientName;
   final String message;
   final String timeLabel;
@@ -13,6 +14,7 @@ class FinderPostItem {
 
   const FinderPostItem({
     required this.id,
+    this.finderUid = '',
     required this.clientName,
     required this.message,
     required this.timeLabel,
@@ -21,6 +23,34 @@ class FinderPostItem {
     required this.location,
     required this.avatarPath,
     this.preferredDate,
+  });
+}
+
+class ProviderPostItem {
+  final String id;
+  final String providerUid;
+  final String providerName;
+  final String category;
+  final String service;
+  final String area;
+  final String details;
+  final double ratePerHour;
+  final bool availableNow;
+  final String timeLabel;
+  final String avatarPath;
+
+  const ProviderPostItem({
+    required this.id,
+    this.providerUid = '',
+    required this.providerName,
+    required this.category,
+    required this.service,
+    required this.area,
+    required this.details,
+    required this.ratePerHour,
+    required this.availableNow,
+    required this.timeLabel,
+    required this.avatarPath,
   });
 }
 

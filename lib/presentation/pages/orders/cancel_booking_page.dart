@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
-import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/order.dart';
+import '../../state/booking_catalog_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 
@@ -16,7 +16,7 @@ class CancelBookingPage extends StatefulWidget {
 }
 
 class _CancelBookingPageState extends State<CancelBookingPage> {
-  String? _selectedReason = MockData.cancelReasons.first;
+  String? _selectedReason = BookingCatalogState.cancelReasons.first;
   bool _submitting = false;
 
   @override
@@ -27,9 +27,7 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             children: [
-              const AppTopBar(
-                title: 'Cancel Booking',
-              ),
+              const AppTopBar(title: 'Cancel Booking'),
               const SizedBox(height: 10),
               Container(
                 height: 140,
@@ -47,16 +45,16 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
               const SizedBox(height: 14),
               Text(
                 "Please let us know why you're canceling your booking.",
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.primary,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(color: AppColors.primary),
               ),
               const SizedBox(height: 8),
               Expanded(
                 child: ListView.builder(
-                  itemCount: MockData.cancelReasons.length,
+                  itemCount: BookingCatalogState.cancelReasons.length,
                   itemBuilder: (context, index) {
-                    final reason = MockData.cancelReasons[index];
+                    final reason = BookingCatalogState.cancelReasons[index];
                     final selected = _selectedReason == reason;
                     return InkWell(
                       onTap: () => setState(() => _selectedReason = reason),
@@ -88,7 +86,9 @@ class _CancelBookingPageState extends State<CancelBookingPage> {
                     child: PrimaryButton(
                       label: "Don't Cancel",
                       isOutlined: true,
-                      onPressed: _submitting ? null : () => Navigator.pop(context),
+                      onPressed: _submitting
+                          ? null
+                          : () => Navigator.pop(context),
                     ),
                   ),
                   const SizedBox(width: 10),

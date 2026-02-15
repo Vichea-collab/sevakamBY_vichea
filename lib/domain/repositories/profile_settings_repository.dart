@@ -4,6 +4,7 @@ import '../entities/profile_settings.dart';
 abstract class ProfileSettingsRepository {
   void setBearerToken(String token);
   Future<void> initUserRole({required bool isProvider});
+  Future<bool> hasRoleProfile({required bool isProvider});
 
   Future<ProfileFormData> loadProfile({required bool isProvider});
   Future<ProfileFormData> loadProfileFromBackend({required bool isProvider});

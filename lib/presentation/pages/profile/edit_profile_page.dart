@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_calendar_picker.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/profile_settings.dart';
 import '../../state/app_role_state.dart';
@@ -69,6 +70,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ValueListenableBuilder(
                 valueListenable: ProfileImageState.listenable,
                 builder: (context, value, child) {
+                  final image = ProfileImageState.avatarProvider();
                   return InkWell(
                     borderRadius: BorderRadius.circular(99),
                     onTap: _showPhotoOptions,
@@ -76,7 +78,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       children: [
                         CircleAvatar(
                           radius: 42,
-                          backgroundImage: ProfileImageState.avatarProvider(),
+                          backgroundColor: const Color(0xFFEAF1FF),
+                          backgroundImage: image,
+                          child: image == null
+                              ? const Icon(
+                                  Icons.person,
+                                  color: AppColors.primary,
+                                  size: 40,
+                                )
+                              : null,
                         ),
                         Positioned(
                           right: 2,
@@ -149,6 +159,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       label: 'Date of Birth',
                       hint: 'DD/MM/YYYY',
                       controller: _dobController,
+                      readOnly: true,
+                      suffixIcon: Icons.calendar_month_outlined,
+                      onTap: _pickDateOfBirth,
                     ),
                     const SizedBox(height: 10),
                     _LabeledField(
@@ -271,6 +284,53 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _bioController.text = profile.bio;
   }
 
+  Future<void> _pickDateOfBirth() async {
+    final today = DateTime.now();
+    final initial =
+        _tryParseDob(_dobController.text) ??
+        DateTime(today.year - 18, today.month, today.day);
+    final picked = await showAppCalendarDatePicker(
+      context,
+      initialDate: initial,
+      firstDate: DateTime(1900, 1, 1),
+      lastDate: DateTime(today.year, today.month, today.day),
+      helpText: 'Choose date of birth',
+      confirmText: 'Select',
+    );
+    if (picked == null) return;
+    _dobController.text = _formatDob(picked);
+  }
+
+  DateTime? _tryParseDob(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return null;
+
+    final iso = DateTime.tryParse(value);
+    if (iso != null) {
+      return DateTime(iso.year, iso.month, iso.day);
+    }
+
+    final match = RegExp(r'^(\d{1,2})/(\d{1,2})/(\d{4})$').firstMatch(value);
+    if (match == null) return null;
+    final day = int.tryParse(match.group(1) ?? '');
+    final month = int.tryParse(match.group(2) ?? '');
+    final year = int.tryParse(match.group(3) ?? '');
+    if (day == null || month == null || year == null) return null;
+
+    final parsed = DateTime(year, month, day);
+    if (parsed.year != year || parsed.month != month || parsed.day != day) {
+      return null;
+    }
+    return parsed;
+  }
+
+  String _formatDob(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final year = value.year.toString().padLeft(4, '0');
+    return '$day/$month/$year';
+  }
+
   Future<void> _saveProfile() async {
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
@@ -336,6 +396,9 @@ class _LabeledField extends StatelessWidget {
   final TextInputType? keyboardType;
   final int minLines;
   final int maxLines;
+  final bool readOnly;
+  final VoidCallback? onTap;
+  final IconData? suffixIcon;
 
   const _LabeledField({
     required this.label,
@@ -345,6 +408,9 @@ class _LabeledField extends StatelessWidget {
     this.keyboardType,
     this.minLines = 1,
     this.maxLines = 1,
+    this.readOnly = false,
+    this.onTap,
+    this.suffixIcon,
   });
 
   @override
@@ -365,7 +431,14 @@ class _LabeledField extends StatelessWidget {
           keyboardType: keyboardType,
           minLines: minLines,
           maxLines: maxLines,
-          decoration: InputDecoration(hintText: hint),
+          readOnly: readOnly,
+          onTap: onTap,
+          decoration: InputDecoration(
+            hintText: hint,
+            suffixIcon: suffixIcon == null
+                ? null
+                : Icon(suffixIcon, color: AppColors.textSecondary, size: 20),
+          ),
         ),
       ],
     );

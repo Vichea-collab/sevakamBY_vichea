@@ -1,26 +1,24 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
-import '../../../data/mock/mock_data.dart';
+import '../../../domain/entities/provider_portal.dart';
 import '../../../domain/entities/provider.dart';
 import '../../../domain/entities/service.dart';
+import '../../state/catalog_state.dart';
+import '../../state/provider_post_state.dart';
 import '../../widgets/category_chip.dart';
 import '../../widgets/pressable_scale.dart';
 import '../providers/provider_category_page.dart';
-import '../providers/provider_detail_page.dart';
-import '../providers/provider_home_page.dart';
+import '../providers/provider_posts_page.dart';
 
 class SearchPage extends StatefulWidget {
   static const String routeName = '/search';
   final String initialQuery;
   final String? initialCategory;
 
-  const SearchPage({
-    super.key,
-    this.initialQuery = '',
-    this.initialCategory,
-  });
+  const SearchPage({super.key, this.initialQuery = '', this.initialCategory});
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -35,12 +33,15 @@ class _SearchPageState extends State<SearchPage> {
   _SortOption? _sortOption;
   int _visibleCount = 10;
   final List<String> _recentSearches = List<String>.from(
-    MockData.recentSearches,
+    CatalogState.defaultRecentSearches,
   );
 
   @override
   void initState() {
     super.initState();
+    CatalogState.categories.addListener(_onLiveDataChanged);
+    CatalogState.services.addListener(_onLiveDataChanged);
+    ProviderPostState.posts.addListener(_onLiveDataChanged);
     _query = widget.initialQuery.trim();
     _selectedCategory = widget.initialCategory;
     if (_query.isNotEmpty) {
@@ -51,19 +52,30 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   void dispose() {
+    CatalogState.categories.removeListener(_onLiveDataChanged);
+    CatalogState.services.removeListener(_onLiveDataChanged);
+    ProviderPostState.posts.removeListener(_onLiveDataChanged);
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onLiveDataChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final query = _query.trim().toLowerCase();
-    final filteredCategories = MockData.categories;
-    final filteredPopular = MockData.services.where((service) {
+    final filteredCategories = CatalogState.categories.value;
+    final providerPosts = ProviderPostState.posts.value;
+    final filteredPopular = CatalogState.services.value.where((service) {
       final matchesProviderName =
           query.isEmpty ||
-          MockData.providersByCategory(service.category).any(
-            (provider) => provider.name.toLowerCase().contains(query),
+          providerPosts.any(
+            (post) =>
+                post.category.toLowerCase() == service.category.toLowerCase() &&
+                post.providerName.toLowerCase().contains(query),
           );
       final matchesQuery =
           query.isEmpty ||
@@ -82,12 +94,14 @@ class _SearchPageState extends State<SearchPage> {
         break;
       case _SortOption.priceHigh:
         filteredPopular.sort(
-          (a, b) => _extractPrice(b.subtitle).compareTo(_extractPrice(a.subtitle)),
+          (a, b) =>
+              _extractPrice(b.subtitle).compareTo(_extractPrice(a.subtitle)),
         );
         break;
       case _SortOption.priceLow:
         filteredPopular.sort(
-          (a, b) => _extractPrice(a.subtitle).compareTo(_extractPrice(b.subtitle)),
+          (a, b) =>
+              _extractPrice(a.subtitle).compareTo(_extractPrice(b.subtitle)),
         );
         break;
       case _SortOption.popular:
@@ -124,8 +138,10 @@ class _SearchPageState extends State<SearchPage> {
                 children: [
                   Row(
                     children: [
-                      Text('Recently',
-                          style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        'Recently',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const Spacer(),
                       if (_recentSearches.isNotEmpty)
                         TextButton(
@@ -147,7 +163,8 @@ class _SearchPageState extends State<SearchPage> {
                         )
                         .toList(),
                   ),
-                  if (_query.trim().isNotEmpty || _selectedCategory != null) ...[
+                  if (_query.trim().isNotEmpty ||
+                      _selectedCategory != null) ...[
                     const SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -168,8 +185,10 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                   ],
                   const SizedBox(height: 20),
-                  Text('Browse all categories',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'Browse all categories',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 12),
                   SizedBox(
                     height: 150,
@@ -196,8 +215,31 @@ class _SearchPageState extends State<SearchPage> {
                       ),
                     ),
                   const SizedBox(height: 20),
-                  Text('Available Skills',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Row(
+                    children: [
+                      Text(
+                        'Provider posts',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: _openAllProviderPosts,
+                        child: const Text('View all'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Browse all live provider posts in one screen.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Available Skills',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 8,
@@ -231,7 +273,10 @@ class _SearchPageState extends State<SearchPage> {
                   ...visibleServices.map(
                     (item) => _ServiceListTile(
                       item: item,
-                      providerName: _findMatchedProvider(item.category, query)?.name,
+                      providerName: _findMatchedProvider(
+                        item.category,
+                        query,
+                      )?.name,
                       onTap: () => _openServiceResult(item, query),
                     ),
                   ),
@@ -261,6 +306,7 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
   }
+
   String _sortLabel(_SortOption value) {
     switch (value) {
       case _SortOption.rating:
@@ -295,31 +341,40 @@ class _SearchPageState extends State<SearchPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Sort By', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Sort By',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 14),
                   _SortOptionTile(
                     icon: Icons.local_fire_department_outlined,
                     label: 'Most Popular',
                     selected: selectedSort == _SortOption.popular,
-                    onTap: () => modalSetState(() => selectedSort = _SortOption.popular),
+                    onTap: () =>
+                        modalSetState(() => selectedSort = _SortOption.popular),
                   ),
                   _SortOptionTile(
                     icon: Icons.star_border_rounded,
                     label: 'Ratings',
                     selected: selectedSort == _SortOption.rating,
-                    onTap: () => modalSetState(() => selectedSort = _SortOption.rating),
+                    onTap: () =>
+                        modalSetState(() => selectedSort = _SortOption.rating),
                   ),
                   _SortOptionTile(
                     icon: Icons.payments_outlined,
                     label: 'Price (High to Low)',
                     selected: selectedSort == _SortOption.priceHigh,
-                    onTap: () => modalSetState(() => selectedSort = _SortOption.priceHigh),
+                    onTap: () => modalSetState(
+                      () => selectedSort = _SortOption.priceHigh,
+                    ),
                   ),
                   _SortOptionTile(
                     icon: Icons.payments_outlined,
                     label: 'Price (Low to High)',
                     selected: selectedSort == _SortOption.priceLow,
-                    onTap: () => modalSetState(() => selectedSort = _SortOption.priceLow),
+                    onTap: () => modalSetState(
+                      () => selectedSort = _SortOption.priceLow,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   SizedBox(
@@ -372,7 +427,9 @@ class _SearchPageState extends State<SearchPage> {
     setState(() {
       _query = text;
       _visibleCount = 10;
-      _recentSearches.removeWhere((item) => item.toLowerCase() == text.toLowerCase());
+      _recentSearches.removeWhere(
+        (item) => item.toLowerCase() == text.toLowerCase(),
+      );
       _recentSearches.insert(0, text);
       if (_recentSearches.length > 8) {
         _recentSearches.removeLast();
@@ -397,39 +454,170 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
-  void _openProvidersForCategory(String category) {
-    final section = MockData.providerSectionForCategory(category);
-    if (section == null) {
-      Navigator.push(context, slideFadeRoute(const ProviderHomePage()));
-      return;
-    }
-    Navigator.push(context, slideFadeRoute(ProviderCategoryPage(section: section)));
-  }
-
-  ProviderItem? _findMatchedProvider(String category, String query) {
-    if (query.isEmpty) return null;
-    for (final provider in MockData.providersByCategory(category)) {
-      if (provider.name.toLowerCase().contains(query)) {
-        return provider;
-      }
-    }
-    return null;
+  void _openAllProviderPosts() {
+    Navigator.push(
+      context,
+      slideFadeRoute(
+        ProviderPostsPage(
+          initialQuery: _query.trim(),
+          initialCategory: _selectedCategory,
+        ),
+      ),
+    );
   }
 
   void _openServiceResult(ServiceItem item, String query) {
-    final matchedProvider = _findMatchedProvider(item.category, query);
-    if (matchedProvider != null) {
-      Navigator.push(
+    final section = _providerSectionForCategory(
+      category: item.category,
+      serviceFilter: item.title,
+      query: query,
+    );
+    if (section == null || section.providers.isEmpty) {
+      AppToast.info(
         context,
-        slideFadeRoute(ProviderDetailPage(provider: matchedProvider)),
+        'No provider found for ${item.title} yet. Try another service.',
       );
       return;
     }
-    _openProvidersForCategory(item.category);
+    Navigator.push(
+      context,
+      slideFadeRoute(ProviderCategoryPage(section: section)),
+    );
+  }
+
+  ProviderItem? _findMatchedProvider(String category, String query) {
+    final section = _providerSectionForCategory(
+      category: category,
+      serviceFilter: '',
+      query: query,
+    );
+    if (section == null || section.providers.isEmpty) return null;
+    return section.providers.first;
+  }
+
+  Color _accentFromCategory(String category) {
+    switch (category.trim().toLowerCase()) {
+      case 'plumber':
+        return const Color(0xFF0E8AD6);
+      case 'electrician':
+        return const Color(0xFFF59E0B);
+      case 'cleaner':
+        return const Color(0xFF10B981);
+      case 'home appliance':
+      case 'appliance':
+        return const Color(0xFF6366F1);
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  ProviderSection? _providerSectionForCategory({
+    required String category,
+    required String serviceFilter,
+    required String query,
+  }) {
+    final normalizedCategory = category.trim().toLowerCase();
+    if (normalizedCategory.isEmpty) return null;
+    final normalizedService = serviceFilter.trim().toLowerCase();
+    final normalizedQuery = query.trim().toLowerCase();
+
+    final providersByKey = <String, _ProviderAggregate>{};
+    for (final post in ProviderPostState.posts.value) {
+      if (post.category.trim().toLowerCase() != normalizedCategory) continue;
+      final matchesService =
+          normalizedService.isEmpty ||
+          post.service.trim().toLowerCase() == normalizedService;
+      if (!matchesService) continue;
+
+      final providerKey = post.providerUid.trim().isNotEmpty
+          ? post.providerUid.trim().toLowerCase()
+          : post.providerName.trim().toLowerCase();
+      final existing = providersByKey[providerKey];
+      if (existing == null) {
+        providersByKey[providerKey] = _ProviderAggregate.fromPost(post);
+      } else {
+        existing.addService(post.service);
+      }
+    }
+
+    var providers = providersByKey.values
+        .map(_providerFromAggregate)
+        .toList(growable: false);
+    if (normalizedQuery.isNotEmpty) {
+      providers = providers
+          .where((provider) {
+            final inName = provider.name.toLowerCase().contains(
+              normalizedQuery,
+            );
+            final inService = provider.services.any(
+              (service) => service.toLowerCase().contains(normalizedQuery),
+            );
+            return inName || inService;
+          })
+          .toList(growable: false);
+    }
+    if (providers.isEmpty) return null;
+
+    providers.sort((a, b) => a.name.compareTo(b.name));
+    return ProviderSection(
+      title: '${category.trim()} Providers',
+      category: category.trim(),
+      providers: providers,
+    );
+  }
+
+  ProviderItem _providerFromAggregate(_ProviderAggregate value) {
+    final role = value.category.trim().isEmpty ? 'Cleaner' : value.category;
+    return ProviderItem(
+      uid: value.providerUid,
+      name: value.providerName.isEmpty
+          ? 'Service Provider'
+          : value.providerName,
+      role: role,
+      rating: 4.8,
+      imagePath: value.avatarPath,
+      accentColor: _accentFromCategory(role),
+      services: value.services.toList(growable: false)..sort(),
+    );
   }
 }
 
-class _SearchField extends StatelessWidget {
+class _ProviderAggregate {
+  final String providerUid;
+  final String providerName;
+  final String category;
+  final String avatarPath;
+  final Set<String> services;
+
+  _ProviderAggregate({
+    required this.providerUid,
+    required this.providerName,
+    required this.category,
+    required this.avatarPath,
+    required this.services,
+  });
+
+  factory _ProviderAggregate.fromPost(ProviderPostItem post) {
+    final imagePath = post.avatarPath.startsWith('assets/')
+        ? post.avatarPath
+        : 'assets/images/profile.jpg';
+    return _ProviderAggregate(
+      providerUid: post.providerUid.trim(),
+      providerName: post.providerName.trim(),
+      category: post.category.trim(),
+      avatarPath: imagePath,
+      services: <String>{post.service.trim()},
+    );
+  }
+
+  void addService(String value) {
+    final service = value.trim();
+    if (service.isEmpty) return;
+    services.add(service);
+  }
+}
+
+class _SearchField extends StatefulWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmitted;
@@ -441,20 +629,42 @@ class _SearchField extends StatelessWidget {
   });
 
   @override
+  State<_SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends State<_SearchField> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode()..addListener(_onFocusChanged);
+  }
+
+  @override
+  void dispose() {
+    _focusNode
+      ..removeListener(_onFocusChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onFocusChanged() => setState(() {});
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
+    final focused = _focusNode.hasFocus;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F000000),
-            blurRadius: 10,
-            offset: Offset(0, 6),
-          ),
-        ],
+        border: Border.all(
+          color: focused ? AppColors.primary : AppColors.divider,
+          width: focused ? 1.6 : 1,
+        ),
       ),
       child: Row(
         children: [
@@ -462,11 +672,15 @@ class _SearchField extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              onSubmitted: onSubmitted,
+              focusNode: _focusNode,
+              controller: widget.controller,
+              onChanged: widget.onChanged,
+              onSubmitted: widget.onSubmitted,
               decoration: const InputDecoration(
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
                 isDense: true,
                 hintText: 'Search name, category, or service',
               ),
@@ -500,10 +714,9 @@ class _SearchChip extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: AppColors.primary),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.primary),
           ),
         ),
       ),
@@ -557,7 +770,11 @@ class _ServiceListTile extends StatelessWidget {
                                 ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                         ),
-                        const Icon(Icons.star, size: 14, color: Color(0xFFF59E0B)),
+                        const Icon(
+                          Icons.star,
+                          size: 14,
+                          color: Color(0xFFF59E0B),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           item.rating.toStringAsFixed(1),
@@ -566,7 +783,10 @@ class _ServiceListTile extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(item.subtitle, style: Theme.of(context).textTheme.bodyMedium),
+                    Text(
+                      item.subtitle,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                     if (providerName != null) ...[
                       const SizedBox(height: 4),
                       Row(
@@ -677,9 +897,9 @@ class _SortPill extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: active ? Colors.white : AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: active ? Colors.white : AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(width: 6),
               Icon(
@@ -699,10 +919,7 @@ class _ActiveSortPill extends StatelessWidget {
   final String label;
   final VoidCallback onClear;
 
-  const _ActiveSortPill({
-    required this.label,
-    required this.onClear,
-  });
+  const _ActiveSortPill({required this.label, required this.onClear});
 
   @override
   Widget build(BuildContext context) {
@@ -718,9 +935,9 @@ class _ActiveSortPill extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(width: 8),
           PressableScale(

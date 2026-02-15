@@ -39,6 +39,7 @@ class FinderPostRemoteDataSource {
     final createdAt = _parseDate(row['createdAt']);
     return FinderPostItem(
       id: id.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : id,
+      finderUid: (row['finderUid'] ?? '').toString(),
       clientName: (row['clientName'] ?? 'Finder User').toString(),
       message: (row['message'] ?? '').toString(),
       timeLabel: _timeLabel(createdAt),

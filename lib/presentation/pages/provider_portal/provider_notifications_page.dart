@@ -1,171 +1,227 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
-import '../../../data/mock/mock_data.dart';
-import '../../../domain/entities/chat.dart';
 import '../../../domain/entities/provider_portal.dart';
-import '../../state/finder_post_state.dart';
+import '../../state/order_state.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
-import '../../widgets/notification_messenger_sheet.dart';
 import '../../widgets/pressable_scale.dart';
+import '../chat/chat_list_page.dart';
 import 'provider_orders_page.dart';
 
-class ProviderNotificationsPage extends StatelessWidget {
+class ProviderNotificationsPage extends StatefulWidget {
   static const String routeName = '/provider/notifications';
 
   const ProviderNotificationsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final orders = MockData.providerOrders();
-    final incoming = orders
-        .where((item) => item.state == ProviderOrderState.incoming)
-        .length;
-    final active = orders
-        .where(
-          (item) =>
-              item.state == ProviderOrderState.onTheWay ||
-              item.state == ProviderOrderState.started,
-        )
-        .length;
-    final completed = orders
-        .where((item) => item.state == ProviderOrderState.completed)
-        .length;
+  State<ProviderNotificationsPage> createState() =>
+      _ProviderNotificationsPageState();
+}
 
-    return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          children: [
-            AppTopBar(
-              title: 'Notifications',
-              showBack: false,
-              actions: [
-                IconButton(
-                  onPressed: () => _openMessenger(context),
-                  icon: const Icon(Icons.chat_bubble_outline_rounded),
-                  tooltip: 'Messenger',
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _ProviderNotificationSummary(
-              incoming: incoming,
-              active: active,
-              completed: completed,
-            ),
-            const SizedBox(height: 14),
-            _NotificationTile(
-              title: 'Order Incoming',
-              description:
-                  '$incoming new order request waiting for your action.',
-              timeLabel: '2 hrs ago',
-              icon: Icons.inbox_rounded,
-              color: const Color(0xFFF59E0B),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => const ProviderOrdersPage(
-                    initialTab: ProviderOrderTab.incoming,
+class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
+  final Set<String> _clearedNoticeKeys = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(OrderState.refreshCurrentRole(forceNetwork: true));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<ProviderOrderItem>>(
+      valueListenable: OrderState.providerOrders,
+      builder: (context, orders, _) {
+        final incoming = orders
+            .where((item) => item.state == ProviderOrderState.incoming)
+            .length;
+        final active = orders
+            .where(
+              (item) =>
+                  item.state == ProviderOrderState.onTheWay ||
+                  item.state == ProviderOrderState.started,
+            )
+            .length;
+        final completed = orders
+            .where((item) => item.state == ProviderOrderState.completed)
+            .length;
+        final declined = orders
+            .where((item) => item.state == ProviderOrderState.declined)
+            .length;
+        final notices = <_ProviderNoticeEntry>[
+          _ProviderNoticeEntry(
+            key: 'incoming:$incoming',
+            title: 'Order Incoming',
+            description: '$incoming live request(s) waiting for your action.',
+            icon: Icons.inbox_rounded,
+            color: const Color(0xFFF59E0B),
+            tab: ProviderOrderTab.incoming,
+          ),
+          _ProviderNoticeEntry(
+            key: 'active:$active',
+            title: 'Orders In Progress',
+            description:
+                '$active live order(s) in progress. Keep updating client.',
+            icon: Icons.assignment_turned_in_rounded,
+            color: const Color(0xFF7C6EF2),
+            tab: ProviderOrderTab.active,
+          ),
+          _ProviderNoticeEntry(
+            key: 'completed:$completed',
+            title: 'Order Completed',
+            description:
+                '$completed completed order(s). Check recent feedback.',
+            icon: Icons.check_circle_rounded,
+            color: AppColors.success,
+            tab: ProviderOrderTab.completed,
+          ),
+          _ProviderNoticeEntry(
+            key: 'declined:$declined',
+            title: 'Order Declined',
+            description: '$declined declined order(s) in history.',
+            icon: Icons.cancel_rounded,
+            color: AppColors.danger,
+            tab: ProviderOrderTab.completed,
+          ),
+        ];
+        final visibleNotices = notices
+            .where((row) => !_clearedNoticeKeys.contains(row.key))
+            .toList();
+
+        return Scaffold(
+          body: SafeArea(
+            child: RefreshIndicator(
+              onRefresh: () =>
+                  OrderState.refreshCurrentRole(forceNetwork: true),
+              child: ListView(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  AppTopBar(
+                    title: 'Notifications',
+                    showBack: false,
+                    actions: [
+                      IconButton(
+                        onPressed: () => _openMessenger(context),
+                        icon: const Icon(Icons.chat_bubble_outline_rounded),
+                        tooltip: 'Messenger',
+                      ),
+                      TextButton(
+                        onPressed: () => _confirmClearAll(context, notices),
+                        child: const Text('Clear all'),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  if (visibleNotices.isNotEmpty) ...[
+                    _ProviderNotificationSummary(
+                      incoming: incoming,
+                      active: active,
+                      completed: completed,
+                    ),
+                    const SizedBox(height: 14),
+                    ...visibleNotices.map(
+                      (notice) => _NotificationTile(
+                        title: notice.title,
+                        description: notice.description,
+                        timeLabel: 'Live',
+                        icon: notice.icon,
+                        color: notice.color,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                ProviderOrdersPage(initialTab: notice.tab),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 34,
+                        horizontal: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.notifications_none_rounded,
+                            size: 36,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'No notifications yet',
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(color: AppColors.textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
             ),
-            _NotificationTile(
-              title: 'Confirm Order',
-              description:
-                  '$active order in progress. Keep updating your client.',
-              timeLabel: '2 hrs ago',
-              icon: Icons.assignment_turned_in_rounded,
-              color: const Color(0xFF7C6EF2),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => const ProviderOrdersPage(
-                    initialTab: ProviderOrderTab.active,
-                  ),
-                ),
-              ),
-            ),
-            _NotificationTile(
-              title: 'Order Completed',
-              description:
-                  '$completed completed orders. Check recent feedback.',
-              timeLabel: '2 hrs ago',
-              icon: Icons.check_circle_rounded,
-              color: AppColors.success,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => const ProviderOrdersPage(
-                    initialTab: ProviderOrderTab.completed,
-                  ),
-                ),
-              ),
-            ),
-            _NotificationTile(
-              title: 'Order Cancelled',
-              description:
-                  'Your cancelled order details are available to review.',
-              timeLabel: '3 hrs ago',
-              icon: Icons.cancel_rounded,
-              color: AppColors.danger,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => const ProviderOrdersPage(
-                    initialTab: ProviderOrderTab.incoming,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: const AppBottomNav(
-        current: AppBottomTab.notification,
-      ),
+          ),
+          bottomNavigationBar: const AppBottomNav(
+            current: AppBottomTab.notification,
+          ),
+        );
+      },
     );
   }
 
   void _openMessenger(BuildContext context) {
-    showNotificationMessengerSheet(
-      context,
-      title: 'Provider Messenger',
-      subtitle: 'Chat with clients and confirm requests',
-      threads: _providerMessengerThreads(),
-      accentColor: AppColors.accentDark,
-    );
+    Navigator.pushNamed(context, ChatListPage.routeName);
   }
 
-  List<ChatThread> _providerMessengerThreads() {
-    final now = DateTime.now();
-    return FinderPostState.posts.value.asMap().entries.map((entry) {
-      final index = entry.key;
-      final post = entry.value;
-      return ChatThread(
-        id: 'provider_msg_${post.id}',
-        title: post.clientName,
-        subtitle: '${post.service} • ${post.location}',
-        avatarPath: post.avatarPath,
-        updatedAt: now.subtract(Duration(minutes: 4 + index * 11)),
-        unreadCount: index < 2 ? 1 : 0,
-        messages: [
-          ChatMessage(
-            text: post.message,
-            fromMe: false,
-            sentAt: now.subtract(Duration(minutes: 9 + index * 11)),
-          ),
-          ChatMessage(
-            text: 'I can help with ${post.service}.',
-            fromMe: true,
-            sentAt: now.subtract(Duration(minutes: 5 + index * 11)),
-          ),
-        ],
-      );
-    }).toList();
+  void _clearAll(List<_ProviderNoticeEntry> notices) {
+    setState(() {
+      _clearedNoticeKeys.addAll(notices.map((e) => e.key));
+    });
   }
+
+  Future<void> _confirmClearAll(
+    BuildContext context,
+    List<_ProviderNoticeEntry> notices,
+  ) async {
+    final shouldClear = await showAppConfirmDialog(
+      context: context,
+      icon: Icons.delete_sweep_rounded,
+      title: 'Clear all notifications?',
+      message: 'This will remove all current notifications from this screen.',
+      confirmText: 'Clear all',
+      cancelText: 'Cancel',
+      tone: AppDialogTone.warning,
+    );
+    if (shouldClear != true || !context.mounted) return;
+    _clearAll(notices);
+  }
+}
+
+class _ProviderNoticeEntry {
+  final String key;
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final ProviderOrderTab tab;
+
+  const _ProviderNoticeEntry({
+    required this.key,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.tab,
+  });
 }
 
 class _NotificationTile extends StatelessWidget {

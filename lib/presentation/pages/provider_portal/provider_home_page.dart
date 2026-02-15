@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -5,11 +7,15 @@ import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/profile_settings.dart';
 import '../../../domain/entities/provider_portal.dart';
+import '../../state/chat_state.dart';
 import '../../state/finder_post_state.dart';
+import '../../state/profile_image_state.dart';
 import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/pressable_scale.dart';
+import '../chat/chat_conversation_page.dart';
 import '../chat/chat_list_page.dart';
+import 'provider_finder_search_page.dart';
 
 class ProviderPortalHomePage extends StatefulWidget {
   static const String routeName = '/provider/home';
@@ -21,12 +27,10 @@ class ProviderPortalHomePage extends StatefulWidget {
 }
 
 class _ProviderPortalHomePageState extends State<ProviderPortalHomePage> {
-  final TextEditingController _searchController = TextEditingController();
-
   @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    unawaited(FinderPostState.refresh());
   }
 
   @override
@@ -34,62 +38,61 @@ class _ProviderPortalHomePageState extends State<ProviderPortalHomePage> {
     return ValueListenableBuilder<List<FinderPostItem>>(
       valueListenable: FinderPostState.posts,
       builder: (context, allPosts, _) {
-        final query = _searchController.text.trim().toLowerCase();
-        final posts = query.isEmpty
-            ? allPosts
-            : allPosts.where((post) {
-                return post.clientName.toLowerCase().contains(query) ||
-                    post.service.toLowerCase().contains(query) ||
-                    post.location.toLowerCase().contains(query) ||
-                    post.category.toLowerCase().contains(query) ||
-                    post.message.toLowerCase().contains(query);
-              }).toList();
+        final posts = allPosts;
 
         return Scaffold(
           body: SafeArea(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.lg,
-                AppSpacing.lg,
-                AppSpacing.xl,
-              ),
-              children: [
-                _ProviderTopHeader(
-                  controller: _searchController,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Text(
-                      'Finder Requests',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(child: const _ProviderTopHeader()),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                    AppSpacing.lg,
+                    AppSpacing.xl,
+                  ),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      _ProviderSearchBar(
+                        onTap: () => Navigator.push(
+                          context,
+                          slideFadeRoute(const ProviderFinderSearchPage()),
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${posts.length} results',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Text(
+                            'Finder Requests',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${posts.length} results',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: AppColors.textSecondary),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Search by client name, service, or location',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
+                      const SizedBox(height: 6),
+                      Text(
+                        'Search by client name, service, or location',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (posts.isEmpty) const _EmptySearch(query: ''),
+                      if (posts.isNotEmpty)
+                        ...posts.map((post) => _FinderPostTile(post: post)),
+                    ]),
                   ),
                 ),
-                const SizedBox(height: 12),
-                if (posts.isEmpty)
-                  _EmptySearch(query: _searchController.text.trim())
-                else
-                  ...posts.map((post) => _FinderPostTile(post: post)),
               ],
             ),
           ),
@@ -139,10 +142,7 @@ class _PreferredDatePill extends StatelessWidget {
 }
 
 class _ProviderTopHeader extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-
-  const _ProviderTopHeader({required this.controller, required this.onChanged});
+  const _ProviderTopHeader();
 
   @override
   Widget build(BuildContext context) {
@@ -156,14 +156,17 @@ class _ProviderTopHeader extends StatelessWidget {
             ? 'Phnom Penh'
             : profile.city.trim();
         return Container(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               colors: [AppColors.splashStart, AppColors.splashEnd],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.all(Radius.circular(20)),
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(20),
+              bottomRight: Radius.circular(20),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,9 +179,27 @@ class _ProviderTopHeader extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 235),
                       shape: BoxShape.circle,
                     ),
-                    child: const CircleAvatar(
-                      radius: 19,
-                      backgroundImage: AssetImage('assets/images/profile.jpg'),
+                    child: ValueListenableBuilder(
+                      valueListenable: ProfileImageState.listenableForRole(
+                        isProvider: true,
+                      ),
+                      builder: (context, value, child) {
+                        final image = ProfileImageState.avatarProvider(
+                          isProvider: true,
+                        );
+                        return CircleAvatar(
+                          radius: 19,
+                          backgroundColor: const Color(0xFFEAF1FF),
+                          backgroundImage: image,
+                          child: image == null
+                              ? const Icon(
+                                  Icons.person,
+                                  color: AppColors.primary,
+                                  size: 18,
+                                )
+                              : null,
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -189,9 +210,7 @@ class _ProviderTopHeader extends StatelessWidget {
                         Text(
                           'Welcome back',
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Colors.white.withValues(alpha: 220),
-                              ),
+                              ?.copyWith(color: Colors.white70),
                         ),
                         Text(
                           displayName,
@@ -274,67 +293,56 @@ class _ProviderTopHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.divider),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x12000000),
-                      blurRadius: 12,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.search, color: AppColors.textSecondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: controller,
-                        onChanged: onChanged,
-                        decoration: const InputDecoration(
-                          hintText: 'Search name, service, location',
-                          border: InputBorder.none,
-                          isCollapsed: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      height: 36,
-                      width: 36,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x22000000),
-                            blurRadius: 8,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.tune,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _ProviderSearchBar extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _ProviderSearchBar({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.search, color: AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Search name, service, location',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              height: 34,
+              width: 34,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.tune, color: Colors.white, size: 18),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -347,7 +355,27 @@ class _FinderPostTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PressableScale(
-      onTap: () => AppToast.info(context, 'Open request: ${post.service}'),
+      onTap: () async {
+        if (post.finderUid.trim().isEmpty) {
+          AppToast.warning(context, 'Finder account unavailable for chat.');
+          return;
+        }
+        try {
+          final thread = await ChatState.openDirectThread(
+            peerUid: post.finderUid,
+            peerName: post.clientName,
+            peerIsProvider: false,
+          );
+          if (!context.mounted) return;
+          Navigator.push(
+            context,
+            slideFadeRoute(ChatConversationPage(thread: thread)),
+          );
+        } catch (_) {
+          if (!context.mounted) return;
+          AppToast.error(context, 'Unable to open live chat.');
+        }
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(13),
@@ -473,6 +501,7 @@ class _EmptySearch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasQuery = query.trim().isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -489,7 +518,9 @@ class _EmptySearch extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'No request found for "$query"',
+            hasQuery
+                ? 'No request found for "$query"'
+                : 'No request found yet.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: AppColors.textPrimary,
@@ -498,7 +529,9 @@ class _EmptySearch extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Try searching by client name, service, or location.',
+            hasQuery
+                ? 'Try searching by client name, service, or location.'
+                : 'Finder posts will appear here when clients publish requests.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_calendar_picker.dart';
 import '../../../core/utils/page_transition.dart';
-import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/order.dart';
+import '../../../domain/entities/provider.dart';
+import '../../state/booking_catalog_state.dart';
+import '../../state/catalog_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 import '../providers/provider_detail_page.dart';
@@ -49,9 +52,14 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
       preferredDate: _preferredDate,
       preferredTimeSlot: _preferredTime,
       serviceName: _selectedService,
-      serviceFields: MockData.initialFieldValuesForService(_selectedService),
+      serviceFields: BookingCatalogState.initialFieldValuesForService(
+        _selectedService,
+      ),
     );
-    final categoryServices = MockData.servicesForCategory(draft.categoryName);
+    final categoryServices = _servicesForProvider(
+      provider: draft.provider,
+      categoryName: draft.categoryName,
+    );
 
     return Scaffold(
       body: SafeArea(
@@ -192,7 +200,9 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
             ),
             Expanded(
               child: PrimaryButton(
-                label: 'Next',
+                label: 'Continue',
+                icon: Icons.arrow_forward_rounded,
+                iconTrailing: true,
                 onPressed: _serviceError == null
                     ? () => Navigator.push(
                         context,
@@ -208,13 +218,32 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   }
 
   void _validateService() {
-    final supported = MockData.providerSupportsService(
-      widget.draft.provider,
-      _selectedService,
+    final providerCategory = CatalogState.categoryForProviderRole(
+      widget.draft.provider.role,
     );
+    final supportedServices = _servicesForProvider(
+      provider: widget.draft.provider,
+      categoryName: providerCategory,
+    );
+    final supported =
+        supportedServices.isEmpty ||
+        supportedServices.contains(_selectedService);
     _serviceError = supported
         ? null
         : '${widget.draft.provider.name} does not offer this service. Please choose another.';
+  }
+
+  List<String> _servicesForProvider({
+    required ProviderItem provider,
+    required String categoryName,
+  }) {
+    final direct = provider.services
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (direct.isNotEmpty) return direct;
+    return CatalogState.servicesForCategory(categoryName);
   }
 
   bool get _isCleaningService {
@@ -258,125 +287,12 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    final options = List<DateTime>.generate(
-      30,
-      (index) => DateTime(now.year, now.month, now.day + index),
-    );
-    DateTime temp = _preferredDate;
-    final picked = await showModalBottomSheet<DateTime>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Choose booking date',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 124,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: options.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 10),
-                        itemBuilder: (context, index) {
-                          final date = options[index];
-                          final selected = _sameDate(temp, date);
-                          return InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () => setModalState(() => temp = date),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: 88,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? const Color(0xFFEAF1FF)
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: selected
-                                      ? AppColors.primary
-                                      : AppColors.divider,
-                                  width: selected ? 1.6 : 1,
-                                ),
-                                boxShadow: selected
-                                    ? const [
-                                        BoxShadow(
-                                          color: Color(0x181D4ED8),
-                                          blurRadius: 14,
-                                          offset: Offset(0, 6),
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                              child: Column(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _weekdayShort(date),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: AppColors.textSecondary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                  Text(
-                                    '${date.day}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(
-                                          color: AppColors.textPrimary,
-                                          fontSize: 28,
-                                        ),
-                                  ),
-                                  Text(
-                                    _monthShort(date),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: AppColors.textSecondary,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    PrimaryButton(
-                      label: 'Apply Date',
-                      onPressed: () => Navigator.pop(context, temp),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+    final picked = await showAppCalendarDatePicker(
+      context,
+      initialDate: _preferredDate,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 2, 12, 31),
+      helpText: 'Choose booking date',
     );
     if (picked == null) return;
     setState(() => _preferredDate = picked);
@@ -385,7 +301,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   Future<void> _pickTimeSlot() async {
     final picked = await _showOptionSheet<String>(
       title: 'Choose time slot',
-      options: MockData.scheduleTimeOptions,
+      options: BookingCatalogState.scheduleTimeOptions,
       selected: _preferredTime,
       labelBuilder: (item) => item,
       iconBuilder: (item) =>
@@ -419,7 +335,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
     final picked = await _showOptionSheet<int>(
       title: 'How many hours?',
       options: _isCleaningService
-          ? MockData.bookingHourOptions
+          ? BookingCatalogState.bookingHourOptions
           : const [1, 2, 3, 4],
       selected: _hours,
       labelBuilder: (item) => '$item hour${item > 1 ? 's' : ''}',
@@ -436,7 +352,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   Future<void> _pickHomeType() async {
     final picked = await _showOptionSheet<HomeType>(
       title: 'Home type',
-      options: MockData.homeTypeOptions,
+      options: BookingCatalogState.homeTypeOptions,
       selected: _homeType,
       labelBuilder: _homeTypeLabel,
       iconBuilder: (item) => Icon(
@@ -458,7 +374,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
     if (!_allowWorkersInput) return;
     final picked = await _showOptionSheet<int>(
       title: 'How many workers?',
-      options: MockData.workerCountOptions,
+      options: BookingCatalogState.workerCountOptions,
       selected: _workers,
       labelBuilder: (item) => '$item worker${item > 1 ? 's' : ''}',
       iconBuilder: (item) =>
@@ -563,6 +479,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
                     const SizedBox(height: 12),
                     PrimaryButton(
                       label: 'Apply',
+                      icon: Icons.check_rounded,
                       onPressed: () => Navigator.pop(context, temp),
                     ),
                   ],
@@ -590,33 +507,6 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
       case HomeType.office:
         return 'Office';
     }
-  }
-
-  bool _sameDate(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  String _weekdayShort(DateTime date) {
-    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return names[date.weekday - 1];
-  }
-
-  String _monthShort(DateTime date) {
-    const names = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return names[date.month - 1];
   }
 }
 

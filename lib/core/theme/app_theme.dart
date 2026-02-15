@@ -39,7 +39,7 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: Colors.white,
-        elevation: 10,
+        elevation: 4,
         shadowColor: const Color(0x12000000),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
@@ -102,8 +102,8 @@ class AppTheme {
         elevation: 8,
       ),
       inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: Colors.white,
+        filled: false,
+        fillColor: Colors.transparent,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: AppColors.divider),

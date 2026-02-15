@@ -65,7 +65,7 @@ class ProviderCategoryPage extends StatelessWidget {
                     crossAxisCount: 2,
                     mainAxisSpacing: AppSpacing.md,
                     crossAxisSpacing: AppSpacing.md,
-                    childAspectRatio: 0.75,
+                    childAspectRatio: 0.64,
                   ),
                   itemBuilder: (context, index) {
                     final provider = section.providers[index];

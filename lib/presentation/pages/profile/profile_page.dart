@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../state/app_role_state.dart';
 import '../../state/auth_state.dart';
@@ -10,6 +11,7 @@ import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../auth/customer_auth_page.dart';
+import '../provider_portal/provider_home_page.dart';
 import 'edit_profile_page.dart';
 import 'help_support_page.dart';
 import 'notification_page.dart';
@@ -122,12 +124,19 @@ class ProfilePage extends StatelessWidget {
                           ),
                           Switch(
                             value: false,
-                            onChanged: (enabled) {
+                            onChanged: (enabled) async {
                               if (!enabled) return;
-                              AppRoleState.setProvider(true);
-                              Navigator.pushReplacementNamed(
-                                context,
-                                '/provider/home',
+                              final error = await AuthState.switchRole(
+                                toProvider: true,
+                              );
+                              if (!context.mounted) return;
+                              if (error != null) {
+                                AppToast.warning(context, error);
+                                return;
+                              }
+                              Navigator.of(context).pushAndRemoveUntil(
+                                slideFadeRoute(const ProviderPortalHomePage()),
+                                (route) => false,
                               );
                             },
                             activeTrackColor: AppColors.primaryLight,
@@ -232,9 +241,18 @@ class _ProfileHero extends StatelessWidget {
             child: ValueListenableBuilder(
               valueListenable: ProfileImageState.listenable,
               builder: (context, value, child) {
+                final image = ProfileImageState.avatarProvider();
                 return CircleAvatar(
                   radius: 34,
-                  backgroundImage: ProfileImageState.avatarProvider(),
+                  backgroundColor: const Color(0xFFEAF1FF),
+                  backgroundImage: image,
+                  child: image == null
+                      ? const Icon(
+                          Icons.person,
+                          color: AppColors.primary,
+                          size: 34,
+                        )
+                      : null,
                 );
               },
             ),

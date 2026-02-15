@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
-import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/provider.dart';
+import '../../../domain/entities/provider_portal.dart';
 import '../../../domain/entities/provider_profile.dart';
+import '../../state/chat_state.dart';
+import '../../state/booking_catalog_state.dart';
+import '../../state/provider_post_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../booking/booking_address_page.dart';
@@ -28,8 +32,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final profile = MockData.profileFor(widget.provider);
-    final reviews = MockData.reviewsByRange(profile, _reviewRange);
+    final profile = _buildProfile(widget.provider);
+    final reviews = _reviewsByRange(profile.reviews, _reviewRange);
 
     return Scaffold(
       body: SafeArea(
@@ -66,18 +70,17 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       context,
                       slideFadeRoute(
                         BookingAddressPage(
-                          draft: MockData.defaultBookingDraft(
+                          draft: BookingCatalogState.defaultBookingDraft(
                             provider: widget.provider,
+                            serviceName: widget.provider.services.isNotEmpty
+                                ? widget.provider.services.first
+                                : null,
                           ),
                         ),
                       ),
                     ),
                     onChatTap: () {
-                      final chat = MockData.chatForProvider(widget.provider);
-                      Navigator.push(
-                        context,
-                        slideFadeRoute(ChatConversationPage(thread: chat)),
-                      );
+                      _openProviderChat();
                     },
                   ),
                   const SizedBox(height: 12),
@@ -161,6 +164,114 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       },
     );
   }
+
+  Future<void> _openProviderChat() async {
+    final providerUid = widget.provider.uid.trim();
+    if (providerUid.isEmpty) {
+      AppToast.info(context, 'Live chat opens after provider accepts booking.');
+      return;
+    }
+    try {
+      final thread = await ChatState.openDirectThread(
+        peerUid: providerUid,
+        peerName: widget.provider.name,
+        peerIsProvider: true,
+      );
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        slideFadeRoute(ChatConversationPage(thread: thread)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.error(context, 'Unable to open live chat.');
+    }
+  }
+
+  ProviderProfile _buildProfile(ProviderItem provider) {
+    final posts = ProviderPostState.posts.value;
+    ProviderPostItem? matched;
+    for (final post in posts) {
+      final sameUid =
+          provider.uid.trim().isNotEmpty &&
+          provider.uid.trim() == post.providerUid.trim();
+      final sameName =
+          provider.name.trim().toLowerCase() ==
+          post.providerName.trim().toLowerCase();
+      if (sameUid || sameName) {
+        matched = post;
+        break;
+      }
+    }
+
+    return ProviderProfile(
+      provider: provider,
+      location: matched?.area.trim().isNotEmpty == true
+          ? matched!.area.trim()
+          : 'Phnom Penh, Cambodia',
+      available: matched?.availableNow ?? true,
+      completedJobs: 42,
+      about: matched?.details.trim().isNotEmpty == true
+          ? matched!.details.trim()
+          : 'Trusted service provider ready to help with fast and quality work.',
+      projectImages: const <String>[
+        'assets/images/plumber_category.jpg',
+        'assets/images/plumber_category.jpg',
+        'assets/images/plumber_category.jpg',
+      ],
+      reviews: _seedReviews(provider),
+    );
+  }
+
+  List<ProviderReview> _seedReviews(ProviderItem provider) {
+    final base = provider.rating <= 0 ? 4.7 : provider.rating;
+    return <ProviderReview>[
+      ProviderReview(
+        reviewerName: 'Sokha',
+        reviewerInitials: 'S',
+        rating: base,
+        daysAgo: 7,
+        comment: 'Professional and on time. Great service quality.',
+      ),
+      ProviderReview(
+        reviewerName: 'Dara',
+        reviewerInitials: 'D',
+        rating: (base - 0.1).clamp(1, 5).toDouble(),
+        daysAgo: 19,
+        comment: 'Clear communication and fair pricing.',
+      ),
+      ProviderReview(
+        reviewerName: 'Nary',
+        reviewerInitials: 'N',
+        rating: (base - 0.2).clamp(1, 5).toDouble(),
+        daysAgo: 33,
+        comment: 'Job completed well. Will book again.',
+      ),
+      ProviderReview(
+        reviewerName: 'Vanna',
+        reviewerInitials: 'V',
+        rating: (base - 0.1).clamp(1, 5).toDouble(),
+        daysAgo: 58,
+        comment: 'Quick response and tidy work.',
+      ),
+      ProviderReview(
+        reviewerName: 'Malis',
+        reviewerInitials: 'M',
+        rating: (base - 0.3).clamp(1, 5).toDouble(),
+        daysAgo: 92,
+        comment: 'Good result overall and respectful team.',
+      ),
+    ];
+  }
+
+  List<ProviderReview> _reviewsByRange(
+    List<ProviderReview> reviews,
+    ReviewRange range,
+  ) {
+    return reviews
+        .where((review) => review.daysAgo <= range.maxDays)
+        .toList(growable: false);
+  }
 }
 
 class _ProviderSummaryCard extends StatelessWidget {
@@ -216,6 +327,18 @@ class _ProviderSummaryCard extends StatelessWidget {
             '${profile.location} • ${profile.available ? "Available" : "Closed"}',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
+          if (profile.provider.services.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Services: ${profile.provider.services.join(' • ')}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 4),
           Text(
             '${profile.completedJobs} similar jobs completed near you',

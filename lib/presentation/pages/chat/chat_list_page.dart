@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/page_transition.dart';
-import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/chat.dart';
+import '../../state/chat_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
@@ -22,6 +22,12 @@ class _ChatListPageState extends State<ChatListPage> {
   String _query = '';
 
   @override
+  void initState() {
+    super.initState();
+    ChatState.refresh();
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -29,59 +35,78 @@ class _ChatListPageState extends State<ChatListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final query = _query.trim().toLowerCase();
-    final filtered = query.isEmpty
-        ? MockData.chats
-        : MockData.chats
-              .where(
-                (chat) =>
-                    chat.title.toLowerCase().contains(query) ||
-                    chat.subtitle.toLowerCase().contains(query),
-              )
-              .toList();
+    return ValueListenableBuilder<List<ChatThread>>(
+      valueListenable: ChatState.threads,
+      builder: (context, threads, _) {
+        final query = _query.trim().toLowerCase();
+        final filtered = query.isEmpty
+            ? threads
+            : threads
+                  .where(
+                    (chat) =>
+                        chat.title.toLowerCase().contains(query) ||
+                        chat.subtitle.toLowerCase().contains(query),
+                  )
+                  .toList();
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-              child: AppTopBar(
-                title: 'Chats',
-                actions: [
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(Icons.edit_outlined),
+        return Scaffold(
+          body: SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                  child: AppTopBar(
+                    title: 'Chats',
+                    actions: [
+                      IconButton(
+                        onPressed: () => ChatState.refresh(),
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (value) => setState(() => _query = value),
-                decoration: const InputDecoration(
-                  hintText: 'Search for messages or users',
-                  prefixIcon: Icon(Icons.search),
-                  isDense: true,
                 ),
-              ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _query = value),
+                    decoration: const InputDecoration(
+                      hintText: 'Search for messages or users',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            const SizedBox(height: 120),
+                            Center(
+                              child: Text(
+                                'No conversation yet',
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(color: AppColors.textSecondary),
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final thread = filtered[index];
+                            return _ChatThreadTile(thread: thread);
+                          },
+                        ),
+                ),
+              ],
             ),
-            Expanded(
-              child: ListView.separated(
-                itemCount: filtered.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final thread = filtered[index];
-                  return _ChatThreadTile(thread: thread);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: const AppBottomNav(current: AppBottomTab.home),
+          ),
+          bottomNavigationBar: const AppBottomNav(current: AppBottomTab.home),
+        );
+      },
     );
   }
 }
@@ -141,7 +166,7 @@ class _ChatThreadTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               if (thread.unreadCount > 0)
                 Container(
                   height: 20,

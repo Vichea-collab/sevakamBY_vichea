@@ -16,7 +16,7 @@ class AppEnv {
       key: 'API_BASE_URL',
       fallback: const String.fromEnvironment(
         'API_BASE_URL',
-        defaultValue: 'http://localhost:5000',
+        defaultValue: 'http://localhost:5050',
       ),
     );
     return _normalizeApiBaseUrl(raw);

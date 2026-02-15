@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/utils/app_calendar_picker.dart';
 import '../../../core/utils/app_toast.dart';
-import '../../../data/mock/mock_data.dart';
+import '../../state/catalog_state.dart';
 import '../../state/finder_post_state.dart';
-import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
@@ -31,15 +31,51 @@ class _ClientPostPageState extends State<ClientPostPage> {
   @override
   void initState() {
     super.initState();
-    _selectedCategory = MockData.categories.first.name;
-    _selectedService = MockData.servicesForCategory(_selectedCategory).first;
+    _selectedCategory = 'Cleaner';
+    _selectedService = '';
+    CatalogState.categories.addListener(_syncSelectionFromCatalog);
+    CatalogState.services.addListener(_syncSelectionFromCatalog);
+    _syncSelectionFromCatalog();
   }
 
   @override
   void dispose() {
+    CatalogState.categories.removeListener(_syncSelectionFromCatalog);
+    CatalogState.services.removeListener(_syncSelectionFromCatalog);
     _locationController.dispose();
     _detailsController.dispose();
     super.dispose();
+  }
+
+  void _syncSelectionFromCatalog() {
+    final categories = CatalogState.categories.value;
+    if (categories.isEmpty) return;
+    final nextCategory =
+        categories
+            .where(
+              (item) =>
+                  item.name.trim().toLowerCase() ==
+                  _selectedCategory.trim().toLowerCase(),
+            )
+            .isNotEmpty
+        ? _selectedCategory
+        : categories.first.name;
+    final services = CatalogState.servicesForCategory(nextCategory);
+    final nextService = services.contains(_selectedService)
+        ? _selectedService
+        : (services.isEmpty ? '' : services.first);
+    if (!mounted) {
+      _selectedCategory = nextCategory;
+      _selectedService = nextService;
+      return;
+    }
+    if (_selectedCategory == nextCategory && _selectedService == nextService) {
+      return;
+    }
+    setState(() {
+      _selectedCategory = nextCategory;
+      _selectedService = nextService;
+    });
   }
 
   @override
@@ -153,32 +189,46 @@ class _ClientPostPageState extends State<ClientPostPage> {
       return;
     }
     setState(() => _submitting = true);
-    await FinderPostState.createFinderRequest(
-      category: _selectedCategory,
-      service: _selectedService,
-      location: location,
-      message: details,
-      preferredDate: _preferredDate,
-      fallbackClientName: ProfileSettingsState.currentProfile.name,
-    );
-    if (!mounted) return;
-    _detailsController.clear();
-    setState(() => _submitting = false);
-    AppToast.success(
-      context,
-      'Request posted for $_selectedService in $location.',
-    );
+    try {
+      await FinderPostState.createFinderRequest(
+        category: _selectedCategory,
+        service: _selectedService,
+        location: location,
+        message: details,
+        preferredDate: _preferredDate,
+      );
+      if (!mounted) return;
+      _detailsController.clear();
+      AppToast.success(
+        context,
+        'Request posted for $_selectedService in $location.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      AppToast.error(context, error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   Future<void> _pickCategory() async {
+    final List<String> categoryOptions = CatalogState.categories.value
+        .map((item) => item.name)
+        .toList(growable: false);
+    if (categoryOptions.isEmpty) {
+      AppToast.warning(context, 'No categories available yet.');
+      return;
+    }
     final picked = await _showOptionSheet<String>(
       title: 'Choose category',
-      options: MockData.categories.map((item) => item.name).toList(),
+      options: categoryOptions,
       selected: _selectedCategory,
       labelBuilder: (item) => item,
     );
     if (picked == null) return;
-    final services = MockData.servicesForCategory(picked);
+    final services = CatalogState.servicesForCategory(picked);
     setState(() {
       _selectedCategory = picked;
       _selectedService = services.isNotEmpty ? services.first : '';
@@ -186,7 +236,7 @@ class _ClientPostPageState extends State<ClientPostPage> {
   }
 
   Future<void> _pickService() async {
-    final services = MockData.servicesForCategory(_selectedCategory);
+    final services = CatalogState.servicesForCategory(_selectedCategory);
     if (services.isEmpty) return;
     final picked = await _showOptionSheet<String>(
       title: 'Choose service',
@@ -200,155 +250,15 @@ class _ClientPostPageState extends State<ClientPostPage> {
 
   Future<void> _pickPreferredDate() async {
     final now = DateTime.now();
-    final options = List<DateTime>.generate(
-      30,
-      (index) => DateTime(now.year, now.month, now.day + index),
-    );
-    DateTime temp = _preferredDate;
-    final picked = await showModalBottomSheet<DateTime>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Choose preferred date',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 124,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: options.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 10),
-                        itemBuilder: (context, index) {
-                          final date = options[index];
-                          final selected = _sameDate(temp, date);
-                          return InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () => setModalState(() => temp = date),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: 88,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? const Color(0xFFEAF1FF)
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: selected
-                                      ? AppColors.primary
-                                      : AppColors.divider,
-                                  width: selected ? 1.6 : 1,
-                                ),
-                                boxShadow: selected
-                                    ? const [
-                                        BoxShadow(
-                                          color: Color(0x181D4ED8),
-                                          blurRadius: 14,
-                                          offset: Offset(0, 6),
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                              child: Column(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _weekdayShort(date),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: AppColors.textSecondary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                  Text(
-                                    '${date.day}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(
-                                          color: AppColors.textPrimary,
-                                          fontSize: 28,
-                                        ),
-                                  ),
-                                  Text(
-                                    _monthShort(date),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: AppColors.textSecondary,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    PrimaryButton(
-                      label: 'Apply Date',
-                      onPressed: () => Navigator.pop(context, temp),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+    final picked = await showAppCalendarDatePicker(
+      context,
+      initialDate: _preferredDate,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 2, 12, 31),
+      helpText: 'Choose preferred date',
     );
     if (picked == null) return;
     setState(() => _preferredDate = picked);
-  }
-
-  bool _sameDate(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  String _weekdayShort(DateTime date) {
-    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return names[date.weekday - 1];
-  }
-
-  String _monthShort(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return months[date.month - 1];
   }
 
   Future<T?> _showOptionSheet<T>({

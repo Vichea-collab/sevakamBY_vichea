@@ -29,6 +29,11 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
   }
 
   @override
+  Future<bool> hasRoleProfile({required bool isProvider}) {
+    return _remoteDataSource.hasRoleProfile(isProvider: isProvider);
+  }
+
+  @override
   Future<ProfileFormData> loadProfile({required bool isProvider}) {
     return _localDataSource.loadProfile(isProvider: isProvider);
   }

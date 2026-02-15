@@ -3,8 +3,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
-import '../../../data/mock/mock_data.dart';
 import '../../../domain/entities/order.dart';
+import '../../state/booking_catalog_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 import 'booking_payment_page.dart';
@@ -32,7 +32,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final fieldDefs = MockData.bookingFieldsForService(
+    final fieldDefs = BookingCatalogState.bookingFieldsForService(
       widget.draft.serviceName,
     );
     final draft = widget.draft.copyWith(serviceFields: _serviceFields);
@@ -89,7 +89,9 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
             ),
             Expanded(
               child: PrimaryButton(
-                label: 'Next',
+                label: 'Continue',
+                icon: Icons.arrow_forward_rounded,
+                iconTrailing: true,
                 onPressed: () => _goNext(fieldDefs, draft),
               ),
             ),
@@ -260,7 +262,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
   }
 
   void _ensureFieldDefaults() {
-    final defaults = MockData.initialFieldValuesForService(
+    final defaults = BookingCatalogState.initialFieldValuesForService(
       widget.draft.serviceName,
     );
     for (final entry in defaults.entries) {
@@ -433,6 +435,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
                     const SizedBox(height: 12),
                     PrimaryButton(
                       label: 'Apply',
+                      icon: Icons.check_rounded,
                       onPressed: () => Navigator.pop(context, temp),
                     ),
                   ],
