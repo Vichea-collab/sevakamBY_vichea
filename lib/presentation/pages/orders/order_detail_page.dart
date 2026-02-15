@@ -7,6 +7,7 @@ import '../../../domain/entities/order.dart';
 import '../../state/chat_state.dart';
 import '../../state/order_state.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/order_status_timeline.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 import '../booking/booking_address_page.dart';
@@ -123,8 +124,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               Text(
                 _order.status == OrderStatus.completed
                     ? 'Your project has been completed!'
-                    : _order.status == OrderStatus.cancelled
-                    ? 'This booking has been cancelled.'
+                    : (_order.status == OrderStatus.cancelled ||
+                          _order.status == OrderStatus.declined)
+                    ? (_order.status == OrderStatus.declined
+                          ? 'This booking was declined by provider.'
+                          : 'This booking has been cancelled.')
                     : 'Your project has been booked!',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: AppColors.primary,
@@ -135,6 +139,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               _StatusBanner(status: _order.status),
               const SizedBox(height: 8),
               _StatusStepper(status: _order.status),
+              const SizedBox(height: 10),
+              OrderStatusTimelineCard(entries: _timelineEntries(_order)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -269,7 +275,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                 "You won't be charged until the job is completed.",
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
-              if (_order.status == OrderStatus.cancelled) ...[
+              if (_order.status == OrderStatus.cancelled ||
+                  _order.status == OrderStatus.declined) ...[
                 const SizedBox(height: 16),
                 PrimaryButton(
                   label: 'Make another booking',
@@ -384,6 +391,82 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     return 'https://maps.google.com/?q=$query';
   }
 
+  List<StatusTimelineEntry> _timelineEntries(OrderItem order) {
+    final timeline = order.timeline;
+    final entries = <StatusTimelineEntry>[];
+    if (timeline.bookedAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Booked',
+          at: timeline.bookedAt!,
+          icon: Icons.fact_check_outlined,
+          color: const Color(0xFFD97706),
+        ),
+      );
+    }
+    if (timeline.onTheWayAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'On the way',
+          at: timeline.onTheWayAt!,
+          icon: Icons.local_shipping_outlined,
+          color: AppColors.primary,
+        ),
+      );
+    }
+    if (timeline.startedAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Started',
+          at: timeline.startedAt!,
+          icon: Icons.handyman_rounded,
+          color: AppColors.success,
+        ),
+      );
+    }
+    if (timeline.completedAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Completed',
+          at: timeline.completedAt!,
+          icon: Icons.verified_rounded,
+          color: AppColors.success,
+        ),
+      );
+    }
+    if (timeline.cancelledAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Cancelled',
+          at: timeline.cancelledAt!,
+          icon: Icons.cancel_outlined,
+          color: AppColors.danger,
+        ),
+      );
+    }
+    if (timeline.declinedAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Declined',
+          at: timeline.declinedAt!,
+          icon: Icons.highlight_off_rounded,
+          color: AppColors.danger,
+        ),
+      );
+    }
+    if (entries.isEmpty) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Booked',
+          at: order.bookedAt,
+          icon: Icons.fact_check_outlined,
+          color: const Color(0xFFD97706),
+        ),
+      );
+    }
+    return entries;
+  }
+
   String _paymentLabel(PaymentMethod method) {
     switch (method) {
       case PaymentMethod.creditCard:
@@ -482,6 +565,7 @@ class _StatusStepper extends StatelessWidget {
       case OrderStatus.completed:
         return 3;
       case OrderStatus.cancelled:
+      case OrderStatus.declined:
         return -1;
     }
   }
@@ -525,6 +609,12 @@ class _StatusBanner extends StatelessWidget {
         const Color(0xFFFFEFEF),
         AppColors.danger,
       ),
+      OrderStatus.declined => (
+        'Request declined by provider',
+        Icons.highlight_off_rounded,
+        const Color(0xFFFFEFEF),
+        AppColors.danger,
+      ),
     };
     return Container(
       width: double.infinity,
@@ -565,6 +655,7 @@ class _OrderStatusChip extends StatelessWidget {
       OrderStatus.started => ('Started', AppColors.success),
       OrderStatus.completed => ('Completed', AppColors.success),
       OrderStatus.cancelled => ('Cancelled', AppColors.danger),
+      OrderStatus.declined => ('Declined', AppColors.danger),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

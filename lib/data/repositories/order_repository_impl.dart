@@ -109,6 +109,8 @@ class OrderRepositoryImpl implements OrderRepository {
       city: (row['addressCity'] ?? '').toString(),
     );
     final preferredDate = _toDateTime(row['preferredDate']);
+    final bookedAt = _toDateTime(row['createdAt']);
+    final timeline = _timelineFromRow(row, fallbackBookedAt: bookedAt);
     return OrderItem(
       id: (row['id'] ?? '').toString(),
       provider: provider,
@@ -118,7 +120,7 @@ class OrderRepositoryImpl implements OrderRepository {
       workers: _toInt(row['workers'], fallback: 1),
       homeType: _homeTypeFromStorage((row['homeType'] ?? '').toString()),
       additionalService: (row['additionalService'] ?? '').toString(),
-      bookedAt: _toDateTime(row['createdAt']),
+      bookedAt: bookedAt,
       scheduledAt: preferredDate,
       timeRange: (row['preferredTimeSlot'] ?? '').toString(),
       paymentMethod: _paymentMethodFromStorage(
@@ -128,11 +130,16 @@ class OrderRepositoryImpl implements OrderRepository {
       processingFee: _toDouble(row['processingFee']),
       discount: _toDouble(row['discount']),
       status: _orderStatusFromStorage((row['status'] ?? '').toString()),
+      timeline: timeline,
     );
   }
 
   ProviderOrderItem _toProviderOrder(Map<String, dynamic> row) {
     final preferredDate = _toDateTime(row['preferredDate']);
+    final timeline = _timelineFromRow(
+      row,
+      fallbackBookedAt: _toDateTimeOrNull(row['createdAt']),
+    );
     final inputs = <String, String>{};
     final rawInputs = row['serviceFields'];
     if (rawInputs is Map) {
@@ -165,6 +172,7 @@ class OrderRepositoryImpl implements OrderRepository {
       discount: _toDouble(row['discount']),
       total: _toDouble(row['total']),
       state: _providerStateFromStorage((row['status'] ?? '').toString()),
+      timeline: timeline,
     );
   }
 
@@ -183,6 +191,47 @@ class OrderRepositoryImpl implements OrderRepository {
       return DateTime.fromMillisecondsSinceEpoch((seconds * 1000).round());
     }
     return DateTime.now();
+  }
+
+  DateTime? _toDateTimeOrNull(dynamic value) {
+    if (value == null) return null;
+    if (value is String && value.trim().isNotEmpty) {
+      return DateTime.tryParse(value.trim());
+    }
+    if (value is Map && value['_seconds'] is num) {
+      final seconds = value['_seconds'] as num;
+      return DateTime.fromMillisecondsSinceEpoch((seconds * 1000).round());
+    }
+    return null;
+  }
+
+  OrderStatusTimeline _timelineFromRow(
+    Map<String, dynamic> row, {
+    DateTime? fallbackBookedAt,
+  }) {
+    final source = row['statusTimeline'];
+    DateTime? read(String key) {
+      if (source is! Map) return null;
+      return _toDateTimeOrNull(source[key]);
+    }
+
+    var completedAt = read('completedAt');
+    var cancelledAt = read('cancelledAt');
+    var declinedAt = read('declinedAt');
+    final updatedAt = _toDateTimeOrNull(row['updatedAt']);
+    final status = (row['status'] ?? '').toString().trim().toLowerCase();
+    if (status == 'completed') completedAt ??= updatedAt;
+    if (status == 'cancelled') cancelledAt ??= updatedAt;
+    if (status == 'declined') declinedAt ??= updatedAt;
+
+    return OrderStatusTimeline(
+      bookedAt: read('bookedAt') ?? fallbackBookedAt,
+      onTheWayAt: read('onTheWayAt'),
+      startedAt: read('startedAt'),
+      completedAt: completedAt,
+      cancelledAt: cancelledAt,
+      declinedAt: declinedAt,
+    );
   }
 
   int _toInt(dynamic value, {int fallback = 0}) {
@@ -230,6 +279,8 @@ class OrderRepositoryImpl implements OrderRepository {
         return 'completed';
       case OrderStatus.cancelled:
         return 'cancelled';
+      case OrderStatus.declined:
+        return 'declined';
     }
   }
 
@@ -242,8 +293,9 @@ class OrderRepositoryImpl implements OrderRepository {
       case 'completed':
         return OrderStatus.completed;
       case 'cancelled':
-      case 'declined':
         return OrderStatus.cancelled;
+      case 'declined':
+        return OrderStatus.declined;
       case 'booked':
       default:
         return OrderStatus.booked;

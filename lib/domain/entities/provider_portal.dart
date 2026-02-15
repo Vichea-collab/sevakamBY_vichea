@@ -1,3 +1,5 @@
+import 'order.dart';
+
 enum ProviderOrderState { incoming, onTheWay, started, completed, declined }
 
 class FinderPostItem {
@@ -76,6 +78,7 @@ class ProviderOrderItem {
   final double discount;
   final double total;
   final ProviderOrderState state;
+  final OrderStatusTimeline timeline;
 
   const ProviderOrderItem({
     required this.id,
@@ -99,11 +102,15 @@ class ProviderOrderItem {
     double? discount,
     required this.total,
     required this.state,
+    this.timeline = const OrderStatusTimeline(),
   }) : subtotal = subtotal ?? total,
        processingFee = processingFee ?? 0,
        discount = discount ?? 0;
 
-  ProviderOrderItem copyWith({ProviderOrderState? state}) {
+  ProviderOrderItem copyWith({
+    ProviderOrderState? state,
+    OrderStatusTimeline? timeline,
+  }) {
     return ProviderOrderItem(
       id: id,
       clientName: clientName,
@@ -126,6 +133,7 @@ class ProviderOrderItem {
       discount: discount,
       total: total,
       state: state ?? this.state,
+      timeline: timeline ?? this.timeline,
     );
   }
 }

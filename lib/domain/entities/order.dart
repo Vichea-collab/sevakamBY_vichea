@@ -2,7 +2,33 @@ import 'provider.dart';
 
 enum PaymentMethod { creditCard, bankAccount, cash }
 
-enum OrderStatus { booked, onTheWay, started, completed, cancelled }
+enum OrderStatus { booked, onTheWay, started, completed, cancelled, declined }
+
+class OrderStatusTimeline {
+  final DateTime? bookedAt;
+  final DateTime? onTheWayAt;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime? cancelledAt;
+  final DateTime? declinedAt;
+
+  const OrderStatusTimeline({
+    this.bookedAt,
+    this.onTheWayAt,
+    this.startedAt,
+    this.completedAt,
+    this.cancelledAt,
+    this.declinedAt,
+  });
+
+  bool get isEmpty =>
+      bookedAt == null &&
+      onTheWayAt == null &&
+      startedAt == null &&
+      completedAt == null &&
+      cancelledAt == null &&
+      declinedAt == null;
+}
 
 enum HomeType { apartment, flat, villa, office }
 
@@ -133,6 +159,7 @@ class OrderItem {
   final double discount;
   final OrderStatus status;
   final double? rating;
+  final OrderStatusTimeline timeline;
 
   const OrderItem({
     required this.id,
@@ -152,11 +179,16 @@ class OrderItem {
     required this.discount,
     required this.status,
     this.rating,
+    this.timeline = const OrderStatusTimeline(),
   });
 
   double get total => subtotal + processingFee - discount;
 
-  OrderItem copyWith({OrderStatus? status, double? rating}) {
+  OrderItem copyWith({
+    OrderStatus? status,
+    double? rating,
+    OrderStatusTimeline? timeline,
+  }) {
     return OrderItem(
       id: id,
       provider: provider,
@@ -175,6 +207,7 @@ class OrderItem {
       discount: discount,
       status: status ?? this.status,
       rating: rating ?? this.rating,
+      timeline: timeline ?? this.timeline,
     );
   }
 }

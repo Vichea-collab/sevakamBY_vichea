@@ -5,6 +5,7 @@ import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../state/order_state.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/order_status_timeline.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 
@@ -95,6 +96,8 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
               _ProviderStatusBanner(status: _order.state),
               const SizedBox(height: 10),
               _StatusStepper(status: _order.state),
+              const SizedBox(height: 10),
+              OrderStatusTimelineCard(entries: _timelineEntries(_order)),
               const SizedBox(height: 16),
               Text(
                 'Finder booking details',
@@ -250,6 +253,72 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
     if (direct.isNotEmpty) return direct;
     final query = Uri.encodeComponent(order.address);
     return 'https://maps.google.com/?q=$query';
+  }
+
+  List<StatusTimelineEntry> _timelineEntries(ProviderOrderItem order) {
+    final timeline = order.timeline;
+    final entries = <StatusTimelineEntry>[];
+    if (timeline.bookedAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Booked',
+          at: timeline.bookedAt!,
+          icon: Icons.fact_check_outlined,
+          color: const Color(0xFFD97706),
+        ),
+      );
+    }
+    if (timeline.onTheWayAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'On the way',
+          at: timeline.onTheWayAt!,
+          icon: Icons.local_shipping_outlined,
+          color: AppColors.primary,
+        ),
+      );
+    }
+    if (timeline.startedAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Started',
+          at: timeline.startedAt!,
+          icon: Icons.handyman_rounded,
+          color: AppColors.success,
+        ),
+      );
+    }
+    if (timeline.completedAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Completed',
+          at: timeline.completedAt!,
+          icon: Icons.verified_rounded,
+          color: AppColors.success,
+        ),
+      );
+    }
+    if (timeline.cancelledAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Cancelled',
+          at: timeline.cancelledAt!,
+          icon: Icons.cancel_outlined,
+          color: AppColors.danger,
+        ),
+      );
+    }
+    if (timeline.declinedAt != null) {
+      entries.add(
+        StatusTimelineEntry(
+          label: 'Declined',
+          at: timeline.declinedAt!,
+          icon: Icons.highlight_off_rounded,
+          color: AppColors.danger,
+        ),
+      );
+    }
+    return entries;
   }
 }
 

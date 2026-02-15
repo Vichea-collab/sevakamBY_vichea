@@ -315,6 +315,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         OrderStatus.started => 'Service Started',
         OrderStatus.completed => 'Order Completed',
         OrderStatus.cancelled => 'Order Cancelled',
+        OrderStatus.declined => 'Order Declined',
       };
       final icon = switch (status) {
         OrderStatus.booked => Icons.fact_check_outlined,
@@ -322,6 +323,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         OrderStatus.started => Icons.handyman_rounded,
         OrderStatus.completed => Icons.check_circle_outline_rounded,
         OrderStatus.cancelled => Icons.cancel_outlined,
+        OrderStatus.declined => Icons.highlight_off_rounded,
       };
       final color = switch (status) {
         OrderStatus.booked => const Color(0xFFF59E0B),
@@ -329,6 +331,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         OrderStatus.started => const Color(0xFF7C6EF2),
         OrderStatus.completed => AppColors.success,
         OrderStatus.cancelled => AppColors.danger,
+        OrderStatus.declined => AppColors.danger,
       };
 
       updates.add(

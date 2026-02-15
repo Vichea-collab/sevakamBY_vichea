@@ -281,7 +281,8 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
       case _FinderOrderTab.completed:
         return source.where((order) {
           return order.status == OrderStatus.completed ||
-              order.status == OrderStatus.cancelled;
+              order.status == OrderStatus.cancelled ||
+              order.status == OrderStatus.declined;
         }).toList();
     }
   }
@@ -502,6 +503,7 @@ class _OrderStatusPill extends StatelessWidget {
       OrderStatus.started => ('Started', AppColors.success),
       OrderStatus.completed => ('Completed', AppColors.success),
       OrderStatus.cancelled => ('Cancelled', AppColors.danger),
+      OrderStatus.declined => ('Declined', AppColors.danger),
     };
 
     return Container(
