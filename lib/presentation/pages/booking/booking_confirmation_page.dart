@@ -375,6 +375,8 @@ class _ServiceDetailCard extends StatelessWidget {
         return 'Bank account';
       case PaymentMethod.cash:
         return 'Cash';
+      case PaymentMethod.khqr:
+        return 'Bakong KHQR';
     }
   }
 }

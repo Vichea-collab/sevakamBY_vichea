@@ -1,11 +1,17 @@
+enum ChatMessageType { text, image }
+
 class ChatMessage {
   final String text;
+  final ChatMessageType type;
+  final String imageUrl;
   final bool fromMe;
   final DateTime sentAt;
   final bool seen;
 
   const ChatMessage({
     required this.text,
+    this.type = ChatMessageType.text,
+    this.imageUrl = '',
     required this.fromMe,
     required this.sentAt,
     this.seen = true,

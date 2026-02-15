@@ -28,6 +28,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   final Set<String> _readPromoTitles = <String>{};
   final Set<String> _clearedUpdateKeys = <String>{};
   final Set<String> _clearedPromoTitles = <String>{};
+  Timer? _ticker;
 
   late List<_PromoNotice> _promos;
 
@@ -35,6 +36,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
   void initState() {
     super.initState();
     unawaited(OrderState.refreshCurrentRole(forceNetwork: true));
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      setState(() {});
+    });
     _promos = [
       const _PromoNotice(
         title: 'EID FITR 2023',
@@ -53,6 +58,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
         unread: true,
       ),
     ];
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
   }
 
   @override
@@ -340,7 +351,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
           title: label,
           description:
               '${order.serviceName} with ${order.provider.name} • ${order.address.city}',
-          timeLabel: _timeAgo(order.scheduledAt),
+          timeLabel: _timeAgo(_statusEventTime(order)),
           icon: icon,
           iconColor: color,
           kind: _NoticeFilter.orders,
@@ -364,12 +375,43 @@ class _NotificationsPageState extends State<NotificationsPage> {
     return updates;
   }
 
+  DateTime _statusEventTime(OrderItem order) {
+    return switch (order.status) {
+      OrderStatus.booked => order.timeline.bookedAt ?? order.bookedAt,
+      OrderStatus.onTheWay =>
+        order.timeline.onTheWayAt ?? order.timeline.bookedAt ?? order.bookedAt,
+      OrderStatus.started =>
+        order.timeline.startedAt ??
+            order.timeline.onTheWayAt ??
+            order.timeline.bookedAt ??
+            order.bookedAt,
+      OrderStatus.completed =>
+        order.timeline.completedAt ??
+            order.timeline.startedAt ??
+            order.timeline.onTheWayAt ??
+            order.timeline.bookedAt ??
+            order.bookedAt,
+      OrderStatus.cancelled =>
+        order.timeline.cancelledAt ?? order.timeline.bookedAt ?? order.bookedAt,
+      OrderStatus.declined =>
+        order.timeline.declinedAt ?? order.timeline.bookedAt ?? order.bookedAt,
+    };
+  }
+
   String _timeAgo(DateTime date) {
     final delta = DateTime.now().difference(date);
+    if (delta.isNegative) return 'Just now';
     if (delta.inMinutes < 1) return 'Just now';
-    if (delta.inHours < 1) return '${delta.inMinutes}m ago';
-    if (delta.inDays < 1) return '${delta.inHours}h ago';
-    return '${delta.inDays}d ago';
+    if (delta.inHours < 1) {
+      final minute = delta.inMinutes;
+      return '$minute min ago';
+    }
+    if (delta.inDays < 1) {
+      final hour = delta.inHours;
+      return '$hour hr ago';
+    }
+    final day = delta.inDays;
+    return '$day day${day > 1 ? 's' : ''} ago';
   }
 }
 

@@ -114,6 +114,24 @@ class OrderState {
     return created;
   }
 
+  static Future<KhqrPaymentSession> createKhqrPaymentSession({
+    required String orderId,
+  }) {
+    return _repository.createKhqrPaymentSession(orderId: orderId);
+  }
+
+  static Future<KhqrPaymentVerification> verifyKhqrPayment({
+    required String orderId,
+    String transactionId = '',
+  }) async {
+    final result = await _repository.verifyKhqrPayment(
+      orderId: orderId,
+      transactionId: transactionId,
+    );
+    finderOrders.value = _replaceFinder(result.order);
+    return result;
+  }
+
   static Future<OrderItem> updateFinderOrderStatus({
     required String orderId,
     required OrderStatus status,
@@ -172,6 +190,11 @@ class OrderState {
     if (user == null) return false;
 
     final role = AppRoleState.role.value;
+    if (role == AppRole.provider) {
+      // Provider flow relies on backend aggregation (incoming + assigned orders).
+      // Firestore security rules commonly deny broad provider live queries.
+      return false;
+    }
     final uid = user.uid;
     final alreadyBound =
         _ordersSubscription != null && _streamRole == role && _streamUid == uid;
@@ -184,56 +207,38 @@ class OrderState {
     _streamRole = role;
     _streamUid = uid;
 
-    _ordersSubscription = FirebaseFirestore.instance
+    final query = FirebaseFirestore.instance
         .collection('orders')
+        .where('finderUid', isEqualTo: uid)
         .limit(250)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final rows = snapshot.docs.map((doc) {
-              final row = Map<String, dynamic>.from(doc.data());
-              row['id'] ??= doc.id;
-              return row;
-            }).toList();
+        .snapshots();
 
-            if (role == AppRole.finder) {
-              final finderRows =
-                  rows
-                      .where(
-                        (row) =>
-                            (row['finderUid'] ?? '').toString().trim() == uid,
-                      )
-                      .toList()
-                    ..sort((a, b) => _createdAtMillis(b) - _createdAtMillis(a));
-              finderOrders.value = finderRows.map(_toFinderOrder).toList();
-            } else {
-              final providerRows =
-                  rows.where((row) {
-                      final providerUid = (row['providerUid'] ?? '')
-                          .toString()
-                          .trim();
-                      final status = (row['status'] ?? '')
-                          .toString()
-                          .trim()
-                          .toLowerCase();
-                      if (providerUid == uid) return true;
-                      return providerUid.isEmpty && status == 'booked';
-                    }).toList()
-                    ..sort((a, b) => _createdAtMillis(b) - _createdAtMillis(a));
-              providerOrders.value = providerRows
-                  .map(_toProviderOrder)
-                  .toList();
-            }
-            realtimeActive.value = true;
-          },
-          onError: (error) {
-            debugPrint('OrderState realtime stream failed, switching to API');
-            debugPrint('$error');
-            realtimeActive.value = false;
-            unawaited(_stopRealtime());
-            unawaited(refreshCurrentRole(forceNetwork: true));
-          },
-        );
+    _ordersSubscription = query.listen(
+      (snapshot) {
+        final rows = snapshot.docs.map((doc) {
+          final row = Map<String, dynamic>.from(doc.data());
+          row['id'] ??= doc.id;
+          return row;
+        }).toList()..sort((a, b) => _createdAtMillis(b) - _createdAtMillis(a));
+
+        finderOrders.value = rows.map(_toFinderOrder).toList();
+        realtimeActive.value = true;
+      },
+      onError: (error) {
+        debugPrint('OrderState realtime stream failed, switching to API');
+        debugPrint('$error');
+        final message = error.toString().toLowerCase();
+        if (message.contains('permission-denied')) {
+          _realtimeEnabled = false;
+          debugPrint(
+            'OrderState realtime disabled for this session due to Firestore permission rules.',
+          );
+        }
+        realtimeActive.value = false;
+        unawaited(_stopRealtime());
+        unawaited(refreshCurrentRole(forceNetwork: true));
+      },
+    );
     realtimeActive.value = true;
     return true;
   }
@@ -303,48 +308,6 @@ class OrderState {
       processingFee: _toDouble(row['processingFee']),
       discount: _toDouble(row['discount']),
       status: _orderStatusFromStorage((row['status'] ?? '').toString()),
-      timeline: timeline,
-    );
-  }
-
-  static ProviderOrderItem _toProviderOrder(Map<String, dynamic> row) {
-    final preferredDate = _toDateTime(row['preferredDate']);
-    final timeline = _timelineFromRow(
-      row,
-      fallbackBookedAt: _toDateTimeOrNull(row['createdAt']),
-    );
-    final inputs = <String, String>{};
-    final rawInputs = row['serviceFields'];
-    if (rawInputs is Map) {
-      for (final entry in rawInputs.entries) {
-        inputs[entry.key.toString()] = (entry.value ?? '').toString();
-      }
-    }
-    final address =
-        '${(row['addressStreet'] ?? '').toString()}, ${(row['addressCity'] ?? '').toString()}'
-            .trim();
-    return ProviderOrderItem(
-      id: (row['id'] ?? '').toString(),
-      clientName: (row['finderName'] ?? 'Finder').toString(),
-      clientPhone: (row['finderPhone'] ?? '').toString(),
-      category: (row['categoryName'] ?? '').toString(),
-      serviceName: (row['serviceName'] ?? '').toString(),
-      address: address.replaceAll(RegExp(r'^,\s*|\s*,\s*$'), ''),
-      addressLink: (row['addressMapLink'] ?? '').toString(),
-      scheduleDate: _formatDate(preferredDate),
-      scheduleTime: (row['preferredTimeSlot'] ?? '').toString(),
-      workers: _toInt(row['workers'], fallback: 1),
-      hours: _toInt(row['hours'], fallback: 1),
-      homeType: (row['homeType'] ?? '').toString(),
-      paymentMethod: (row['paymentMethod'] ?? '').toString(),
-      additionalService: (row['additionalService'] ?? '').toString(),
-      finderNote: (row['finderNote'] ?? '').toString(),
-      serviceInputs: inputs,
-      subtotal: _toDouble(row['subtotal']),
-      processingFee: _toDouble(row['processingFee']),
-      discount: _toDouble(row['discount']),
-      total: _toDouble(row['total']),
-      state: _providerStateFromStorage((row['status'] ?? '').toString()),
       timeline: timeline,
     );
   }
@@ -423,27 +386,6 @@ class OrderState {
     return parsed ?? fallback;
   }
 
-  static String _formatDate(DateTime value) {
-    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final weekday = weekdays[(value.weekday - 1).clamp(0, 6)];
-    final month = months[(value.month - 1).clamp(0, 11)];
-    return '$weekday, $month ${value.day}';
-  }
-
   static OrderStatus _orderStatusFromStorage(String status) {
     switch (status.trim().toLowerCase()) {
       case 'on_the_way':
@@ -462,22 +404,6 @@ class OrderState {
     }
   }
 
-  static ProviderOrderState _providerStateFromStorage(String status) {
-    switch (status.trim().toLowerCase()) {
-      case 'on_the_way':
-        return ProviderOrderState.onTheWay;
-      case 'started':
-        return ProviderOrderState.started;
-      case 'completed':
-        return ProviderOrderState.completed;
-      case 'declined':
-        return ProviderOrderState.declined;
-      case 'booked':
-      default:
-        return ProviderOrderState.incoming;
-    }
-  }
-
   static PaymentMethod _paymentMethodFromStorage(String value) {
     switch (value.trim().toLowerCase()) {
       case 'bank_account':
@@ -485,6 +411,8 @@ class OrderState {
         return PaymentMethod.bankAccount;
       case 'cash':
         return PaymentMethod.cash;
+      case 'khqr':
+        return PaymentMethod.khqr;
       default:
         return PaymentMethod.creditCard;
     }

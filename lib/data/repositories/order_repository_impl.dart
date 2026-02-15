@@ -63,6 +63,43 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
+  Future<KhqrPaymentSession> createKhqrPaymentSession({
+    required String orderId,
+  }) async {
+    final row = await _remoteDataSource.createKhqrPaymentSession(
+      orderId: orderId,
+    );
+    return KhqrPaymentSession(
+      orderId: (row['orderId'] ?? orderId).toString(),
+      amount: _toDouble(row['amount']),
+      currency: (row['currency'] ?? 'USD').toString(),
+      merchantReference: (row['merchantReference'] ?? '').toString(),
+      transactionId: (row['transactionId'] ?? '').toString(),
+      qrPayload: (row['qrPayload'] ?? '').toString(),
+      qrImageUrl: (row['qrImageUrl'] ?? '').toString(),
+      paymentStatus: (row['paymentStatus'] ?? 'pending').toString(),
+    );
+  }
+
+  @override
+  Future<KhqrPaymentVerification> verifyKhqrPayment({
+    required String orderId,
+    String transactionId = '',
+  }) async {
+    final row = await _remoteDataSource.verifyKhqrPayment(
+      orderId: orderId,
+      transactionId: transactionId,
+    );
+    final order = _toFinderOrder(_safeMap(row['order']));
+    return KhqrPaymentVerification(
+      paid: row['paid'] == true,
+      paymentStatus: (row['paymentStatus'] ?? 'pending').toString(),
+      status: (row['status'] ?? '').toString(),
+      order: order,
+    );
+  }
+
+  @override
   Future<OrderItem> updateFinderOrderStatus({
     required String orderId,
     required OrderStatus status,
@@ -341,6 +378,8 @@ class OrderRepositoryImpl implements OrderRepository {
         return 'bank_account';
       case PaymentMethod.cash:
         return 'cash';
+      case PaymentMethod.khqr:
+        return 'khqr';
     }
   }
 
@@ -351,9 +390,19 @@ class OrderRepositoryImpl implements OrderRepository {
         return PaymentMethod.bankAccount;
       case 'cash':
         return PaymentMethod.cash;
+      case 'khqr':
+        return PaymentMethod.khqr;
       default:
         return PaymentMethod.creditCard;
     }
+  }
+
+  Map<String, dynamic> _safeMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) {
+      return value.map((key, item) => MapEntry(key.toString(), item));
+    }
+    return const <String, dynamic>{};
   }
 
   String _homeTypeToStorage(HomeType value) {

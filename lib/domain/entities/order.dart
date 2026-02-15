@@ -1,6 +1,6 @@
 import 'provider.dart';
 
-enum PaymentMethod { creditCard, bankAccount, cash }
+enum PaymentMethod { creditCard, bankAccount, cash, khqr }
 
 enum OrderStatus { booked, onTheWay, started, completed, cancelled, declined }
 
@@ -210,4 +210,40 @@ class OrderItem {
       timeline: timeline ?? this.timeline,
     );
   }
+}
+
+class KhqrPaymentSession {
+  final String orderId;
+  final double amount;
+  final String currency;
+  final String merchantReference;
+  final String transactionId;
+  final String qrPayload;
+  final String qrImageUrl;
+  final String paymentStatus;
+
+  const KhqrPaymentSession({
+    required this.orderId,
+    required this.amount,
+    required this.currency,
+    required this.merchantReference,
+    required this.transactionId,
+    required this.qrPayload,
+    required this.qrImageUrl,
+    required this.paymentStatus,
+  });
+}
+
+class KhqrPaymentVerification {
+  final bool paid;
+  final String paymentStatus;
+  final String status;
+  final OrderItem order;
+
+  const KhqrPaymentVerification({
+    required this.paid,
+    required this.paymentStatus,
+    required this.status,
+    required this.order,
+  });
 }

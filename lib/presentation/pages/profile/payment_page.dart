@@ -69,6 +69,12 @@ class _PaymentPageState extends State<PaymentPage> {
                 selected: _selected == PaymentMethod.cash,
                 onTap: () => setState(() => _selected = PaymentMethod.cash),
               ),
+              _PaymentTile(
+                label: 'Bakong KHQR',
+                icon: Icons.qr_code_2_rounded,
+                selected: _selected == PaymentMethod.khqr,
+                onTap: () => setState(() => _selected = PaymentMethod.khqr),
+              ),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,

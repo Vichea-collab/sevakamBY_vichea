@@ -196,6 +196,8 @@ String paymentMethodToStorageValue(PaymentMethod method) {
       return 'bank_account';
     case PaymentMethod.cash:
       return 'cash';
+    case PaymentMethod.khqr:
+      return 'khqr';
   }
 }
 
@@ -205,6 +207,8 @@ PaymentMethod paymentMethodFromStorageValue(String value) {
       return PaymentMethod.bankAccount;
     case 'cash':
       return PaymentMethod.cash;
+    case 'khqr':
+      return PaymentMethod.khqr;
     case 'credit_card':
     default:
       return PaymentMethod.creditCard;

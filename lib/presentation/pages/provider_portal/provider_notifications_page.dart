@@ -24,11 +24,22 @@ class ProviderNotificationsPage extends StatefulWidget {
 
 class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
   final Set<String> _clearedNoticeKeys = <String>{};
+  Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
     unawaited(OrderState.refreshCurrentRole(forceNetwork: true));
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
   }
 
   @override
@@ -57,6 +68,13 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
             key: 'incoming:$incoming',
             title: 'Order Incoming',
             description: '$incoming live request(s) waiting for your action.',
+            timeLabel: _timeAgo(
+              _latestStatusTime(
+                orders.where(
+                  (item) => item.state == ProviderOrderState.incoming,
+                ),
+              ),
+            ),
             icon: Icons.inbox_rounded,
             color: const Color(0xFFF59E0B),
             tab: ProviderOrderTab.incoming,
@@ -66,6 +84,15 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
             title: 'Orders In Progress',
             description:
                 '$active live order(s) in progress. Keep updating client.',
+            timeLabel: _timeAgo(
+              _latestStatusTime(
+                orders.where(
+                  (item) =>
+                      item.state == ProviderOrderState.onTheWay ||
+                      item.state == ProviderOrderState.started,
+                ),
+              ),
+            ),
             icon: Icons.assignment_turned_in_rounded,
             color: const Color(0xFF7C6EF2),
             tab: ProviderOrderTab.active,
@@ -75,6 +102,13 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
             title: 'Order Completed',
             description:
                 '$completed completed order(s). Check recent feedback.',
+            timeLabel: _timeAgo(
+              _latestStatusTime(
+                orders.where(
+                  (item) => item.state == ProviderOrderState.completed,
+                ),
+              ),
+            ),
             icon: Icons.check_circle_rounded,
             color: AppColors.success,
             tab: ProviderOrderTab.completed,
@@ -83,6 +117,13 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
             key: 'declined:$declined',
             title: 'Order Declined',
             description: '$declined declined order(s) in history.',
+            timeLabel: _timeAgo(
+              _latestStatusTime(
+                orders.where(
+                  (item) => item.state == ProviderOrderState.declined,
+                ),
+              ),
+            ),
             icon: Icons.cancel_rounded,
             color: AppColors.danger,
             tab: ProviderOrderTab.completed,
@@ -127,7 +168,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
                       (notice) => _NotificationTile(
                         title: notice.title,
                         description: notice.description,
-                        timeLabel: 'Live',
+                        timeLabel: notice.timeLabel,
                         icon: notice.icon,
                         color: notice.color,
                         onTap: () => Navigator.push(
@@ -182,6 +223,51 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
     Navigator.pushNamed(context, ChatListPage.routeName);
   }
 
+  DateTime? _latestStatusTime(Iterable<ProviderOrderItem> items) {
+    DateTime? latest;
+    for (final item in items) {
+      final eventTime = _statusTime(item);
+      if (eventTime == null) continue;
+      if (latest == null || eventTime.isAfter(latest)) {
+        latest = eventTime;
+      }
+    }
+    return latest;
+  }
+
+  DateTime? _statusTime(ProviderOrderItem item) {
+    final timeline = item.timeline;
+    return switch (item.state) {
+      ProviderOrderState.incoming => timeline.bookedAt,
+      ProviderOrderState.onTheWay => timeline.onTheWayAt ?? timeline.bookedAt,
+      ProviderOrderState.started =>
+        timeline.startedAt ?? timeline.onTheWayAt ?? timeline.bookedAt,
+      ProviderOrderState.completed =>
+        timeline.completedAt ??
+            timeline.startedAt ??
+            timeline.onTheWayAt ??
+            timeline.bookedAt,
+      ProviderOrderState.declined => timeline.declinedAt ?? timeline.bookedAt,
+    };
+  }
+
+  String _timeAgo(DateTime? date) {
+    if (date == null) return 'Just now';
+    final delta = DateTime.now().difference(date);
+    if (delta.isNegative) return 'Just now';
+    if (delta.inMinutes < 1) return 'Just now';
+    if (delta.inHours < 1) {
+      final minute = delta.inMinutes;
+      return '$minute min ago';
+    }
+    if (delta.inDays < 1) {
+      final hour = delta.inHours;
+      return '$hour hr ago';
+    }
+    final day = delta.inDays;
+    return '$day day${day > 1 ? 's' : ''} ago';
+  }
+
   void _clearAll(List<_ProviderNoticeEntry> notices) {
     setState(() {
       _clearedNoticeKeys.addAll(notices.map((e) => e.key));
@@ -210,6 +296,7 @@ class _ProviderNoticeEntry {
   final String key;
   final String title;
   final String description;
+  final String timeLabel;
   final IconData icon;
   final Color color;
   final ProviderOrderTab tab;
@@ -218,6 +305,7 @@ class _ProviderNoticeEntry {
     required this.key,
     required this.title,
     required this.description,
+    required this.timeLabel,
     required this.icon,
     required this.color,
     required this.tab,

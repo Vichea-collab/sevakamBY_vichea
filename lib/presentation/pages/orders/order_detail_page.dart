@@ -475,6 +475,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         return 'Bank account';
       case PaymentMethod.cash:
         return 'Cash';
+      case PaymentMethod.khqr:
+        return 'Bakong KHQR';
     }
   }
 }

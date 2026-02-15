@@ -39,23 +39,25 @@ class BackendApiClient {
 
   Future<Map<String, dynamic>> putJson(
     String path,
-    Map<String, dynamic> body,
-  ) async {
+    Map<String, dynamic> body, {
+    Duration timeout = const Duration(seconds: 6),
+  }) async {
     final uri = Uri.parse('$baseUrl$path');
     final response = await _http
         .put(uri, headers: _headers(), body: jsonEncode(body))
-        .timeout(const Duration(seconds: 6));
+        .timeout(timeout);
     return _decodeResponse(response);
   }
 
   Future<Map<String, dynamic>> postJson(
     String path,
-    Map<String, dynamic> body,
-  ) async {
+    Map<String, dynamic> body, {
+    Duration timeout = const Duration(seconds: 6),
+  }) async {
     final uri = Uri.parse('$baseUrl$path');
     final response = await _http
         .post(uri, headers: _headers(), body: jsonEncode(body))
-        .timeout(const Duration(seconds: 6));
+        .timeout(timeout);
     return _decodeResponse(response);
   }
 

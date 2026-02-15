@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_toast.dart';
+import '../../../data/network/backend_api_client.dart';
 import '../../../domain/entities/chat.dart';
 import '../../state/chat_state.dart';
 import '../../widgets/pressable_scale.dart';
@@ -16,6 +18,7 @@ class ChatConversationPage extends StatefulWidget {
 
 class _ChatConversationPageState extends State<ChatConversationPage> {
   final TextEditingController _inputController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
   bool _sending = false;
 
   @override
@@ -67,6 +70,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
             _Composer(
               controller: _inputController,
               onSend: _sending ? null : _sendMessage,
+              onPickImage: _sending ? null : _sendImage,
             ),
           ],
         ),
@@ -84,6 +88,41 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     } catch (_) {
       if (mounted) {
         AppToast.error(context, 'Unable to send message right now.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _sending = false);
+      }
+    }
+  }
+
+  Future<void> _sendImage() async {
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+        maxWidth: 1024,
+      );
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      if (bytes.isEmpty) {
+        if (mounted) {
+          AppToast.warning(context, 'Selected image is empty.');
+        }
+        return;
+      }
+      setState(() => _sending = true);
+      await ChatState.sendImageMessage(
+        threadId: widget.thread.id,
+        bytes: bytes,
+        fileName: picked.name,
+      );
+    } catch (error) {
+      if (mounted) {
+        final reason = error is BackendApiException
+            ? error.message
+            : 'Unable to send image right now.';
+        AppToast.error(context, reason);
       }
     } finally {
       if (mounted) {
@@ -147,6 +186,10 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final align = message.fromMe ? Alignment.centerRight : Alignment.centerLeft;
     final bubbleColor = message.fromMe ? const Color(0xFFCEF6B8) : Colors.white;
+    final hasImage =
+        message.type == ChatMessageType.image &&
+        message.imageUrl.trim().isNotEmpty;
+    final hasText = message.text.trim().isNotEmpty;
 
     return Align(
       alignment: align,
@@ -161,7 +204,30 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(message.text, style: Theme.of(context).textTheme.bodyLarge),
+            if (hasImage)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  message.imageUrl,
+                  width: 240,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 240,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0x1A000000),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'Image unavailable',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                ),
+              ),
+            if (hasImage && hasText) const SizedBox(height: 8),
+            if (hasText)
+              Text(message.text, style: Theme.of(context).textTheme.bodyLarge),
             const SizedBox(height: 4),
             Align(
               alignment: Alignment.centerRight,
@@ -189,8 +255,13 @@ class _MessageBubble extends StatelessWidget {
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback? onSend;
+  final VoidCallback? onPickImage;
 
-  const _Composer({required this.controller, required this.onSend});
+  const _Composer({
+    required this.controller,
+    required this.onSend,
+    required this.onPickImage,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +270,10 @@ class _Composer extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
       child: Row(
         children: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.attach_file)),
+          IconButton(
+            onPressed: onPickImage,
+            icon: const Icon(Icons.attach_file),
+          ),
           Expanded(
             child: TextField(
               controller: controller,

@@ -26,6 +26,30 @@ class OrderRemoteDataSource {
     return _safeList(response['data']);
   }
 
+  Future<Map<String, dynamic>> createKhqrPaymentSession({
+    required String orderId,
+  }) async {
+    final response = await _apiClient.postJson('/api/payments/khqr/create', {
+      'orderId': orderId,
+    });
+    return _safeMap(response['data']);
+  }
+
+  Future<Map<String, dynamic>> verifyKhqrPayment({
+    required String orderId,
+    String transactionId = '',
+  }) async {
+    final body = <String, dynamic>{'orderId': orderId};
+    if (transactionId.trim().isNotEmpty) {
+      body['transactionId'] = transactionId.trim();
+    }
+    final response = await _apiClient.postJson(
+      '/api/payments/khqr/verify',
+      body,
+    );
+    return _safeMap(response['data']);
+  }
+
   Future<Map<String, dynamic>> updateOrderStatus({
     required String orderId,
     required String status,

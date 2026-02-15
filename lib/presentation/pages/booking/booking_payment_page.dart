@@ -80,6 +80,14 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                 onTap: () =>
                     setState(() => _selectedMethod = PaymentMethod.cash),
               ),
+              _PaymentTile(
+                label: 'Bakong KHQR',
+                icon: Icons.qr_code_2_rounded,
+                subtitle: 'Scan and pay before booking confirmation',
+                selected: _selectedMethod == PaymentMethod.khqr,
+                onTap: () =>
+                    setState(() => _selectedMethod = PaymentMethod.khqr),
+              ),
               const SizedBox(height: 14),
               TextField(
                 controller: _promoController,
@@ -176,7 +184,11 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
               ),
               const SizedBox(height: 16),
               PrimaryButton(
-                label: _submitting ? 'Processing...' : 'Confirm Booking',
+                label: _submitting
+                    ? 'Processing...'
+                    : (_selectedMethod == PaymentMethod.khqr
+                          ? 'Create KHQR & Pay'
+                          : 'Confirm Booking'),
                 icon: Icons.check_circle_outline_rounded,
                 onPressed: _submitting ? null : () => _placeBooking(draft),
               ),
@@ -190,7 +202,23 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
   Future<void> _placeBooking(BookingDraft draft) async {
     setState(() => _submitting = true);
     try {
-      final order = await OrderState.createFinderOrder(draft);
+      final createdOrder = await OrderState.createFinderOrder(draft);
+      OrderItem order = createdOrder;
+
+      if (_selectedMethod == PaymentMethod.khqr) {
+        final verified = await _openKhqrCheckout(order);
+        if (verified == null) {
+          if (mounted) {
+            AppToast.info(
+              context,
+              'Booking is waiting for KHQR payment confirmation.',
+            );
+          }
+          return;
+        }
+        order = verified;
+      }
+
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
@@ -209,6 +237,22 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
     }
   }
 
+  Future<OrderItem?> _openKhqrCheckout(OrderItem order) async {
+    final session = await OrderState.createKhqrPaymentSession(
+      orderId: order.id,
+    );
+    if (!mounted) return null;
+    return showModalBottomSheet<OrderItem>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _KhqrCheckoutSheet(session: session, order: order),
+    );
+  }
+
   String _paymentLabel(PaymentMethod method) {
     switch (method) {
       case PaymentMethod.creditCard:
@@ -217,6 +261,8 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
         return 'Bank account';
       case PaymentMethod.cash:
         return 'Cash';
+      case PaymentMethod.khqr:
+        return 'Bakong KHQR';
     }
   }
 
@@ -353,6 +399,181 @@ class _PaymentTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _KhqrCheckoutSheet extends StatefulWidget {
+  final KhqrPaymentSession session;
+  final OrderItem order;
+
+  const _KhqrCheckoutSheet({required this.session, required this.order});
+
+  @override
+  State<_KhqrCheckoutSheet> createState() => _KhqrCheckoutSheetState();
+}
+
+class _KhqrCheckoutSheetState extends State<_KhqrCheckoutSheet> {
+  bool _verifying = false;
+  String _statusMessage = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final payload = widget.session.qrPayload.trim();
+    final imageUrl = widget.session.qrImageUrl.trim();
+    final amount = widget.session.amount.toStringAsFixed(2);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        18,
+        8,
+        18,
+        18 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Pay with Bakong KHQR',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Order #${widget.order.id}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          Text(
+            'Amount: \$$amount ${widget.session.currency}',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: Column(
+              children: [
+                if (imageUrl.isNotEmpty)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      imageUrl,
+                      height: 220,
+                      width: 220,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          _KhqrPayloadBox(payload: payload),
+                    ),
+                  )
+                else
+                  _KhqrPayloadBox(payload: payload),
+                const SizedBox(height: 10),
+                Text(
+                  'Merchant ref: ${widget.session.merchantReference}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          if (_statusMessage.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              _statusMessage,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: PrimaryButton(
+                  label: 'Not now',
+                  isOutlined: true,
+                  tone: PrimaryButtonTone.neutral,
+                  onPressed: _verifying ? null : () => Navigator.pop(context),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: PrimaryButton(
+                  label: _verifying ? 'Verifying...' : "I've Paid",
+                  icon: Icons.verified_rounded,
+                  onPressed: _verifying ? null : _verifyPayment,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _verifyPayment() async {
+    setState(() {
+      _verifying = true;
+      _statusMessage = '';
+    });
+    try {
+      final result = await OrderState.verifyKhqrPayment(
+        orderId: widget.order.id,
+        transactionId: widget.session.transactionId,
+      );
+      if (!mounted) return;
+      if (result.paid) {
+        Navigator.pop(context, result.order);
+        return;
+      }
+      setState(() {
+        _statusMessage =
+            'Payment is still pending. Please complete payment in your banking app and try again.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final reason = error is BackendApiException
+          ? error.message
+          : 'Unable to verify payment.';
+      setState(() {
+        _statusMessage = reason;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _verifying = false);
+      }
+    }
+  }
+}
+
+class _KhqrPayloadBox extends StatelessWidget {
+  final String payload;
+
+  const _KhqrPayloadBox({required this.payload});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FAFF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: SelectableText(
+        payload.isEmpty ? 'KHQR payload is unavailable.' : payload,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
       ),
     );
   }

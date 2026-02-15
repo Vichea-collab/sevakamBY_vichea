@@ -7,6 +7,13 @@ abstract class OrderRepository {
   Future<OrderItem> createFinderOrder(BookingDraft draft);
   Future<List<OrderItem>> fetchFinderOrders();
   Future<List<ProviderOrderItem>> fetchProviderOrders();
+  Future<KhqrPaymentSession> createKhqrPaymentSession({
+    required String orderId,
+  });
+  Future<KhqrPaymentVerification> verifyKhqrPayment({
+    required String orderId,
+    String transactionId,
+  });
   Future<OrderItem> updateFinderOrderStatus({
     required String orderId,
     required OrderStatus status,

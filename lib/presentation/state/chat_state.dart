@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -169,6 +170,45 @@ class ChatState {
     unawaited(refresh());
   }
 
+  static Future<void> sendImageMessage({
+    required String threadId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    if (bytes.isEmpty) return;
+
+    final current = FirebaseAuth.instance.currentUser;
+    if (current == null) {
+      throw StateError('Please sign in first.');
+    }
+
+    final extension = _extensionFromName(fileName);
+    final mimeType = _mimeTypeFromExtension(extension);
+    final safeFileName = fileName.trim().isEmpty
+        ? 'chat_image$extension'
+        : fileName.trim();
+    final base64Data = base64Encode(bytes);
+    final dataUrl = 'data:$mimeType;base64,$base64Data';
+
+    await _apiClient.postJson(
+      '/api/chats/${threadId.trim()}/messages',
+      {
+        'text': '',
+        'type': 'image',
+        'imageDataUrl': dataUrl,
+        'fileName': safeFileName,
+        'mimeType': mimeType,
+        'senderName': _safeName(
+          ProfileSettingsState.currentProfile,
+          fallback: current.displayName,
+        ),
+      },
+      timeout: const Duration(seconds: 25),
+    );
+
+    unawaited(refresh());
+  }
+
   static Future<void> markThreadAsRead(String threadId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
     final id = threadId.trim();
@@ -235,6 +275,11 @@ class ChatState {
             .map(
               (row) => ChatMessage(
                 text: (row['text'] ?? '').toString(),
+                type: _messageTypeFromStorage(
+                  (row['type'] ?? '').toString(),
+                  imageUrl: (row['imageUrl'] ?? '').toString(),
+                ),
+                imageUrl: (row['imageUrl'] ?? '').toString(),
                 fromMe:
                     (row['senderUid'] ?? '').toString().trim() == currentUid,
                 sentAt: _toDateTime(row['sentAt']),
@@ -347,6 +392,40 @@ class ChatState {
   }
 
   static String _safeAvatarPath() => 'assets/images/profile.jpg';
+
+  static ChatMessageType _messageTypeFromStorage(
+    String raw, {
+    required String imageUrl,
+  }) {
+    final value = raw.trim().toLowerCase();
+    if (value == 'image') return ChatMessageType.image;
+    if (imageUrl.trim().isNotEmpty) return ChatMessageType.image;
+    return ChatMessageType.text;
+  }
+
+  static String _extensionFromName(String fileName) {
+    final trimmed = fileName.trim();
+    final dot = trimmed.lastIndexOf('.');
+    if (dot <= 0 || dot >= trimmed.length - 1) return '.jpg';
+    return '.${trimmed.substring(dot + 1).toLowerCase()}';
+  }
+
+  static String _mimeTypeFromExtension(String extension) {
+    switch (extension.toLowerCase()) {
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      case '.gif':
+        return 'image/gif';
+      case '.heic':
+        return 'image/heic';
+      case '.jpg':
+      case '.jpeg':
+      default:
+        return 'image/jpeg';
+    }
+  }
 
   static String _starterText({
     required String peerName,
