@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/order.dart';
-import '../../state/booking_catalog_state.dart';
+import '../../state/order_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 import 'address_map_picker_page.dart';
@@ -21,12 +24,14 @@ class BookingAddressPage extends StatefulWidget {
 class _BookingAddressPageState extends State<BookingAddressPage> {
   late List<HomeAddress> _addresses;
   String? _selectedId;
+  bool _loadingAddresses = false;
 
   @override
   void initState() {
     super.initState();
-    _addresses = List<HomeAddress>.from(BookingCatalogState.homeAddresses);
-    _selectedId = widget.draft.address?.id ?? _addresses.first.id;
+    _addresses = const <HomeAddress>[];
+    _selectedId = widget.draft.address?.id;
+    unawaited(_loadSavedAddresses());
   }
 
   @override
@@ -49,68 +54,81 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
               ),
               const SizedBox(height: 10),
               Expanded(
-                child: ListView.separated(
-                  itemCount: _addresses.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final address = _addresses[index];
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => setState(() => _selectedId = address.id),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.divider),
+                child: _loadingAddresses && _addresses.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : _addresses.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No saved address yet. Add one to continue.',
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.home_outlined, size: 18),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                      )
+                    : ListView.separated(
+                        itemCount: _addresses.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final address = _addresses[index];
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () =>
+                                setState(() => _selectedId = address.id),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.divider),
+                              ),
+                              child: Row(
                                 children: [
-                                  Text(
-                                    address.label,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge,
+                                  const Icon(Icons.home_outlined, size: 18),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          address.label,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodyLarge,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          address.street,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodyMedium,
+                                        ),
+                                        Text(
+                                          address.city,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodyMedium,
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    address.street,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                  ),
-                                  Text(
-                                    address.city,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
+                                  Icon(
+                                    _selectedId == address.id
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off,
+                                    color: AppColors.primary,
                                   ),
                                 ],
                               ),
                             ),
-                            Icon(
-                              _selectedId == address.id
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_off,
-                              color: AppColors.primary,
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
               PrimaryButton(
                 label: 'Select Address',
                 icon: Icons.my_location_rounded,
-                onPressed: _selectedId == null ? null : _goNext,
+                onPressed: _selectedId == null || _addresses.isEmpty
+                    ? null
+                    : _goNext,
               ),
             ],
           ),
@@ -120,7 +138,12 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
   }
 
   void _goNext() {
-    final selected = _addresses.firstWhere((item) => item.id == _selectedId);
+    final selectedIndex = _addresses.indexWhere(
+      (item) => item.id == _selectedId,
+    );
+    final selected = selectedIndex >= 0
+        ? _addresses[selectedIndex]
+        : _addresses.first;
     Navigator.push(
       context,
       slideFadeRoute(
@@ -134,6 +157,7 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
     final mapLinkController = TextEditingController();
     final streetController = TextEditingController();
     final additionalController = TextEditingController();
+    var pickedCity = 'Phnom Penh';
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -221,6 +245,9 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                                     ),
                                   );
                               if (picked == null || !context.mounted) return;
+                              pickedCity = picked.city.trim().isEmpty
+                                  ? 'Phnom Penh'
+                                  : picked.city.trim();
                               labelController.text = picked.label;
                               mapLinkController.text = picked.mapLink;
                               streetController.text = picked.street.isEmpty
@@ -262,23 +289,31 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                       decoration: _sheetInputDecoration(
                         'Additional details (optional)',
                       ),
-                      onSubmitted: (_) => _saveAddressFromSheet(
-                        labelController: labelController,
-                        mapLinkController: mapLinkController,
-                        streetController: streetController,
-                        additionalController: additionalController,
-                      ),
+                      onSubmitted: (_) {
+                        unawaited(
+                          _saveAddressFromSheet(
+                            labelController: labelController,
+                            mapLinkController: mapLinkController,
+                            streetController: streetController,
+                            additionalController: additionalController,
+                            pickedCity: pickedCity,
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 18),
                     PrimaryButton(
                       label: 'Save Changes',
                       icon: Icons.save_outlined,
-                      onPressed: () => _saveAddressFromSheet(
-                        labelController: labelController,
-                        mapLinkController: mapLinkController,
-                        streetController: streetController,
-                        additionalController: additionalController,
-                      ),
+                      onPressed: () async {
+                        await _saveAddressFromSheet(
+                          labelController: labelController,
+                          mapLinkController: mapLinkController,
+                          streetController: streetController,
+                          additionalController: additionalController,
+                          pickedCity: pickedCity,
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -315,31 +350,77 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
     );
   }
 
-  void _saveAddressFromSheet({
+  Future<void> _saveAddressFromSheet({
     required TextEditingController labelController,
     required TextEditingController mapLinkController,
     required TextEditingController streetController,
     required TextEditingController additionalController,
-  }) {
+    required String pickedCity,
+  }) async {
     if (labelController.text.trim().isEmpty ||
         streetController.text.trim().isEmpty) {
+      AppToast.error(context, 'Label and address are required.');
       return;
     }
     final additional = additionalController.text.trim();
     final resolvedStreet = additional.isEmpty
         ? streetController.text.trim()
         : '${streetController.text.trim()}, $additional';
-    final address = HomeAddress(
+    final draftAddress = HomeAddress(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       label: labelController.text.trim(),
       mapLink: mapLinkController.text.trim(),
       street: resolvedStreet,
-      city: 'Phnom Penh',
+      city: pickedCity.trim().isEmpty ? 'Phnom Penh' : pickedCity.trim(),
+      isDefault: _addresses.isEmpty,
     );
-    setState(() {
-      _addresses = [address, ..._addresses];
-      _selectedId = address.id;
-    });
-    Navigator.pop(context);
+    try {
+      final saved = await OrderState.createSavedAddress(address: draftAddress);
+      if (!mounted) return;
+      setState(() {
+        _addresses = [
+          saved,
+          ..._addresses.where((item) => item.id != saved.id),
+        ];
+        _selectedId = saved.id;
+      });
+      Navigator.pop(context);
+    } catch (error) {
+      if (!mounted) return;
+      AppToast.error(context, error.toString());
+    }
+  }
+
+  Future<void> _loadSavedAddresses() async {
+    setState(() => _loadingAddresses = true);
+    try {
+      final loaded = await OrderState.fetchSavedAddresses();
+      if (!mounted) return;
+
+      final draftSelectedId = widget.draft.address?.id;
+      final selectedId =
+          (draftSelectedId != null &&
+              loaded.any((item) => item.id == draftSelectedId))
+          ? draftSelectedId
+          : _firstPreferredAddressId(loaded);
+      setState(() {
+        _addresses = loaded;
+        _selectedId = selectedId;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      AppToast.error(context, error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _loadingAddresses = false);
+      }
+    }
+  }
+
+  String? _firstPreferredAddressId(List<HomeAddress> items) {
+    if (items.isEmpty) return null;
+    final defaultIndex = items.indexWhere((item) => item.isDefault);
+    if (defaultIndex >= 0) return items[defaultIndex].id;
+    return items.first.id;
   }
 }

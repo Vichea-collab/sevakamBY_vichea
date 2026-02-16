@@ -34,6 +34,7 @@ class _ProviderHomePageState extends State<ProviderHomePage> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    unawaited(_primeProviderPosts());
   }
 
   @override
@@ -46,163 +47,188 @@ class _ProviderHomePageState extends State<ProviderHomePage> {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<ProviderPostItem>>(
-      valueListenable: ProviderPostState.posts,
-      builder: (context, posts, _) {
-        final allSections = _sectionsFromPostsCached(posts);
-        final sections = _filterSections(allSections, _query.trim());
-        final hasQuery = _query.trim().isNotEmpty;
-        return Scaffold(
-          body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.splashStart, AppColors.splashEnd],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+      valueListenable: ProviderPostState.allPosts,
+      builder: (context, allPosts, _) {
+        return ValueListenableBuilder<List<ProviderPostItem>>(
+          valueListenable: ProviderPostState.posts,
+          builder: (context, pagedPosts, _) {
+            final posts = allPosts.isNotEmpty ? allPosts : pagedPosts;
+            final allSections = _sectionsFromPostsCached(posts);
+            final sections = _filterSections(allSections, _query.trim());
+            final hasQuery = _query.trim().isNotEmpty;
+            return Scaffold(
+              body: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              AppColors.splashStart,
+                              AppColors.splashEnd,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            IconButton(
-                              onPressed: () => Navigator.pop(context),
-                              icon: const Icon(
-                                Icons.arrow_back,
-                                color: Colors.white,
-                              ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  icon: const Icon(
+                                    Icons.arrow_back,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Service Providers',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(color: Colors.white),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Service Providers',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(color: Colors.white),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.search,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _searchController,
+                                      onChanged: _onSearchChanged,
+                                      decoration: const InputDecoration(
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        isDense: true,
+                                        hintText:
+                                            'Live provider list from posted offers',
+                                        hintStyle: TextStyle(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (_query.trim().isNotEmpty)
+                                    GestureDetector(
+                                      onTap: () {
+                                        _searchDebounce?.cancel();
+                                        _searchController.clear();
+                                        setState(() => _query = '');
+                                      },
+                                      child: const Icon(
+                                        Icons.close_rounded,
+                                        size: 18,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                      ),
+                      const SizedBox(height: 18),
+                      if (sections.isEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.divider),
                           ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.search,
-                                color: AppColors.textSecondary,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextField(
-                                  controller: _searchController,
-                                  onChanged: _onSearchChanged,
-                                  decoration: const InputDecoration(
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    isDense: true,
-                                    hintText:
-                                        'Live provider list from posted offers',
-                                    hintStyle: TextStyle(
-                                      color: AppColors.textSecondary,
+                          child: Text(
+                            hasQuery
+                                ? 'No providers found for "${_query.trim()}".'
+                                : 'No provider offers available yet.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      for (final section in sections) ...[
+                        SectionTitle(
+                          title: section.title,
+                          actionLabel: 'View all',
+                          onAction: () => Navigator.push(
+                            context,
+                            slideFadeRoute(
+                              ProviderCategoryPage(section: section),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        SizedBox(
+                          height: 278,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemBuilder: (context, index) {
+                              final provider = section.providers[index];
+                              return SizedBox(
+                                width: 178,
+                                child: ProviderCard(
+                                  provider: provider,
+                                  onDetails: () => Navigator.push(
+                                    context,
+                                    slideFadeRoute(
+                                      ProviderDetailPage(provider: provider),
                                     ),
                                   ),
                                 ),
-                              ),
-                              if (_query.trim().isNotEmpty)
-                                GestureDetector(
-                                  onTap: () {
-                                    _searchDebounce?.cancel();
-                                    _searchController.clear();
-                                    setState(() => _query = '');
-                                  },
-                                  child: const Icon(
-                                    Icons.close_rounded,
-                                    size: 18,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                            ],
+                              );
+                            },
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: AppSpacing.md),
+                            itemCount: section.providers.length,
                           ),
                         ),
+                        const SizedBox(height: AppSpacing.lg),
                       ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 18),
-                  if (sections.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Text(
-                        hasQuery
-                            ? 'No providers found for "${_query.trim()}".'
-                            : 'No provider offers available yet.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                  for (final section in sections) ...[
-                    SectionTitle(
-                      title: section.title,
-                      actionLabel: 'View all',
-                      onAction: () => Navigator.push(
-                        context,
-                        slideFadeRoute(ProviderCategoryPage(section: section)),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    SizedBox(
-                      height: 278,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemBuilder: (context, index) {
-                          final provider = section.providers[index];
-                          return SizedBox(
-                            width: 178,
-                            child: ProviderCard(
-                              provider: provider,
-                              onDetails: () => Navigator.push(
-                                context,
-                                slideFadeRoute(
-                                  ProviderDetailPage(provider: provider),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(width: AppSpacing.md),
-                        itemCount: section.providers.length,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
-                ],
+                ),
               ),
-            ),
-          ),
-          bottomNavigationBar: const AppBottomNav(current: AppBottomTab.home),
+              bottomNavigationBar: const AppBottomNav(
+                current: AppBottomTab.home,
+              ),
+            );
+          },
         );
       },
     );
+  }
+
+  Future<void> _primeProviderPosts() async {
+    try {
+      if (ProviderPostState.posts.value.isEmpty &&
+          !ProviderPostState.loading.value) {
+        await ProviderPostState.refresh(page: 1);
+      }
+      await ProviderPostState.refreshAllForLookup();
+    } catch (_) {
+      // Keep page usable with partial data if lookup sync fails.
+    }
   }
 
   void _onSearchChanged(String value) {

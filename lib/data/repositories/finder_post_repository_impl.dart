@@ -1,4 +1,5 @@
 import '../../domain/entities/provider_portal.dart';
+import '../../domain/entities/pagination.dart';
 import '../../domain/repositories/finder_post_repository.dart';
 import '../datasources/remote/finder_post_remote_data_source.dart';
 
@@ -15,8 +16,11 @@ class FinderPostRepositoryImpl implements FinderPostRepository {
   }
 
   @override
-  Future<List<FinderPostItem>> loadFinderRequests() async {
-    return _remoteDataSource.fetchFinderRequests();
+  Future<PaginatedResult<FinderPostItem>> loadFinderRequests({
+    int page = 1,
+    int limit = 10,
+  }) async {
+    return _remoteDataSource.fetchFinderRequests(page: page, limit: limit);
   }
 
   @override

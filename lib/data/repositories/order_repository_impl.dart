@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/order.dart';
+import '../../domain/entities/pagination.dart';
 import '../../domain/entities/provider.dart';
 import '../../domain/entities/provider_portal.dart';
 import '../../domain/repositories/order_repository.dart';
@@ -51,15 +52,52 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
-  Future<List<OrderItem>> fetchFinderOrders() async {
-    final rows = await _remoteDataSource.fetchFinderOrders();
-    return rows.map(_toFinderOrder).toList();
+  Future<PaginatedResult<OrderItem>> fetchFinderOrders({
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final result = await _remoteDataSource.fetchFinderOrders(
+      page: page,
+      limit: limit,
+    );
+    return PaginatedResult(
+      items: result.items.map(_toFinderOrder).toList(),
+      pagination: result.pagination,
+    );
   }
 
   @override
-  Future<List<ProviderOrderItem>> fetchProviderOrders() async {
-    final rows = await _remoteDataSource.fetchProviderOrders();
-    return rows.map(_toProviderOrder).toList();
+  Future<PaginatedResult<ProviderOrderItem>> fetchProviderOrders({
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final result = await _remoteDataSource.fetchProviderOrders(
+      page: page,
+      limit: limit,
+    );
+    return PaginatedResult(
+      items: result.items.map(_toProviderOrder).toList(),
+      pagination: result.pagination,
+    );
+  }
+
+  @override
+  Future<List<HomeAddress>> fetchSavedAddresses() async {
+    final rows = await _remoteDataSource.fetchSavedAddresses();
+    if (rows.isEmpty) return const <HomeAddress>[];
+    return rows.map(_toHomeAddress).toList(growable: false);
+  }
+
+  @override
+  Future<HomeAddress> createSavedAddress({required HomeAddress address}) async {
+    final row = await _remoteDataSource.createSavedAddress({
+      'label': address.label,
+      'mapLink': address.mapLink,
+      'street': address.street,
+      'city': address.city,
+      'isDefault': address.isDefault,
+    });
+    return _toHomeAddress(row);
   }
 
   @override
@@ -219,6 +257,17 @@ class OrderRepositoryImpl implements OrderRepository {
     return 'assets/images/profile.jpg';
   }
 
+  HomeAddress _toHomeAddress(Map<String, dynamic> row) {
+    return HomeAddress(
+      id: (row['id'] ?? '').toString().trim(),
+      label: (row['label'] ?? 'Home').toString().trim(),
+      mapLink: (row['mapLink'] ?? '').toString().trim(),
+      street: (row['street'] ?? '').toString().trim(),
+      city: (row['city'] ?? '').toString().trim(),
+      isDefault: _toBool(row['isDefault']),
+    );
+  }
+
   DateTime _toDateTime(dynamic value) {
     if (value is String && value.trim().isNotEmpty) {
       return DateTime.tryParse(value.trim()) ?? DateTime.now();
@@ -281,6 +330,12 @@ class OrderRepositoryImpl implements OrderRepository {
     if (value is num) return value.toDouble();
     final parsed = double.tryParse((value ?? '').toString());
     return parsed ?? fallback;
+  }
+
+  bool _toBool(dynamic value) {
+    if (value is bool) return value;
+    final text = (value ?? '').toString().trim().toLowerCase();
+    return text == 'true' || text == '1' || text == 'yes';
   }
 
   String _formatDate(DateTime value) {

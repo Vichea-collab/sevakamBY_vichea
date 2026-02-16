@@ -1,7 +1,10 @@
 import '../../../domain/entities/provider_portal.dart';
+import '../../../domain/entities/pagination.dart';
 import '../../network/backend_api_client.dart';
 
 class ProviderPostRemoteDataSource {
+  static const int _defaultPageSize = 10;
+
   final BackendApiClient _apiClient;
 
   const ProviderPostRemoteDataSource(this._apiClient);
@@ -10,11 +13,24 @@ class ProviderPostRemoteDataSource {
     _apiClient.setBearerToken(token);
   }
 
-  Future<List<ProviderPostItem>> fetchProviderPosts() async {
-    final response = await _apiClient.getJson('/api/posts/provider-offers');
+  Future<PaginatedResult<ProviderPostItem>> fetchProviderPosts({
+    int page = 1,
+    int limit = _defaultPageSize,
+  }) async {
+    final response = await _apiClient.getJson(
+      '/api/posts/provider-offers?page=$page&limit=$limit',
+    );
     final data = response['data'];
-    if (data is! List) return const [];
-    return data.whereType<Map>().map(_mapToProviderPost).toList();
+    final items = data is! List
+        ? const <ProviderPostItem>[]
+        : data.whereType<Map>().map(_mapToProviderPost).toList();
+    final pagination = PaginationMeta.fromMap(
+      _safeMap(response['pagination']),
+      fallbackPage: page,
+      fallbackLimit: limit,
+      fallbackTotalItems: items.length,
+    );
+    return PaginatedResult(items: items, pagination: pagination);
   }
 
   Future<ProviderPostItem> createProviderPost({

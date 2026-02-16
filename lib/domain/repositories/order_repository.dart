@@ -1,12 +1,21 @@
 import '../entities/order.dart';
+import '../entities/pagination.dart';
 import '../entities/provider_portal.dart';
 
 abstract class OrderRepository {
   void setBearerToken(String token);
 
   Future<OrderItem> createFinderOrder(BookingDraft draft);
-  Future<List<OrderItem>> fetchFinderOrders();
-  Future<List<ProviderOrderItem>> fetchProviderOrders();
+  Future<PaginatedResult<OrderItem>> fetchFinderOrders({
+    int page = 1,
+    int limit = 10,
+  });
+  Future<PaginatedResult<ProviderOrderItem>> fetchProviderOrders({
+    int page = 1,
+    int limit = 10,
+  });
+  Future<List<HomeAddress>> fetchSavedAddresses();
+  Future<HomeAddress> createSavedAddress({required HomeAddress address});
   Future<KhqrPaymentSession> createKhqrPaymentSession({
     required String orderId,
   });

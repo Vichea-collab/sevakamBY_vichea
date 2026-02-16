@@ -1,6 +1,9 @@
 import '../../network/backend_api_client.dart';
+import '../../../domain/entities/pagination.dart';
 
 class OrderRemoteDataSource {
+  static const int _defaultPageSize = 10;
+
   final BackendApiClient _apiClient;
 
   const OrderRemoteDataSource(this._apiClient);
@@ -16,14 +19,50 @@ class OrderRemoteDataSource {
     return _safeMap(response['data']);
   }
 
-  Future<List<Map<String, dynamic>>> fetchFinderOrders() async {
-    final response = await _apiClient.getJson('/api/orders/finder');
+  Future<PaginatedResult<Map<String, dynamic>>> fetchFinderOrders({
+    int page = 1,
+    int limit = _defaultPageSize,
+  }) async {
+    final response = await _apiClient.getJson(
+      '/api/orders/finder?page=$page&limit=$limit',
+    );
+    final items = _safeList(response['data']);
+    final pagination = PaginationMeta.fromMap(
+      _safeMap(response['pagination']),
+      fallbackPage: page,
+      fallbackLimit: limit,
+      fallbackTotalItems: items.length,
+    );
+    return PaginatedResult(items: items, pagination: pagination);
+  }
+
+  Future<PaginatedResult<Map<String, dynamic>>> fetchProviderOrders({
+    int page = 1,
+    int limit = _defaultPageSize,
+  }) async {
+    final response = await _apiClient.getJson(
+      '/api/orders/provider?page=$page&limit=$limit',
+    );
+    final items = _safeList(response['data']);
+    final pagination = PaginationMeta.fromMap(
+      _safeMap(response['pagination']),
+      fallbackPage: page,
+      fallbackLimit: limit,
+      fallbackTotalItems: items.length,
+    );
+    return PaginatedResult(items: items, pagination: pagination);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchSavedAddresses() async {
+    final response = await _apiClient.getJson('/api/users/addresses');
     return _safeList(response['data']);
   }
 
-  Future<List<Map<String, dynamic>>> fetchProviderOrders() async {
-    final response = await _apiClient.getJson('/api/orders/provider');
-    return _safeList(response['data']);
+  Future<Map<String, dynamic>> createSavedAddress(
+    Map<String, dynamic> payload,
+  ) async {
+    final response = await _apiClient.postJson('/api/users/addresses', payload);
+    return _safeMap(response['data']);
   }
 
   Future<Map<String, dynamic>> createKhqrPaymentSession({

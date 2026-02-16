@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -20,6 +22,7 @@ class AuthState {
 
   static bool _initialized = false;
   static bool _googleInitialized = false;
+  static StreamSubscription<User?>? _idTokenSubscription;
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -34,42 +37,46 @@ class AuthState {
     final auth = FirebaseAuth.instance;
     currentUser.value = auth.currentUser;
     if (auth.currentUser != null) {
-      final token = await auth.currentUser!.getIdToken();
-      ProfileSettingsState.setBackendToken(token ?? '');
-      ChatState.setBackendToken(token ?? '');
-      FinderPostState.setBackendToken(token ?? '');
-      ProviderPostState.setBackendToken(token ?? '');
-      OrderState.setBackendToken(token ?? '');
-      await ChatState.refresh();
-      await FinderPostState.refresh();
-      await ProviderPostState.refresh();
-      await OrderState.refreshCurrentRole();
-      await AppSyncState.setSignedIn(true);
+      final user = auth.currentUser!;
+      final token = await user.getIdToken();
+      _applyBackendTokenToStates(token ?? '');
+      final isAdmin = await _isAdminSession(user);
+      if (isAdmin) {
+        await AppSyncState.setSignedIn(false);
+      } else {
+        await ChatState.refresh();
+        await FinderPostState.refresh();
+        await FinderPostState.refreshAllForLookup();
+        await ProviderPostState.refresh();
+        await ProviderPostState.refreshAllForLookup();
+        await OrderState.refreshCurrentRole();
+        await AppSyncState.setSignedIn(true);
+      }
     } else {
       await AppSyncState.setSignedIn(false);
     }
-    auth.authStateChanges().listen((user) async {
+    await _idTokenSubscription?.cancel();
+    _idTokenSubscription = auth.idTokenChanges().listen((user) async {
       currentUser.value = user;
       if (user == null) {
-        ProfileSettingsState.setBackendToken('');
-        ChatState.setBackendToken('');
-        FinderPostState.setBackendToken('');
-        ProviderPostState.setBackendToken('');
-        OrderState.setBackendToken('');
+        _applyBackendTokenToStates('');
         await AppSyncState.setSignedIn(false);
         return;
       }
       final token = await user.getIdToken();
-      ProfileSettingsState.setBackendToken(token ?? '');
-      ChatState.setBackendToken(token ?? '');
-      FinderPostState.setBackendToken(token ?? '');
-      ProviderPostState.setBackendToken(token ?? '');
-      OrderState.setBackendToken(token ?? '');
-      await ChatState.refresh();
-      await FinderPostState.refresh();
-      await ProviderPostState.refresh();
-      await OrderState.refreshCurrentRole();
-      await AppSyncState.setSignedIn(true);
+      _applyBackendTokenToStates(token ?? '');
+      final isAdmin = await _isAdminSession(user);
+      if (isAdmin) {
+        await AppSyncState.setSignedIn(false);
+      } else {
+        await ChatState.refresh();
+        await FinderPostState.refresh();
+        await FinderPostState.refreshAllForLookup();
+        await ProviderPostState.refresh();
+        await ProviderPostState.refreshAllForLookup();
+        await OrderState.refreshCurrentRole();
+        await AppSyncState.setSignedIn(true);
+      }
     });
     ready.value = true;
   }
@@ -258,11 +265,7 @@ class AuthState {
         await GoogleSignIn.instance.signOut();
       }
     } catch (_) {}
-    ProfileSettingsState.setBackendToken('');
-    ChatState.setBackendToken('');
-    FinderPostState.setBackendToken('');
-    ProviderPostState.setBackendToken('');
-    OrderState.setBackendToken('');
+    _applyBackendTokenToStates('');
     await AppSyncState.setSignedIn(false);
   }
 
@@ -272,11 +275,7 @@ class AuthState {
       return 'Please sign in first.';
     }
     final token = await user.getIdToken(true);
-    ProfileSettingsState.setBackendToken(token ?? '');
-    ChatState.setBackendToken(token ?? '');
-    FinderPostState.setBackendToken(token ?? '');
-    ProviderPostState.setBackendToken(token ?? '');
-    OrderState.setBackendToken(token ?? '');
+    _applyBackendTokenToStates(token ?? '');
     final hasRole = await ProfileSettingsState.hasRoleRegisteredOnBackend(
       isProvider: toProvider,
     );
@@ -290,7 +289,9 @@ class AuthState {
       isProvider: toProvider,
     );
     await FinderPostState.refresh();
+    await FinderPostState.refreshAllForLookup();
     await ProviderPostState.refresh();
+    await ProviderPostState.refreshAllForLookup();
     await OrderState.refreshCurrentRole();
     return null;
   }
@@ -310,11 +311,7 @@ class AuthState {
     required bool registerRoleIfMissing,
   }) async {
     final token = await user.getIdToken(true);
-    ProfileSettingsState.setBackendToken(token ?? '');
-    ChatState.setBackendToken(token ?? '');
-    FinderPostState.setBackendToken(token ?? '');
-    ProviderPostState.setBackendToken(token ?? '');
-    OrderState.setBackendToken(token ?? '');
+    _applyBackendTokenToStates(token ?? '');
     if (registerRoleIfMissing) {
       await ProfileSettingsState.initUserRoleOnBackend(isProvider: isProvider);
     }
@@ -327,7 +324,9 @@ class AuthState {
     AppRoleState.setProvider(isProvider);
     await ChatState.refresh();
     await FinderPostState.refresh();
+    await FinderPostState.refreshAllForLookup();
     await ProviderPostState.refresh();
+    await ProviderPostState.refreshAllForLookup();
     await OrderState.refreshCurrentRole();
     return null;
   }
@@ -358,6 +357,34 @@ class AuthState {
     await ProfileSettingsState.syncRoleProfileFromBackend(
       isProvider: isProvider,
     );
+  }
+
+  static void _applyBackendTokenToStates(String token) {
+    ProfileSettingsState.setBackendToken(token);
+    ChatState.setBackendToken(token);
+    FinderPostState.setBackendToken(token);
+    ProviderPostState.setBackendToken(token);
+    OrderState.setBackendToken(token);
+  }
+
+  static Future<bool> _isAdminSession(User user) async {
+    try {
+      final token = await user.getIdTokenResult();
+      final claims = token.claims ?? const <String, dynamic>{};
+      final role = (claims['role'] ?? '').toString().trim().toLowerCase();
+      if (role == 'admin' || role == 'admins') return true;
+      final rolesRaw = claims['roles'];
+      if (rolesRaw is List) {
+        final normalized = rolesRaw
+            .map((value) => value.toString().trim().toLowerCase())
+            .toSet();
+        if (normalized.contains('admin') || normalized.contains('admins')) {
+          return true;
+        }
+      }
+    } catch (_) {}
+    final email = (user.email ?? '').trim().toLowerCase();
+    return email == 'admin@gmail.com';
   }
 
   static String _missingRoleMessage(bool isProvider) {

@@ -1,9 +1,13 @@
 import '../entities/provider_portal.dart';
+import '../entities/pagination.dart';
 
 abstract class FinderPostRepository {
   void setBearerToken(String token);
 
-  Future<List<FinderPostItem>> loadFinderRequests();
+  Future<PaginatedResult<FinderPostItem>> loadFinderRequests({
+    int page = 1,
+    int limit = 10,
+  });
 
   Future<FinderPostItem> createFinderRequest({
     required String category,

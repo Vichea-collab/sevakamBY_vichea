@@ -3,9 +3,12 @@ import 'package:flutter/foundation.dart' show ValueNotifier;
 import '../../core/config/app_env.dart';
 import '../../data/network/backend_api_client.dart';
 import '../../domain/entities/category.dart';
+import '../../domain/entities/pagination.dart';
 import '../../domain/entities/service.dart';
 
 class CatalogState {
+  static const int _pageSize = 10;
+
   static final BackendApiClient _apiClient = BackendApiClient(
     baseUrl: AppEnv.apiBaseUrl(),
     bearerToken: AppEnv.apiAuthToken(),
@@ -84,14 +87,12 @@ class CatalogState {
   }
 
   static Future<List<Category>> _loadCategories() async {
-    final response = await _apiClient.getJson('/api/categories/allCategories');
-    final rows = response['data'];
-    if (rows is! List) return const <Category>[];
+    final rows = await _loadAllPagedRows('/api/categories/allCategories');
+    if (rows.isEmpty) return const <Category>[];
 
     final mapped = rows
-        .whereType<Map>()
         .map((raw) {
-          final row = _safeMap(raw);
+          final row = raw;
           final name = (row['name'] ?? row['title'] ?? '').toString().trim();
           if (name.isEmpty) return null;
           final iconRaw = (row['icon'] ?? row['iconKey'] ?? '')
@@ -111,9 +112,8 @@ class CatalogState {
   static Future<List<ServiceItem>> _loadServices(
     List<Category> loadedCategories,
   ) async {
-    final response = await _apiClient.getJson('/api/services');
-    final rows = response['data'];
-    if (rows is! List) return const <ServiceItem>[];
+    final rows = await _loadAllPagedRows('/api/services');
+    if (rows.isEmpty) return const <ServiceItem>[];
 
     final categoriesById = <String, Category>{};
     for (final category in loadedCategories) {
@@ -121,9 +121,8 @@ class CatalogState {
     }
 
     final mapped = rows
-        .whereType<Map>()
         .map((raw) {
-          final row = _safeMap(raw);
+          final row = raw;
           final title =
               (row['name'] ?? row['serviceName'] ?? row['title'] ?? '')
                   .toString()
@@ -160,6 +159,29 @@ class CatalogState {
         .toList(growable: false);
 
     return mapped;
+  }
+
+  static Future<List<Map<String, dynamic>>> _loadAllPagedRows(
+    String path,
+  ) async {
+    final rows = <Map<String, dynamic>>[];
+    var page = 1;
+    while (page <= 200) {
+      final response = await _apiClient.getJson(
+        '$path?page=$page&limit=$_pageSize',
+      );
+      final pageRows = _safeList(response['data']);
+      rows.addAll(pageRows);
+      final pagination = PaginationMeta.fromMap(
+        _safeMap(response['pagination']),
+        fallbackPage: page,
+        fallbackLimit: _pageSize,
+        fallbackTotalItems: rows.length,
+      );
+      if (!pagination.hasNextPage) break;
+      page += 1;
+    }
+    return rows;
   }
 
   static String _resolveCategoryName(
@@ -216,6 +238,11 @@ class CatalogState {
       return value.map((key, item) => MapEntry(key.toString(), item));
     }
     return const <String, dynamic>{};
+  }
+
+  static List<Map<String, dynamic>> _safeList(dynamic value) {
+    if (value is! List) return const <Map<String, dynamic>>[];
+    return value.whereType<Map>().map(_safeMap).toList(growable: false);
   }
 
   static int _toInt(dynamic value, {int fallback = 0}) {

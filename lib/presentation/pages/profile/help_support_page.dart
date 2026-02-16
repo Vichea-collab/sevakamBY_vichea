@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
+import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/profile_settings.dart';
 import '../../state/profile_settings_state.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/pagination_bar.dart';
 import '../../widgets/primary_button.dart';
 
 class HelpSupportPage extends StatefulWidget {
@@ -21,6 +25,13 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
   bool _sending = false;
+  bool _paging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(ProfileSettingsState.refreshCurrentHelpTickets(page: 1));
+  }
 
   @override
   void dispose() {
@@ -145,47 +156,77 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              ValueListenableBuilder(
+              ValueListenableBuilder<List<HelpSupportTicket>>(
                 valueListenable: ProfileSettingsState.isProvider
                     ? ProfileSettingsState.providerHelpTickets
                     : ProfileSettingsState.finderHelpTickets,
                 builder: (context, tickets, _) {
-                  if (tickets.isEmpty) return const SizedBox.shrink();
-                  final recent = tickets.first;
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.divider),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Last submitted',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: AppColors.textSecondary),
+                  return ValueListenableBuilder<PaginationMeta>(
+                    valueListenable: ProfileSettingsState.isProvider
+                        ? ProfileSettingsState.providerHelpTicketsPagination
+                        : ProfileSettingsState.finderHelpTicketsPagination,
+                    builder: (context, pagination, _) {
+                      if (tickets.isEmpty) return const SizedBox.shrink();
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.divider),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          recent.title,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Support tickets (${pagination.totalItems})',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 8),
+                            ...tickets.map(
+                              (ticket) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      ticket.title,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      ticket.message,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ),
+                            if (pagination.totalPages > 1)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: PaginationBar(
+                                  currentPage: _normalizedPage(pagination.page),
+                                  totalPages: pagination.totalPages,
+                                  loading: _paging,
+                                  onPageSelected: _goToPage,
+                                ),
+                              ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          recent.message,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               ),
@@ -212,5 +253,26 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     _titleController.clear();
     _messageController.clear();
     AppToast.success(context, 'Your request has been saved.');
+  }
+
+  Future<void> _goToPage(int page) async {
+    final targetPage = _normalizedPage(page);
+    final currentPage = ProfileSettingsState.isProvider
+        ? ProfileSettingsState.providerHelpTicketsPagination.value.page
+        : ProfileSettingsState.finderHelpTicketsPagination.value.page;
+    if (_paging || targetPage == currentPage) return;
+    setState(() => _paging = true);
+    try {
+      await ProfileSettingsState.refreshCurrentHelpTickets(page: targetPage);
+    } finally {
+      if (mounted) {
+        setState(() => _paging = false);
+      }
+    }
+  }
+
+  int _normalizedPage(int page) {
+    if (page < 1) return 1;
+    return page;
   }
 }

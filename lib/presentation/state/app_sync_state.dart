@@ -107,11 +107,25 @@ class AppSyncState with WidgetsBindingObserver {
 
       if (!FinderPostState.loading.value &&
           (!FinderPostState.realtimeActive.value || shouldForceFull)) {
-        tasks.add(_safeRun(FinderPostState.refresh));
+        tasks.add(
+          _safeRun(() async {
+            await FinderPostState.refresh();
+            if (shouldForceFull || FinderPostState.allPosts.value.isEmpty) {
+              await FinderPostState.refreshAllForLookup();
+            }
+          }),
+        );
       }
 
       if (!ProviderPostState.loading.value) {
-        tasks.add(_safeRun(ProviderPostState.refresh));
+        tasks.add(
+          _safeRun(() async {
+            await ProviderPostState.refresh();
+            if (shouldForceFull || ProviderPostState.allPosts.value.isEmpty) {
+              await ProviderPostState.refreshAllForLookup();
+            }
+          }),
+        );
       }
 
       if (!OrderState.loading.value) {

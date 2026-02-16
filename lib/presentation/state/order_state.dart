@@ -11,12 +11,15 @@ import '../../data/datasources/remote/order_remote_data_source.dart';
 import '../../data/network/backend_api_client.dart';
 import '../../data/repositories/order_repository_impl.dart';
 import '../../domain/entities/order.dart';
+import '../../domain/entities/pagination.dart';
 import '../../domain/entities/provider.dart';
 import '../../domain/entities/provider_portal.dart';
 import '../../domain/repositories/order_repository.dart';
 import 'app_role_state.dart' show AppRole, AppRoleState;
 
 class OrderState {
+  static const int _pageSize = 10;
+
   static final OrderRepository _repository = OrderRepositoryImpl(
     remoteDataSource: OrderRemoteDataSource(
       BackendApiClient(
@@ -31,10 +34,18 @@ class OrderState {
   );
   static final ValueNotifier<List<ProviderOrderItem>> providerOrders =
       ValueNotifier(const <ProviderOrderItem>[]);
+  static final ValueNotifier<PaginationMeta> finderPagination = ValueNotifier(
+    const PaginationMeta.initial(limit: _pageSize),
+  );
+  static final ValueNotifier<PaginationMeta> providerPagination = ValueNotifier(
+    const PaginationMeta.initial(limit: _pageSize),
+  );
   static final ValueNotifier<bool> loading = ValueNotifier(false);
   static final ValueNotifier<bool> realtimeActive = ValueNotifier(false);
 
   static bool _initialized = false;
+  static String _backendToken = AppEnv.apiAuthToken().trim();
+  static Future<bool>? _tokenRefreshInFlight;
   static bool _realtimeEnabled = const bool.fromEnvironment(
     'ORDER_REALTIME_STREAM',
     defaultValue: true,
@@ -62,56 +73,185 @@ class OrderState {
   }
 
   static void setBackendToken(String token) {
-    _repository.setBearerToken(token);
-    if (token.trim().isEmpty) {
+    _backendToken = token.trim();
+    _repository.setBearerToken(_backendToken);
+    if (_backendToken.isEmpty) {
       unawaited(_stopRealtime());
       finderOrders.value = const <OrderItem>[];
       providerOrders.value = const <ProviderOrderItem>[];
+      finderPagination.value = const PaginationMeta.initial(limit: _pageSize);
+      providerPagination.value = const PaginationMeta.initial(limit: _pageSize);
       return;
     }
     unawaited(refreshCurrentRole());
   }
 
-  static Future<void> refreshCurrentRole({bool forceNetwork = false}) async {
-    if (!forceNetwork) {
+  static Future<void> refreshCurrentRole({
+    bool forceNetwork = false,
+    int? page,
+  }) async {
+    final isProvider = AppRoleState.isProvider;
+    final fallbackPage = isProvider
+        ? providerPagination.value.page
+        : finderPagination.value.page;
+    final targetPage = _normalizedPage(page ?? fallbackPage);
+
+    if (!forceNetwork && targetPage == 1) {
       final usingRealtime = await _startRealtimeIfAvailable();
       if (usingRealtime) return;
     }
-    if (AppRoleState.isProvider) {
-      await refreshProviderOrders();
+    if (isProvider) {
+      await refreshProviderOrders(page: targetPage);
     } else {
-      await refreshFinderOrders();
+      await refreshFinderOrders(page: targetPage);
     }
   }
 
-  static Future<void> refreshFinderOrders() async {
+  static Future<void> refreshFinderOrders({
+    int? page,
+    int limit = _pageSize,
+  }) async {
+    final targetPage = page ?? _normalizedPage(finderPagination.value.page);
     loading.value = true;
     try {
-      finderOrders.value = await _repository.fetchFinderOrders();
+      final ready = await _ensureBackendToken();
+      if (!ready) {
+        _resetFinderOrders(targetPage, limit);
+        return;
+      }
+      final result = await _runWithAuthRetry(
+        () => _repository.fetchFinderOrders(page: targetPage, limit: limit),
+      );
+      finderOrders.value = result.items;
+      finderPagination.value = result.pagination;
     } catch (error) {
       debugPrint('OrderState.refreshFinderOrders failed: $error');
-      finderOrders.value = const <OrderItem>[];
+      _resetFinderOrders(targetPage, limit);
     } finally {
       loading.value = false;
     }
   }
 
-  static Future<void> refreshProviderOrders() async {
+  static Future<void> refreshProviderOrders({
+    int? page,
+    int limit = _pageSize,
+  }) async {
+    final targetPage = page ?? _normalizedPage(providerPagination.value.page);
     loading.value = true;
     try {
-      providerOrders.value = await _repository.fetchProviderOrders();
+      final ready = await _ensureBackendToken();
+      if (!ready) {
+        _resetProviderOrders(targetPage, limit);
+        return;
+      }
+      final result = await _runWithAuthRetry(
+        () => _repository.fetchProviderOrders(page: targetPage, limit: limit),
+      );
+      providerOrders.value = result.items;
+      providerPagination.value = result.pagination;
     } catch (error) {
       debugPrint('OrderState.refreshProviderOrders failed: $error');
-      providerOrders.value = const <ProviderOrderItem>[];
+      _resetProviderOrders(targetPage, limit);
     } finally {
       loading.value = false;
+    }
+  }
+
+  static void _resetFinderOrders(int page, int limit) {
+    finderOrders.value = const <OrderItem>[];
+    finderPagination.value = PaginationMeta(
+      page: page,
+      limit: limit,
+      totalItems: 0,
+      totalPages: 0,
+      hasPrevPage: false,
+      hasNextPage: false,
+    );
+  }
+
+  static void _resetProviderOrders(int page, int limit) {
+    providerOrders.value = const <ProviderOrderItem>[];
+    providerPagination.value = PaginationMeta(
+      page: page,
+      limit: limit,
+      totalItems: 0,
+      totalPages: 0,
+      hasPrevPage: false,
+      hasNextPage: false,
+    );
+  }
+
+  static Future<bool> _ensureBackendToken() async {
+    if (_backendToken.isNotEmpty) return true;
+    return _refreshBackendToken(force: false);
+  }
+
+  static Future<bool> _refreshBackendToken({required bool force}) async {
+    if (!force && _backendToken.isNotEmpty) return true;
+    final inFlight = _tokenRefreshInFlight;
+    if (inFlight != null) return inFlight;
+
+    final future = _refreshBackendTokenInternal(force: force);
+    _tokenRefreshInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_tokenRefreshInFlight, future)) {
+        _tokenRefreshInFlight = null;
+      }
+    }
+  }
+
+  static Future<bool> _refreshBackendTokenInternal({
+    required bool force,
+  }) async {
+    if (!FirebaseBootstrap.isConfigured) return false;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    try {
+      final refreshed = (await user.getIdToken(force) ?? '').trim();
+      if (refreshed.isEmpty) return false;
+      _backendToken = refreshed;
+      _repository.setBearerToken(refreshed);
+      return true;
+    } catch (error) {
+      debugPrint('OrderState token refresh failed: $error');
+      return false;
+    }
+  }
+
+  static Future<T> _runWithAuthRetry<T>(Future<T> Function() task) async {
+    try {
+      return await task();
+    } on BackendApiException catch (error) {
+      if (error.statusCode != 401) rethrow;
+      final refreshed = await _refreshBackendToken(force: true);
+      if (!refreshed) rethrow;
+      return task();
     }
   }
 
   static Future<OrderItem> createFinderOrder(BookingDraft draft) async {
     final created = await _repository.createFinderOrder(draft);
-    finderOrders.value = [created, ...finderOrders.value];
+    if (_normalizedPage(finderPagination.value.page) == 1) {
+      final next = [created, ...finderOrders.value];
+      finderOrders.value = next.take(_pageSize).toList();
+    }
+    finderPagination.value = _withAdjustedTotalItems(
+      finderPagination.value,
+      delta: 1,
+    );
     return created;
+  }
+
+  static Future<List<HomeAddress>> fetchSavedAddresses() {
+    return _repository.fetchSavedAddresses();
+  }
+
+  static Future<HomeAddress> createSavedAddress({
+    required HomeAddress address,
+  }) {
+    return _repository.createSavedAddress(address: address);
   }
 
   static Future<KhqrPaymentSession> createKhqrPaymentSession({
@@ -210,7 +350,7 @@ class OrderState {
     final query = FirebaseFirestore.instance
         .collection('orders')
         .where('finderUid', isEqualTo: uid)
-        .limit(250)
+        .limit(_pageSize)
         .snapshots();
 
     _ordersSubscription = query.listen(
@@ -222,6 +362,14 @@ class OrderState {
         }).toList()..sort((a, b) => _createdAtMillis(b) - _createdAtMillis(a));
 
         finderOrders.value = rows.map(_toFinderOrder).toList();
+        finderPagination.value = PaginationMeta(
+          page: 1,
+          limit: _pageSize,
+          totalItems: rows.length,
+          totalPages: rows.isEmpty ? 0 : 1,
+          hasPrevPage: false,
+          hasNextPage: false,
+        );
         realtimeActive.value = true;
       },
       onError: (error) {
@@ -266,6 +414,31 @@ class OrderState {
     final details = (dynamicError.message ?? '').toString().toLowerCase();
     return details.contains('permission-denied') ||
         details.contains('permission denied');
+  }
+
+  static int _normalizedPage(int page) {
+    if (page < 1) return 1;
+    return page;
+  }
+
+  static PaginationMeta _withAdjustedTotalItems(
+    PaginationMeta current, {
+    required int delta,
+  }) {
+    final totalItems = (current.totalItems + delta).clamp(0, 99999999);
+    final limit = current.limit <= 0 ? _pageSize : current.limit;
+    final totalPages = totalItems == 0
+        ? 0
+        : ((totalItems + limit - 1) ~/ limit);
+    final page = current.page.clamp(1, totalPages == 0 ? 1 : totalPages);
+    return PaginationMeta(
+      page: page,
+      limit: limit,
+      totalItems: totalItems,
+      totalPages: totalPages,
+      hasPrevPage: totalPages > 0 && page > 1,
+      hasNextPage: totalPages > 0 && page < totalPages,
+    );
   }
 
   static int _createdAtMillis(Map<String, dynamic> row) {

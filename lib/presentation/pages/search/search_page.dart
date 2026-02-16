@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -32,6 +34,7 @@ class _SearchPageState extends State<SearchPage> {
   String? _selectedCategory;
   _SortOption? _sortOption;
   int _visibleCount = 10;
+  bool _bootstrapping = true;
   final List<String> _recentSearches = List<String>.from(
     CatalogState.defaultRecentSearches,
   );
@@ -42,8 +45,11 @@ class _SearchPageState extends State<SearchPage> {
     CatalogState.categories.addListener(_onLiveDataChanged);
     CatalogState.services.addListener(_onLiveDataChanged);
     ProviderPostState.posts.addListener(_onLiveDataChanged);
+    ProviderPostState.allPosts.addListener(_onLiveDataChanged);
+    ProviderPostState.allPostsLoading.addListener(_onLiveDataChanged);
     _query = widget.initialQuery.trim();
     _selectedCategory = widget.initialCategory;
+    unawaited(_primeData());
     if (_query.isNotEmpty) {
       _controller.text = _query;
       _controller.selection = TextSelection.collapsed(offset: _query.length);
@@ -55,6 +61,8 @@ class _SearchPageState extends State<SearchPage> {
     CatalogState.categories.removeListener(_onLiveDataChanged);
     CatalogState.services.removeListener(_onLiveDataChanged);
     ProviderPostState.posts.removeListener(_onLiveDataChanged);
+    ProviderPostState.allPosts.removeListener(_onLiveDataChanged);
+    ProviderPostState.allPostsLoading.removeListener(_onLiveDataChanged);
     _controller.dispose();
     super.dispose();
   }
@@ -64,11 +72,36 @@ class _SearchPageState extends State<SearchPage> {
     setState(() {});
   }
 
+  Future<void> _primeData() async {
+    try {
+      if (CatalogState.services.value.isEmpty && !CatalogState.loading.value) {
+        await CatalogState.refresh();
+      }
+      if (ProviderPostState.posts.value.isEmpty &&
+          !ProviderPostState.loading.value) {
+        await ProviderPostState.refresh(page: 1);
+      }
+      await ProviderPostState.refreshAllForLookup();
+    } catch (_) {
+      // Keep page usable with partial data on transient failures.
+    } finally {
+      if (mounted) {
+        setState(() => _bootstrapping = false);
+      }
+    }
+  }
+
+  List<ProviderPostItem> get _providerPostsForLookup {
+    final all = ProviderPostState.allPosts.value;
+    if (all.isNotEmpty) return all;
+    return ProviderPostState.posts.value;
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = _query.trim().toLowerCase();
     final filteredCategories = CatalogState.categories.value;
-    final providerPosts = ProviderPostState.posts.value;
+    final providerPosts = _providerPostsForLookup;
     final filteredPopular = CatalogState.services.value.where((service) {
       final matchesProviderName =
           query.isEmpty ||
@@ -112,197 +145,201 @@ class _SearchPageState extends State<SearchPage> {
 
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
+        child: _bootstrapping && providerPosts.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.arrow_back),
+                        ),
+                        Expanded(
+                          child: _SearchField(
+                            controller: _controller,
+                            onChanged: _onSearchChanged,
+                            onSubmitted: _onSearchSubmitted,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   Expanded(
-                    child: _SearchField(
-                      controller: _controller,
-                      onChanged: _onSearchChanged,
-                      onSubmitted: _onSearchSubmitted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Recently',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const Spacer(),
-                      if (_recentSearches.isNotEmpty)
-                        TextButton(
-                          onPressed: () => setState(_recentSearches.clear),
-                          child: const Text('Clear'),
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Recently',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const Spacer(),
+                            if (_recentSearches.isNotEmpty)
+                              TextButton(
+                                onPressed: () =>
+                                    setState(_recentSearches.clear),
+                                child: const Text('Clear'),
+                              ),
+                          ],
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: _recentSearches
-                        .map(
-                          (label) => _SearchChip(
-                            label: label,
-                            onTap: () => _useRecentSearch(label),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: _recentSearches
+                              .map(
+                                (label) => _SearchChip(
+                                  label: label,
+                                  onTap: () => _useRecentSearch(label),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                        if (_query.trim().isNotEmpty ||
+                            _selectedCategory != null) ...[
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.divider),
+                            ),
+                            child: Text(
+                              _selectedCategory == null
+                                  ? '${filteredPopular.length} results for "${_query.trim()}" around Phnom Penh'
+                                  : '${filteredPopular.length} results in "$_selectedCategory" around Phnom Penh',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
                           ),
-                        )
-                        .toList(),
-                  ),
-                  if (_query.trim().isNotEmpty ||
-                      _selectedCategory != null) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Text(
-                        _selectedCategory == null
-                            ? '${filteredPopular.length} results for "${_query.trim()}" around Phnom Penh'
-                            : '${filteredPopular.length} results in "$_selectedCategory" around Phnom Penh',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  Text(
-                    'Browse all categories',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 150,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemBuilder: (context, index) {
-                        final category = filteredCategories[index];
-                        return CategoryChip(
-                          category: category,
-                          onTap: () => _toggleCategory(category.name),
-                        );
-                      },
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(width: AppSpacing.md),
-                      itemCount: filteredCategories.length,
-                    ),
-                  ),
-                  if (filteredCategories.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'No categories found.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Text(
-                        'Provider posts',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: _openAllProviderPosts,
-                        child: const Text('View all'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Browse all live provider posts in one screen.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Available Skills',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _SortPill(
-                        label: 'Filter',
-                        onTap: _openSortSheet,
-                        active: false,
-                        icon: Icons.tune,
-                      ),
-                      if (_sortOption != null)
-                        _ActiveSortPill(
-                          label: _sortLabel(_sortOption!),
-                          onClear: () => setState(() {
-                            _sortOption = null;
-                            _visibleCount = 10;
-                          }),
+                        ],
+                        const SizedBox(height: 20),
+                        Text(
+                          'Browse all categories',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                      if (_selectedCategory != null)
-                        _ActiveSortPill(
-                          label: _selectedCategory!,
-                          onClear: () => setState(() {
-                            _selectedCategory = null;
-                            _visibleCount = 10;
-                          }),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 150,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemBuilder: (context, index) {
+                              final category = filteredCategories[index];
+                              return CategoryChip(
+                                category: category,
+                                onTap: () => _toggleCategory(category.name),
+                              );
+                            },
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: AppSpacing.md),
+                            itemCount: filteredCategories.length,
+                          ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ...visibleServices.map(
-                    (item) => _ServiceListTile(
-                      item: item,
-                      providerName: _findMatchedProvider(
-                        item.category,
-                        query,
-                      )?.name,
-                      onTap: () => _openServiceResult(item, query),
-                    ),
-                  ),
-                  if (filteredPopular.length > _visibleCount)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6, bottom: 8),
-                      child: Center(
-                        child: OutlinedButton(
-                          onPressed: () => setState(() => _visibleCount += 10),
-                          child: const Text('Load more'),
+                        if (filteredCategories.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'No categories found.',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Text(
+                              'Provider posts',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: _openAllProviderPosts,
+                              child: const Text('View all'),
+                            ),
+                          ],
                         ),
-                      ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Browse all live provider posts in one screen.',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Available Skills',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _SortPill(
+                              label: 'Filter',
+                              onTap: _openSortSheet,
+                              active: false,
+                              icon: Icons.tune,
+                            ),
+                            if (_sortOption != null)
+                              _ActiveSortPill(
+                                label: _sortLabel(_sortOption!),
+                                onClear: () => setState(() {
+                                  _sortOption = null;
+                                  _visibleCount = 10;
+                                }),
+                              ),
+                            if (_selectedCategory != null)
+                              _ActiveSortPill(
+                                label: _selectedCategory!,
+                                onClear: () => setState(() {
+                                  _selectedCategory = null;
+                                  _visibleCount = 10;
+                                }),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ...visibleServices.map(
+                          (item) => _ServiceListTile(
+                            item: item,
+                            providerName: _findMatchedProvider(
+                              item.category,
+                              item.title,
+                              query,
+                            )?.name,
+                            onTap: () => _openServiceResult(item, query),
+                          ),
+                        ),
+                        if (filteredPopular.length > _visibleCount)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6, bottom: 8),
+                            child: Center(
+                              child: OutlinedButton(
+                                onPressed: () =>
+                                    setState(() => _visibleCount += 10),
+                                child: const Text('Load more'),
+                              ),
+                            ),
+                          ),
+                        if (filteredPopular.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'No services found.',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                      ],
                     ),
-                  if (filteredPopular.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'No services found.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
+                  ),
                 ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -485,14 +522,28 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  ProviderItem? _findMatchedProvider(String category, String query) {
-    final section = _providerSectionForCategory(
+  ProviderItem? _findMatchedProvider(
+    String category,
+    String serviceName,
+    String query,
+  ) {
+    final exactSection = _providerSectionForCategory(
+      category: category,
+      serviceFilter: serviceName,
+      query: query,
+    );
+    if (exactSection != null && exactSection.providers.isNotEmpty) {
+      return exactSection.providers.first;
+    }
+    final fallbackSection = _providerSectionForCategory(
       category: category,
       serviceFilter: '',
       query: query,
     );
-    if (section == null || section.providers.isEmpty) return null;
-    return section.providers.first;
+    if (fallbackSection == null || fallbackSection.providers.isEmpty) {
+      return null;
+    }
+    return fallbackSection.providers.first;
   }
 
   Color _accentFromCategory(String category) {
@@ -518,17 +569,12 @@ class _SearchPageState extends State<SearchPage> {
   }) {
     final normalizedCategory = category.trim().toLowerCase();
     if (normalizedCategory.isEmpty) return null;
-    final normalizedService = serviceFilter.trim().toLowerCase();
+    final normalizedService = _normalizeKey(serviceFilter);
     final normalizedQuery = query.trim().toLowerCase();
 
     final providersByKey = <String, _ProviderAggregate>{};
-    for (final post in ProviderPostState.posts.value) {
+    for (final post in _providerPostsForLookup) {
       if (post.category.trim().toLowerCase() != normalizedCategory) continue;
-      final matchesService =
-          normalizedService.isEmpty ||
-          post.service.trim().toLowerCase() == normalizedService;
-      if (!matchesService) continue;
-
       final providerKey = post.providerUid.trim().isNotEmpty
           ? post.providerUid.trim().toLowerCase()
           : post.providerName.trim().toLowerCase();
@@ -543,6 +589,15 @@ class _SearchPageState extends State<SearchPage> {
     var providers = providersByKey.values
         .map(_providerFromAggregate)
         .toList(growable: false);
+    if (normalizedService.isNotEmpty) {
+      providers = providers
+          .where(
+            (provider) => provider.services.any(
+              (service) => _normalizeKey(service) == normalizedService,
+            ),
+          )
+          .toList(growable: false);
+    }
     if (normalizedQuery.isNotEmpty) {
       providers = providers
           .where((provider) {
@@ -564,6 +619,15 @@ class _SearchPageState extends State<SearchPage> {
       category: category.trim(),
       providers: providers,
     );
+  }
+
+  String _normalizeKey(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
   }
 
   ProviderItem _providerFromAggregate(_ProviderAggregate value) {

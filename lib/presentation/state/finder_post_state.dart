@@ -1,18 +1,18 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/config/app_env.dart';
-import '../../core/firebase/firebase_bootstrap.dart';
 import '../../data/datasources/remote/finder_post_remote_data_source.dart';
 import '../../data/network/backend_api_client.dart';
 import '../../data/repositories/finder_post_repository_impl.dart';
+import '../../domain/entities/pagination.dart';
 import '../../domain/entities/provider_portal.dart';
 import '../../domain/repositories/finder_post_repository.dart';
 
 class FinderPostState {
+  static const int _pageSize = 10;
+
   static final FinderPostRepository _repository = FinderPostRepositoryImpl(
     remoteDataSource: FinderPostRemoteDataSource(
       BackendApiClient(
@@ -25,12 +25,17 @@ class FinderPostState {
   static final ValueNotifier<List<FinderPostItem>> posts = ValueNotifier(
     const <FinderPostItem>[],
   );
+  static final ValueNotifier<List<FinderPostItem>> allPosts = ValueNotifier(
+    const <FinderPostItem>[],
+  );
+  static final ValueNotifier<PaginationMeta> pagination = ValueNotifier(
+    const PaginationMeta.initial(limit: _pageSize),
+  );
   static final ValueNotifier<bool> loading = ValueNotifier(false);
+  static final ValueNotifier<bool> allPostsLoading = ValueNotifier(false);
   static final ValueNotifier<bool> realtimeActive = ValueNotifier(false);
 
   static bool _initialized = false;
-  static StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
-  _postSubscription;
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -41,21 +46,38 @@ class FinderPostState {
   static void setBackendToken(String token) {
     _repository.setBearerToken(token);
     if (token.trim().isEmpty) {
-      unawaited(_stopRealtime());
       posts.value = const <FinderPostItem>[];
+      allPosts.value = const <FinderPostItem>[];
+      pagination.value = const PaginationMeta.initial(limit: _pageSize);
+      realtimeActive.value = false;
       return;
     }
-    unawaited(refresh());
+    unawaited(refresh(page: 1));
+    unawaited(refreshAllForLookup());
   }
 
-  static Future<void> refresh() async {
+  static Future<void> refresh({int? page, int limit = _pageSize}) async {
+    final targetPage = _normalizedPage(page ?? pagination.value.page);
     loading.value = true;
     try {
-      final realtime = await _startRealtimeIfAvailable();
-      if (realtime) return;
-      await _loadFromBackend();
+      final result = await _repository.loadFinderRequests(
+        page: targetPage,
+        limit: limit,
+      );
+      posts.value = result.items;
+      pagination.value = result.pagination;
+      realtimeActive.value = false;
     } catch (_) {
       posts.value = const <FinderPostItem>[];
+      pagination.value = PaginationMeta(
+        page: targetPage,
+        limit: limit,
+        totalItems: 0,
+        totalPages: 0,
+        hasPrevPage: false,
+        hasNextPage: false,
+      );
+      realtimeActive.value = false;
     } finally {
       loading.value = false;
     }
@@ -75,126 +97,68 @@ class FinderPostState {
       message: message,
       preferredDate: preferredDate,
     );
-    posts.value = <FinderPostItem>[
+    if (_normalizedPage(pagination.value.page) == 1) {
+      posts.value = <FinderPostItem>[
+        created,
+        ...posts.value.where((item) => item.id != created.id),
+      ].take(_pageSize).toList(growable: false);
+    }
+    allPosts.value = <FinderPostItem>[
       created,
-      ...posts.value.where((item) => item.id != created.id),
+      ...allPosts.value.where((item) => item.id != created.id),
     ];
+    pagination.value = _withAdjustedTotalItems(pagination.value, delta: 1);
   }
 
-  static Future<bool> _startRealtimeIfAvailable() async {
-    if (!FirebaseBootstrap.isConfigured) return false;
-    final uid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
-    if (uid.isEmpty) return false;
-    if (_postSubscription != null) {
-      realtimeActive.value = true;
-      return true;
-    }
-
-    _postSubscription = FirebaseFirestore.instance
-        .collection('finderPosts')
-        .limit(120)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final docs =
-                snapshot.docs.where((doc) {
-                  final row = doc.data();
-                  final status = (row['status'] ?? 'open').toString().trim();
-                  return status == 'open';
-                }).toList()..sort((a, b) {
-                  return _toEpochMillis(b.data()['createdAt']) -
-                      _toEpochMillis(a.data()['createdAt']);
-                });
-
-            final items = docs.map((doc) {
-              final row = Map<String, dynamic>.from(doc.data());
-              row['id'] ??= doc.id;
-              return _mapRealtimePost(row);
-            }).toList();
-            posts.value = items;
-            realtimeActive.value = true;
-          },
-          onError: (_) {
-            realtimeActive.value = false;
-            unawaited(_fallbackToBackendAfterRealtimeError());
-          },
-        );
-    realtimeActive.value = true;
-    return true;
-  }
-
-  static Future<void> _fallbackToBackendAfterRealtimeError() async {
-    await _stopRealtime();
-    await _loadFromBackend();
-  }
-
-  static Future<void> _loadFromBackend() async {
+  static Future<void> refreshAllForLookup({int limit = _pageSize}) async {
+    allPostsLoading.value = true;
     try {
-      final loaded = await _repository.loadFinderRequests();
-      posts.value = loaded;
+      final combined = <FinderPostItem>[];
+      var page = 1;
+      while (page <= 300) {
+        final result = await _repository.loadFinderRequests(
+          page: page,
+          limit: limit,
+        );
+        combined.addAll(result.items);
+        if (!result.pagination.hasNextPage) break;
+        page += 1;
+      }
+
+      final deduped = <String, FinderPostItem>{};
+      for (final item in combined) {
+        deduped[item.id] = item;
+      }
+      allPosts.value = deduped.values.toList(growable: false);
     } catch (_) {
-      posts.value = const <FinderPostItem>[];
+      // Keep previous allPosts values when lookup refresh fails.
+    } finally {
+      allPostsLoading.value = false;
     }
   }
 
-  static Future<void> _stopRealtime() async {
-    await _postSubscription?.cancel();
-    _postSubscription = null;
-    realtimeActive.value = false;
+  static int _normalizedPage(int page) {
+    if (page < 1) return 1;
+    return page;
   }
 
-  static FinderPostItem _mapRealtimePost(Map<String, dynamic> row) {
-    final id = (row['id'] ?? '').toString();
-    final createdAt = _parseDate(row['createdAt']);
-    return FinderPostItem(
-      id: id.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : id,
-      finderUid: (row['finderUid'] ?? '').toString(),
-      clientName: (row['clientName'] ?? 'Finder User').toString(),
-      message: (row['message'] ?? '').toString(),
-      timeLabel: _timeLabel(createdAt),
-      category: (row['category'] ?? '').toString(),
-      service: (row['service'] ?? '').toString(),
-      location: (row['location'] ?? '').toString(),
-      avatarPath: 'assets/images/profile.jpg',
-      preferredDate: _parseDate(row['preferredDate']),
+  static PaginationMeta _withAdjustedTotalItems(
+    PaginationMeta current, {
+    required int delta,
+  }) {
+    final totalItems = (current.totalItems + delta).clamp(0, 99999999);
+    final limit = current.limit <= 0 ? _pageSize : current.limit;
+    final totalPages = totalItems == 0
+        ? 0
+        : ((totalItems + limit - 1) ~/ limit);
+    final page = current.page.clamp(1, totalPages == 0 ? 1 : totalPages);
+    return PaginationMeta(
+      page: page,
+      limit: limit,
+      totalItems: totalItems,
+      totalPages: totalPages,
+      hasPrevPage: totalPages > 0 && page > 1,
+      hasNextPage: totalPages > 0 && page < totalPages,
     );
-  }
-
-  static DateTime? _parseDate(dynamic value) {
-    if (value == null) return null;
-    if (value is Timestamp) return value.toDate().toLocal();
-    if (value is DateTime) return value.toLocal();
-    if (value is String) {
-      final parsed = DateTime.tryParse(value);
-      return parsed?.toLocal();
-    }
-    if (value is Map && value['_seconds'] is num) {
-      final seconds = value['_seconds'] as num;
-      return DateTime.fromMillisecondsSinceEpoch((seconds * 1000).round());
-    }
-    return null;
-  }
-
-  static String _timeLabel(DateTime? date) {
-    if (date == null) return 'Just now';
-    final delta = DateTime.now().difference(date);
-    if (delta.inMinutes < 1) return 'Just now';
-    if (delta.inHours < 1) return '${delta.inMinutes} mins ago';
-    if (delta.inDays < 1) return '${delta.inHours} hrs ago';
-    return '${delta.inDays} days ago';
-  }
-
-  static int _toEpochMillis(dynamic value) {
-    if (value is Timestamp) return value.millisecondsSinceEpoch;
-    if (value is DateTime) return value.millisecondsSinceEpoch;
-    if (value is String) {
-      final parsed = DateTime.tryParse(value);
-      if (parsed != null) return parsed.millisecondsSinceEpoch;
-    }
-    if (value is Map && value['_seconds'] is num) {
-      final seconds = value['_seconds'] as num;
-      return (seconds * 1000).round();
-    }
-    return 0;
   }
 }

@@ -5,6 +5,7 @@ import '../../../core/utils/app_calendar_picker.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../state/catalog_state.dart';
 import '../../state/finder_post_state.dart';
+import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
@@ -19,11 +20,11 @@ class ClientPostPage extends StatefulWidget {
 }
 
 class _ClientPostPageState extends State<ClientPostPage> {
+  static const String _fallbackLocation = 'Phnom Penh, Cambodia';
+
   late String _selectedCategory;
   late String _selectedService;
-  final TextEditingController _locationController = TextEditingController(
-    text: 'Phnom Penh, Cambodia',
-  );
+  final TextEditingController _locationController = TextEditingController();
   final TextEditingController _detailsController = TextEditingController();
   DateTime _preferredDate = DateTime.now().add(const Duration(days: 1));
   bool _submitting = false;
@@ -33,8 +34,10 @@ class _ClientPostPageState extends State<ClientPostPage> {
     super.initState();
     _selectedCategory = 'Cleaner';
     _selectedService = '';
+    _locationController.text = _preferredFinderLocation();
     CatalogState.categories.addListener(_syncSelectionFromCatalog);
     CatalogState.services.addListener(_syncSelectionFromCatalog);
+    ProfileSettingsState.finderProfile.addListener(_syncLocationFromProfile);
     _syncSelectionFromCatalog();
   }
 
@@ -42,9 +45,27 @@ class _ClientPostPageState extends State<ClientPostPage> {
   void dispose() {
     CatalogState.categories.removeListener(_syncSelectionFromCatalog);
     CatalogState.services.removeListener(_syncSelectionFromCatalog);
+    ProfileSettingsState.finderProfile.removeListener(_syncLocationFromProfile);
     _locationController.dispose();
     _detailsController.dispose();
     super.dispose();
+  }
+
+  void _syncLocationFromProfile() {
+    final current = _locationController.text.trim();
+    if (current.isNotEmpty && current != _fallbackLocation) return;
+    final next = _preferredFinderLocation();
+    if (next == current) return;
+    _locationController.text = next;
+    _locationController.selection = TextSelection.collapsed(
+      offset: next.length,
+    );
+  }
+
+  String _preferredFinderLocation() {
+    final city = ProfileSettingsState.finderProfile.value.city.trim();
+    if (city.isNotEmpty) return city;
+    return _fallbackLocation;
   }
 
   void _syncSelectionFromCatalog() {
@@ -180,7 +201,10 @@ class _ClientPostPageState extends State<ClientPostPage> {
 
   Future<void> _submitPost() async {
     final details = _detailsController.text.trim();
-    final location = _locationController.text.trim();
+    final typedLocation = _locationController.text.trim();
+    final location = typedLocation.isEmpty
+        ? _preferredFinderLocation()
+        : typedLocation;
     if (_selectedCategory.isEmpty ||
         _selectedService.isEmpty ||
         location.isEmpty ||

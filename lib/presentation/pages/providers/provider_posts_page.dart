@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
+import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/provider.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../state/chat_state.dart';
 import '../../state/provider_post_state.dart';
+import '../../widgets/pagination_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../chat/chat_conversation_page.dart';
 import 'provider_detail_page.dart';
@@ -32,10 +36,12 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
   final TextEditingController _controller = TextEditingController();
   String _query = '';
   String? _selectedCategory;
+  bool _isPaging = false;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_primeProviderPosts());
     _query = widget.initialQuery.trim();
     _selectedCategory = widget.initialCategory;
     if (_query.isNotEmpty) {
@@ -123,63 +129,107 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
               ),
             Expanded(
               child: ValueListenableBuilder<List<ProviderPostItem>>(
-                valueListenable: ProviderPostState.posts,
-                builder: (context, posts, _) {
-                  final filtered = posts.where((post) {
-                    final matchesQuery =
-                        query.isEmpty ||
-                        post.providerName.toLowerCase().contains(query) ||
-                        post.service.toLowerCase().contains(query) ||
-                        post.category.toLowerCase().contains(query) ||
-                        post.area.toLowerCase().contains(query) ||
-                        post.details.toLowerCase().contains(query);
-                    final matchesCategory =
-                        _selectedCategory == null ||
-                        post.category == _selectedCategory;
-                    return matchesQuery && matchesCategory;
-                  }).toList();
+                valueListenable: ProviderPostState.allPosts,
+                builder: (context, allPosts, _) {
+                  return ValueListenableBuilder<List<ProviderPostItem>>(
+                    valueListenable: ProviderPostState.posts,
+                    builder: (context, pagedPosts, _) {
+                      return ValueListenableBuilder<PaginationMeta>(
+                        valueListenable: ProviderPostState.pagination,
+                        builder: (context, pagination, _) {
+                          final lookupPosts = allPosts.isNotEmpty
+                              ? allPosts
+                              : pagedPosts;
+                          final source =
+                              query.isEmpty && _selectedCategory == null
+                              ? pagedPosts
+                              : lookupPosts;
+                          final filtered = source.where((post) {
+                            final matchesQuery =
+                                query.isEmpty ||
+                                post.providerName.toLowerCase().contains(
+                                  query,
+                                ) ||
+                                post.service.toLowerCase().contains(query) ||
+                                post.category.toLowerCase().contains(query) ||
+                                post.area.toLowerCase().contains(query) ||
+                                post.details.toLowerCase().contains(query);
+                            final matchesCategory =
+                                _selectedCategory == null ||
+                                post.category == _selectedCategory;
+                            return matchesQuery && matchesCategory;
+                          }).toList();
+                          final currentPage = _normalizedPage(pagination.page);
+                          final resultCount =
+                              query.isEmpty && _selectedCategory == null
+                              ? pagination.totalItems
+                              : filtered.length;
 
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'All provider posts',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const Spacer(),
-                          Text(
-                            '${filtered.length}',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(color: AppColors.primary),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      if (filtered.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.divider),
-                          ),
-                          child: Text(
-                            _query.trim().isEmpty
-                                ? 'No provider posts available yet.'
-                                : 'No provider posts match "${_query.trim()}".',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                      ...filtered.map(
-                        (post) => _ProviderPostCard(
-                          post: post,
-                          onTap: () => _openProviderPostProfile(post),
-                          onChatTap: () => _openProviderPostChat(post),
-                        ),
-                      ),
-                    ],
+                          return ListView(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'All provider posts',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleLarge,
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    '$resultCount',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(color: AppColors.primary),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (filtered.isEmpty)
+                                Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    _query.trim().isEmpty
+                                        ? 'No provider posts available yet.'
+                                        : 'No provider posts match "${_query.trim()}".',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
+                                  ),
+                                ),
+                              ...filtered.map(
+                                (post) => _ProviderPostCard(
+                                  post: post,
+                                  onTap: () => _openProviderPostProfile(post),
+                                  onChatTap: () => _openProviderPostChat(post),
+                                ),
+                              ),
+                              if (pagination.totalPages > 1 &&
+                                  query.isEmpty &&
+                                  _selectedCategory == null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: PaginationBar(
+                                    currentPage: currentPage,
+                                    totalPages: pagination.totalPages,
+                                    loading: _isPaging,
+                                    onPageSelected: _goToPage,
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      );
+                    },
                   );
                 },
               ),
@@ -188,6 +238,15 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _primeProviderPosts() async {
+    try {
+      await ProviderPostState.refresh(page: 1);
+      await ProviderPostState.refreshAllForLookup();
+    } catch (_) {
+      // Keep page usable with paged data when lookup refresh fails.
+    }
   }
 
   Future<void> _openProviderPostChat(ProviderPostItem post) async {
@@ -232,6 +291,7 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
     final imagePath = post.avatarPath.startsWith('assets/')
         ? post.avatarPath
         : 'assets/images/profile.jpg';
+    final services = _servicesForProvider(post);
     return ProviderItem(
       uid: post.providerUid.trim(),
       name: post.providerName.trim().isEmpty
@@ -241,8 +301,39 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
       rating: 4.8,
       imagePath: imagePath,
       accentColor: _accentFromCategory(role),
-      services: <String>[post.service.trim()],
+      services: services,
     );
+  }
+
+  List<String> _servicesForProvider(ProviderPostItem seed) {
+    final allPosts = ProviderPostState.allPosts.value;
+    final lookupPosts = allPosts.isNotEmpty
+        ? allPosts
+        : ProviderPostState.posts.value;
+    final seedUid = seed.providerUid.trim().toLowerCase();
+    final seedName = seed.providerName.trim().toLowerCase();
+    final seedCategory = seed.category.trim().toLowerCase();
+
+    final values = <String>{};
+    for (final post in lookupPosts) {
+      final sameProvider = seedUid.isNotEmpty
+          ? post.providerUid.trim().toLowerCase() == seedUid
+          : post.providerName.trim().toLowerCase() == seedName;
+      if (!sameProvider) continue;
+      if (seedCategory.isNotEmpty &&
+          post.category.trim().toLowerCase() != seedCategory) {
+        continue;
+      }
+      final service = post.service.trim();
+      if (service.isNotEmpty) values.add(service);
+    }
+
+    if (values.isEmpty && seed.service.trim().isNotEmpty) {
+      values.add(seed.service.trim());
+    }
+
+    final services = values.toList(growable: false)..sort();
+    return services;
   }
 
   Color _accentFromCategory(String category) {
@@ -259,6 +350,26 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
       default:
         return AppColors.primary;
     }
+  }
+
+  Future<void> _goToPage(int page) async {
+    final targetPage = _normalizedPage(page);
+    if (_isPaging || targetPage == ProviderPostState.pagination.value.page) {
+      return;
+    }
+    setState(() => _isPaging = true);
+    try {
+      await ProviderPostState.refresh(page: targetPage);
+    } finally {
+      if (mounted) {
+        setState(() => _isPaging = false);
+      }
+    }
+  }
+
+  int _normalizedPage(int page) {
+    if (page < 1) return 1;
+    return page;
   }
 }
 

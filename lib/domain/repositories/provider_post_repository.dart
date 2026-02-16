@@ -1,9 +1,13 @@
 import '../entities/provider_portal.dart';
+import '../entities/pagination.dart';
 
 abstract class ProviderPostRepository {
   void setBearerToken(String token);
 
-  Future<List<ProviderPostItem>> loadProviderPosts();
+  Future<PaginatedResult<ProviderPostItem>> loadProviderPosts({
+    int page = 1,
+    int limit = 10,
+  });
 
   Future<ProviderPostItem> createProviderPost({
     required String category,

@@ -53,9 +53,9 @@ class WelcomePage extends StatelessWidget {
               Text(
                 'Find trusted home\nservices near you',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -82,17 +82,13 @@ class WelcomePage extends StatelessWidget {
                         children: [
                           Text(
                             'Fast booking',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
+                            style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(color: Colors.white70),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             'Professional\nservices, on time',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(color: Colors.white),
                           ),
                         ],
@@ -114,19 +110,15 @@ class WelcomePage extends StatelessWidget {
               const SizedBox(height: 24),
               PrimaryButton(
                 label: 'Continue as Customer',
-                onPressed: () => Navigator.pushNamed(
-                  context,
-                  CustomerAuthPage.routeName,
-                ),
+                onPressed: () =>
+                    Navigator.pushNamed(context, CustomerAuthPage.routeName),
               ),
               const SizedBox(height: 12),
               PrimaryButton(
                 label: 'Continue as Provider',
                 isOutlined: true,
-                onPressed: () => Navigator.pushNamed(
-                  context,
-                  ProviderAuthPage.routeName,
-                ),
+                onPressed: () =>
+                    Navigator.pushNamed(context, ProviderAuthPage.routeName),
               ),
               const SizedBox(height: 12),
               TextButton(
@@ -138,28 +130,22 @@ class WelcomePage extends StatelessWidget {
               _NavCard(
                 title: 'Onboarding',
                 description: 'Preview onboarding screens',
-                onPressed: () => Navigator.pushNamed(
-                  context,
-                  OnboardingPage.routeName,
-                ),
+                onPressed: () =>
+                    Navigator.pushNamed(context, OnboardingPage.routeName),
               ),
               const SizedBox(height: AppSpacing.md),
               _NavCard(
                 title: 'Forgot Password',
                 description: 'Password reset flow screens',
-                onPressed: () => Navigator.pushNamed(
-                  context,
-                  ForgotPasswordFlow.routeName,
-                ),
+                onPressed: () =>
+                    Navigator.pushNamed(context, ForgotPasswordFlow.routeName),
               ),
               const SizedBox(height: AppSpacing.md),
               _NavCard(
                 title: 'Providers',
                 description: 'Service providers lists and categories',
-                onPressed: () => Navigator.pushNamed(
-                  context,
-                  ProviderHomePage.routeName,
-                ),
+                onPressed: () =>
+                    Navigator.pushNamed(context, ProviderHomePage.routeName),
               ),
             ],
           ),
@@ -195,7 +181,7 @@ class _NavCard extends StatelessWidget {
               color: Color(0x14000000),
               blurRadius: 12,
               offset: Offset(0, 6),
-            )
+            ),
           ],
         ),
         child: Row(

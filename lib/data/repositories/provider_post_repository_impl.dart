@@ -1,4 +1,5 @@
 import '../../domain/entities/provider_portal.dart';
+import '../../domain/entities/pagination.dart';
 import '../../domain/repositories/provider_post_repository.dart';
 import '../datasources/remote/provider_post_remote_data_source.dart';
 
@@ -15,8 +16,11 @@ class ProviderPostRepositoryImpl implements ProviderPostRepository {
   }
 
   @override
-  Future<List<ProviderPostItem>> loadProviderPosts() async {
-    return _remoteDataSource.fetchProviderPosts();
+  Future<PaginatedResult<ProviderPostItem>> loadProviderPosts({
+    int page = 1,
+    int limit = 10,
+  }) async {
+    return _remoteDataSource.fetchProviderPosts(page: page, limit: limit);
   }
 
   @override

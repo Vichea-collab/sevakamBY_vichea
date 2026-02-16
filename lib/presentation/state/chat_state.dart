@@ -8,11 +8,14 @@ import '../../core/config/app_env.dart';
 import '../../core/firebase/firebase_bootstrap.dart';
 import '../../data/network/backend_api_client.dart';
 import '../../domain/entities/chat.dart';
+import '../../domain/entities/pagination.dart';
 import '../../domain/entities/profile_settings.dart';
 import 'app_role_state.dart';
 import 'profile_settings_state.dart';
 
 class ChatState {
+  static const int _pageSize = 10;
+
   static final BackendApiClient _apiClient = BackendApiClient(
     baseUrl: AppEnv.apiBaseUrl(),
     bearerToken: AppEnv.apiAuthToken(),
@@ -21,8 +24,13 @@ class ChatState {
   static final ValueNotifier<List<ChatThread>> threads = ValueNotifier(
     const <ChatThread>[],
   );
+  static final ValueNotifier<PaginationMeta> threadPagination = ValueNotifier(
+    const PaginationMeta.initial(limit: _pageSize),
+  );
   static final ValueNotifier<bool> loading = ValueNotifier(false);
   static final ValueNotifier<bool> realtimeActive = ValueNotifier(false);
+  static final Map<String, ValueNotifier<PaginationMeta>> _messagePagination =
+      <String, ValueNotifier<PaginationMeta>>{};
 
   static bool _initialized = false;
 
@@ -36,24 +44,44 @@ class ChatState {
     _apiClient.setBearerToken(token);
     if (token.trim().isEmpty) {
       threads.value = const <ChatThread>[];
+      threadPagination.value = const PaginationMeta.initial(limit: _pageSize);
       realtimeActive.value = false;
       return;
     }
-    unawaited(refresh());
+    unawaited(refresh(page: 1));
   }
 
-  static Future<void> refresh() async {
+  static Future<void> refresh({int? page, int limit = _pageSize}) async {
+    final targetPage = _normalizedPage(page ?? threadPagination.value.page);
     loading.value = true;
     try {
       if (!FirebaseBootstrap.isConfigured || _apiClient.bearerToken.isEmpty) {
         threads.value = const <ChatThread>[];
+        threadPagination.value = PaginationMeta(
+          page: targetPage,
+          limit: limit,
+          totalItems: 0,
+          totalPages: 0,
+          hasPrevPage: false,
+          hasNextPage: false,
+        );
         realtimeActive.value = false;
         return;
       }
-      threads.value = await _loadThreadsFromApi();
+      final result = await _loadThreadsFromApi(page: targetPage, limit: limit);
+      threads.value = result.items;
+      threadPagination.value = result.pagination;
       realtimeActive.value = false;
     } catch (_) {
       threads.value = const <ChatThread>[];
+      threadPagination.value = PaginationMeta(
+        page: targetPage,
+        limit: limit,
+        totalItems: 0,
+        totalPages: 0,
+        hasPrevPage: false,
+        hasNextPage: false,
+      );
       realtimeActive.value = false;
     } finally {
       loading.value = false;
@@ -98,12 +126,32 @@ class ChatState {
     }
 
     final thread = _threadFromMap(id, row, selfUid);
+    final existed = threads.value.any((item) => item.id == thread.id);
     final updated = <ChatThread>[
       thread,
       ...threads.value.where((item) => item.id != thread.id),
     ];
     updated.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    threads.value = updated;
+    final limit = threadPagination.value.limit <= 0
+        ? _pageSize
+        : threadPagination.value.limit;
+    if (_normalizedPage(threadPagination.value.page) == 1) {
+      threads.value = updated.take(limit).toList(growable: false);
+    }
+    if (!existed) {
+      final totalItems = threadPagination.value.totalItems + 1;
+      final totalPages = totalItems == 0
+          ? 0
+          : ((totalItems + limit - 1) ~/ limit);
+      threadPagination.value = PaginationMeta(
+        page: _normalizedPage(threadPagination.value.page),
+        limit: limit,
+        totalItems: totalItems,
+        totalPages: totalPages,
+        hasPrevPage: threadPagination.value.page > 1,
+        hasNextPage: totalPages > 0 && threadPagination.value.page < totalPages,
+      );
+    }
     return thread;
   }
 
@@ -120,10 +168,16 @@ class ChatState {
 
     Future<void> poll() async {
       try {
-        final messages = await _loadMessagesFromApi(id, uid);
+        final result = await _loadMessagesFromApi(
+          id,
+          uid,
+          page: 1,
+          limit: _pageSize,
+        );
         if (controller.isClosed) return;
         emitted = true;
-        controller.add(messages);
+        _paginationForThread(id).value = result.pagination;
+        controller.add(result.items);
       } catch (_) {
         if (!emitted && !controller.isClosed) {
           controller.add(const <ChatMessage>[]);
@@ -145,6 +199,33 @@ class ChatState {
     };
 
     return controller.stream;
+  }
+
+  static ValueListenable<PaginationMeta> messagePaginationListenable(
+    String threadId,
+  ) {
+    return _paginationForThread(threadId.trim());
+  }
+
+  static Future<PaginatedResult<ChatMessage>> fetchMessagesPage(
+    String threadId, {
+    int page = 1,
+    int limit = _pageSize,
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
+    final id = threadId.trim();
+    if (uid.isEmpty || id.isEmpty || _apiClient.bearerToken.isEmpty) {
+      const empty = PaginationMeta.initial(limit: _pageSize);
+      return const PaginatedResult(items: <ChatMessage>[], pagination: empty);
+    }
+    final result = await _loadMessagesFromApi(
+      id,
+      uid,
+      page: _normalizedPage(page),
+      limit: limit,
+    );
+    _paginationForThread(id).value = result.pagination;
+    return result;
   }
 
   static Future<void> sendMessage({
@@ -236,13 +317,42 @@ class ChatState {
         .toList(growable: false);
   }
 
-  static Future<List<ChatThread>> _loadThreadsFromApi() async {
+  static Future<PaginatedResult<ChatThread>> _loadThreadsFromApi({
+    required int page,
+    required int limit,
+  }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
-    if (uid.isEmpty) return const <ChatThread>[];
+    if (uid.isEmpty) {
+      final pagination = PaginationMeta(
+        page: page,
+        limit: limit,
+        totalItems: 0,
+        totalPages: 0,
+        hasPrevPage: false,
+        hasNextPage: false,
+      );
+      return PaginatedResult(
+        items: const <ChatThread>[],
+        pagination: pagination,
+      );
+    }
 
-    final response = await _apiClient.getJson('/api/chats');
+    final response = await _apiClient.getJson(
+      '/api/chats?page=$page&limit=$limit',
+    );
     final data = response['data'];
-    if (data is! List) return const <ChatThread>[];
+    if (data is! List) {
+      final pagination = PaginationMeta.fromMap(
+        _safeMap(response['pagination']),
+        fallbackPage: page,
+        fallbackLimit: limit,
+        fallbackTotalItems: 0,
+      );
+      return PaginatedResult(
+        items: const <ChatThread>[],
+        pagination: pagination,
+      );
+    }
 
     final mapped =
         data
@@ -257,16 +367,37 @@ class ChatState {
             .toList(growable: false)
           ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
-    return mapped;
+    final pagination = PaginationMeta.fromMap(
+      _safeMap(response['pagination']),
+      fallbackPage: page,
+      fallbackLimit: limit,
+      fallbackTotalItems: mapped.length,
+    );
+    return PaginatedResult(items: mapped, pagination: pagination);
   }
 
-  static Future<List<ChatMessage>> _loadMessagesFromApi(
+  static Future<PaginatedResult<ChatMessage>> _loadMessagesFromApi(
     String threadId,
-    String currentUid,
-  ) async {
-    final response = await _apiClient.getJson('/api/chats/$threadId/messages');
+    String currentUid, {
+    required int page,
+    required int limit,
+  }) async {
+    final response = await _apiClient.getJson(
+      '/api/chats/$threadId/messages?page=$page&limit=$limit',
+    );
     final data = response['data'];
-    if (data is! List) return const <ChatMessage>[];
+    if (data is! List) {
+      final pagination = PaginationMeta.fromMap(
+        _safeMap(response['pagination']),
+        fallbackPage: page,
+        fallbackLimit: limit,
+        fallbackTotalItems: 0,
+      );
+      return PaginatedResult(
+        items: const <ChatMessage>[],
+        pagination: pagination,
+      );
+    }
 
     final mapped =
         data
@@ -289,7 +420,13 @@ class ChatState {
             .toList(growable: false)
           ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
 
-    return mapped;
+    final pagination = PaginationMeta.fromMap(
+      _safeMap(response['pagination']),
+      fallbackPage: page,
+      fallbackLimit: limit,
+      fallbackTotalItems: mapped.length,
+    );
+    return PaginatedResult(items: mapped, pagination: pagination);
   }
 
   static ChatThread _threadFromMap(
@@ -392,6 +529,18 @@ class ChatState {
   }
 
   static String _safeAvatarPath() => 'assets/images/profile.jpg';
+
+  static ValueNotifier<PaginationMeta> _paginationForThread(String threadId) {
+    return _messagePagination.putIfAbsent(
+      threadId,
+      () => ValueNotifier(const PaginationMeta.initial(limit: _pageSize)),
+    );
+  }
+
+  static int _normalizedPage(int page) {
+    if (page < 1) return 1;
+    return page;
+  }
 
   static ChatMessageType _messageTypeFromStorage(
     String raw, {

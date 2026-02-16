@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_toast.dart';
@@ -17,13 +19,23 @@ import '../profile/help_support_page.dart';
 import '../profile/notification_page.dart';
 import '../profile/payment_page.dart';
 import 'provider_profession_page.dart';
-import 'provider_upgrade_page.dart';
 import 'provider_verification_page.dart';
 
-class ProviderProfilePage extends StatelessWidget {
+class ProviderProfilePage extends StatefulWidget {
   static const String routeName = '/provider/profile';
 
   const ProviderProfilePage({super.key});
+
+  @override
+  State<ProviderProfilePage> createState() => _ProviderProfilePageState();
+}
+
+class _ProviderProfilePageState extends State<ProviderProfilePage> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(ProfileSettingsState.syncProviderCompletedOrdersFromBackend());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,15 +94,6 @@ class ProviderProfilePage extends StatelessWidget {
               label: 'Payment method',
               onTap: () =>
                   Navigator.push(context, slideFadeRoute(const PaymentPage())),
-            ),
-            const SizedBox(height: 10),
-            _ActionTile(
-              icon: Icons.workspace_premium_outlined,
-              label: 'Upgrade',
-              onTap: () => Navigator.push(
-                context,
-                slideFadeRoute(const ProviderUpgradePage()),
-              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -345,31 +348,39 @@ class _ProviderHero extends StatelessWidget {
               },
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.success,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF0F8E3F)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.task_alt_rounded,
-                  size: 16,
-                  color: Colors.white,
+          ValueListenableBuilder<int>(
+            valueListenable: ProfileSettingsState.providerCompletedOrders,
+            builder: (context, completedOrders, _) {
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  '56 completed',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
+                decoration: BoxDecoration(
+                  color: AppColors.success,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF0F8E3F)),
                 ),
-              ],
-            ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.task_alt_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$completedOrders completed',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),

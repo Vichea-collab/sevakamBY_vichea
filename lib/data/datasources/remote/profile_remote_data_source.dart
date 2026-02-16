@@ -1,4 +1,5 @@
 import '../../../domain/entities/profile_settings.dart';
+import '../../../domain/entities/pagination.dart';
 import '../../network/backend_api_client.dart';
 
 class ProfileRemoteDataSource {
@@ -23,6 +24,10 @@ class ProfileRemoteDataSource {
 
     final me = _safeMap(meResponse['data']);
     final role = _safeMap(roleResponse['data']);
+    final resolvedFinderLocation = _locationText(role['location']);
+    final resolvedCity = (role['city'] ?? '').toString().trim().isEmpty
+        ? resolvedFinderLocation
+        : (role['city'] ?? '').toString();
 
     return (isProvider
             ? ProfileFormData.providerDefault()
@@ -33,7 +38,7 @@ class ProfileRemoteDataSource {
           dateOfBirth: _dateText(role['birthday']),
           country: 'Cambodia',
           phoneNumber: (role['phoneNumber'] ?? '').toString(),
-          city: (role['city'] ?? '').toString(),
+          city: isProvider ? (role['city'] ?? '').toString() : resolvedCity,
           bio: (role['bio'] ?? '').toString(),
         );
   }
@@ -71,15 +76,25 @@ class ProfileRemoteDataSource {
     final path = isProvider
         ? '/api/providers/provider-profile'
         : '/api/finders/finder-profile';
-    final response = await _apiClient.putJson(path, {
+    final rolePayload = <String, dynamic>{
       'city': profile.city,
       'phoneNumber': profile.phoneNumber,
       'birthday': profile.dateOfBirth,
       'bio': profile.bio,
-    });
+    };
+    if (!isProvider) {
+      rolePayload['location'] = profile.city;
+    }
+    final response = await _apiClient.putJson(path, rolePayload);
     final role = _safeMap(response['data']);
+    final resolvedFinderLocation = _locationText(role['location']);
+    final resolvedCity = (role['city'] ?? '').toString().trim().isEmpty
+        ? resolvedFinderLocation
+        : (role['city'] ?? profile.city).toString();
     return profile.copyWith(
-      city: (role['city'] ?? profile.city).toString(),
+      city: isProvider
+          ? (role['city'] ?? profile.city).toString()
+          : resolvedCity,
       phoneNumber: (role['phoneNumber'] ?? profile.phoneNumber).toString(),
       dateOfBirth: _dateText(role['birthday']).isEmpty
           ? profile.dateOfBirth
@@ -107,6 +122,19 @@ class ProfileRemoteDataSource {
     return _providerProfessionFromRole(role);
   }
 
+  Future<int> fetchProviderCompletedOrders() async {
+    final response = await _apiClient.getJson(
+      '/api/providers/provider-profile',
+    );
+    final role = _safeMap(response['data']);
+    final raw = role['completedOrder'];
+    if (raw is int) return raw < 0 ? 0 : raw;
+    if (raw is num) return raw < 0 ? 0 : raw.toInt();
+    final parsed = int.tryParse((raw ?? '').toString());
+    if (parsed == null || parsed < 0) return 0;
+    return parsed;
+  }
+
   Future<Map<String, dynamic>> fetchSettings() async {
     final response = await _apiClient.getJson('/api/users/settings');
     return _safeMap(response['data']);
@@ -122,13 +150,26 @@ class ProfileRemoteDataSource {
     });
   }
 
-  Future<List<Map<String, dynamic>>> fetchHelpTickets() async {
-    final response = await _apiClient.getJson('/api/users/help-tickets');
+  Future<PaginatedResult<Map<String, dynamic>>> fetchHelpTickets({
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final response = await _apiClient.getJson(
+      '/api/users/help-tickets?page=$page&limit=$limit',
+    );
     final data = response['data'];
-    if (data is! List) return const [];
-    return data.whereType<Map>().map((item) {
-      return item.map((key, value) => MapEntry(key.toString(), value));
-    }).toList();
+    final items = data is! List
+        ? const <Map<String, dynamic>>[]
+        : data.whereType<Map>().map((item) {
+            return item.map((key, value) => MapEntry(key.toString(), value));
+          }).toList();
+    final pagination = PaginationMeta.fromMap(
+      _safeMap(response['pagination']),
+      fallbackPage: page,
+      fallbackLimit: limit,
+      fallbackTotalItems: items.length,
+    );
+    return PaginatedResult(items: items, pagination: pagination);
   }
 
   Future<void> createHelpTicket({
@@ -187,5 +228,19 @@ class ProfileRemoteDataSource {
       return '${date.day}/${date.month}/${date.year}';
     }
     return value.toString();
+  }
+
+  String _locationText(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value.trim();
+    if (value is Map) {
+      final label = (value['label'] ?? '').toString().trim();
+      if (label.isNotEmpty) return label;
+      final city = (value['city'] ?? '').toString().trim();
+      if (city.isNotEmpty) return city;
+      final address = (value['address'] ?? '').toString().trim();
+      if (address.isNotEmpty) return address;
+    }
+    return value.toString().trim();
   }
 }

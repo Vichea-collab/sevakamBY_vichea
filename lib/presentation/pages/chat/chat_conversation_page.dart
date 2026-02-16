@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../data/network/backend_api_client.dart';
 import '../../../domain/entities/chat.dart';
+import '../../../domain/entities/pagination.dart';
 import '../../state/chat_state.dart';
 import '../../widgets/pressable_scale.dart';
 
@@ -20,15 +23,28 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   final TextEditingController _inputController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
   bool _sending = false;
+  bool _loading = true;
+  bool _loadingOlder = false;
+  List<ChatMessage> _latestMessages = const <ChatMessage>[];
+  List<ChatMessage> _olderMessages = const <ChatMessage>[];
+  PaginationMeta _pagination = const PaginationMeta.initial(limit: 10);
+  int _loadedPages = 1;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
-    ChatState.markThreadAsRead(widget.thread.id);
+    unawaited(ChatState.markThreadAsRead(widget.thread.id));
+    unawaited(_loadInitial());
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => unawaited(_refreshLatest()),
+    );
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _inputController.dispose();
     super.dispose();
   }
@@ -43,28 +59,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
             Expanded(
               child: Container(
                 color: const Color(0xFFEAF1FF),
-                child: StreamBuilder<List<ChatMessage>>(
-                  stream: ChatState.messageStream(widget.thread.id),
-                  builder: (context, snapshot) {
-                    final messages = snapshot.data ?? widget.thread.messages;
-                    if (messages.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'Start your conversation',
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(color: AppColors.textSecondary),
-                        ),
-                      );
-                    }
-                    return ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        return _MessageBubble(message: messages[index]);
-                      },
-                    );
-                  },
-                ),
+                child: _buildMessageList(context),
               ),
             ),
             _Composer(
@@ -78,6 +73,151 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     );
   }
 
+  Widget _buildMessageList(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final messages = _mergedMessages();
+    final hasOlder = _loadedPages < _pagination.totalPages;
+    if (messages.isEmpty) {
+      return Center(
+        child: Text(
+          'Start your conversation',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
+        ),
+      );
+    }
+    return Column(
+      children: [
+        if (hasOlder)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: TextButton.icon(
+              onPressed: _loadingOlder ? null : _loadOlder,
+              icon: _loadingOlder
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.expand_less_rounded),
+              label: Text(_loadingOlder ? 'Loading...' : 'Load older messages'),
+            ),
+          ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
+            itemCount: messages.length,
+            itemBuilder: (context, index) {
+              return _MessageBubble(message: messages[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _loadInitial() async {
+    try {
+      final result = await ChatState.fetchMessagesPage(
+        widget.thread.id,
+        page: 1,
+      );
+      if (!mounted) return;
+      setState(() {
+        _latestMessages = result.items;
+        _olderMessages = const <ChatMessage>[];
+        _pagination = result.pagination;
+        _loadedPages = 1;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _latestMessages = const <ChatMessage>[];
+        _olderMessages = const <ChatMessage>[];
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _refreshLatest() async {
+    if (!mounted) return;
+    try {
+      final result = await ChatState.fetchMessagesPage(
+        widget.thread.id,
+        page: 1,
+      );
+      if (!mounted) return;
+      setState(() {
+        _latestMessages = result.items;
+        _pagination = result.pagination;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadOlder() async {
+    final nextPage = _loadedPages + 1;
+    if (_loadingOlder || nextPage > _pagination.totalPages) {
+      return;
+    }
+    setState(() => _loadingOlder = true);
+    try {
+      final result = await ChatState.fetchMessagesPage(
+        widget.thread.id,
+        page: nextPage,
+      );
+      if (!mounted) return;
+      setState(() {
+        _olderMessages = _dedupeAndSort(<ChatMessage>[
+          ...result.items,
+          ..._olderMessages,
+        ]);
+        _loadedPages = nextPage;
+        _pagination = PaginationMeta(
+          page: 1,
+          limit: result.pagination.limit,
+          totalItems: result.pagination.totalItems,
+          totalPages: result.pagination.totalPages,
+          hasPrevPage: false,
+          hasNextPage: _loadedPages < result.pagination.totalPages,
+        );
+      });
+    } catch (_) {
+      // keep current messages when page fetch fails
+    } finally {
+      if (mounted) {
+        setState(() => _loadingOlder = false);
+      }
+    }
+  }
+
+  List<ChatMessage> _mergedMessages() {
+    return _dedupeAndSort(<ChatMessage>[..._olderMessages, ..._latestMessages]);
+  }
+
+  List<ChatMessage> _dedupeAndSort(List<ChatMessage> messages) {
+    final seen = <String>{};
+    final unique = <ChatMessage>[];
+    final sorted = List<ChatMessage>.from(messages)
+      ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+    for (final message in sorted) {
+      final key = [
+        message.sentAt.millisecondsSinceEpoch,
+        message.fromMe ? 1 : 0,
+        message.type.index,
+        message.text,
+        message.imageUrl,
+      ].join('|');
+      if (seen.add(key)) {
+        unique.add(message);
+      }
+    }
+    return unique;
+  }
+
   Future<void> _sendMessage() async {
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
@@ -85,6 +225,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     try {
       await ChatState.sendMessage(threadId: widget.thread.id, text: text);
       _inputController.clear();
+      await _refreshLatest();
     } catch (_) {
       if (mounted) {
         AppToast.error(context, 'Unable to send message right now.');
@@ -117,6 +258,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         bytes: bytes,
         fileName: picked.name,
       );
+      await _refreshLatest();
     } catch (error) {
       if (mounted) {
         final reason = error is BackendApiException

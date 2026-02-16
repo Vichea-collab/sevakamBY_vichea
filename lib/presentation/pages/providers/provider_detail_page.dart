@@ -71,9 +71,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       slideFadeRoute(
                         BookingAddressPage(
                           draft: BookingCatalogState.defaultBookingDraft(
-                            provider: widget.provider,
-                            serviceName: widget.provider.services.isNotEmpty
-                                ? widget.provider.services.first
+                            provider: profile.provider,
+                            serviceName: profile.provider.services.isNotEmpty
+                                ? profile.provider.services.first
                                 : null,
                           ),
                         ),
@@ -189,23 +189,48 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   }
 
   ProviderProfile _buildProfile(ProviderItem provider) {
-    final posts = ProviderPostState.posts.value;
-    ProviderPostItem? matched;
+    final allPosts = ProviderPostState.allPosts.value;
+    final posts = allPosts.isNotEmpty
+        ? allPosts
+        : ProviderPostState.posts.value;
+    final providerUid = provider.uid.trim().toLowerCase();
+    final providerName = provider.name.trim().toLowerCase();
+    final providerCategory = provider.role.trim().toLowerCase();
+    final matchedPosts = <ProviderPostItem>[];
     for (final post in posts) {
       final sameUid =
-          provider.uid.trim().isNotEmpty &&
-          provider.uid.trim() == post.providerUid.trim();
-      final sameName =
-          provider.name.trim().toLowerCase() ==
-          post.providerName.trim().toLowerCase();
-      if (sameUid || sameName) {
-        matched = post;
-        break;
+          providerUid.isNotEmpty &&
+          providerUid == post.providerUid.trim().toLowerCase();
+      final sameName = providerName == post.providerName.trim().toLowerCase();
+      if (!sameUid && !sameName) continue;
+      if (providerCategory.isNotEmpty &&
+          post.category.trim().toLowerCase() != providerCategory) {
+        continue;
       }
+      matchedPosts.add(post);
     }
+    final matched = matchedPosts.isNotEmpty ? matchedPosts.first : null;
+
+    final services = <String>{
+      ...provider.services
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty),
+      ...matchedPosts
+          .map((item) => item.service.trim())
+          .where((item) => item.isNotEmpty),
+    }.toList(growable: false)..sort();
+    final mergedProvider = ProviderItem(
+      uid: provider.uid,
+      name: provider.name,
+      role: provider.role,
+      rating: provider.rating,
+      imagePath: provider.imagePath,
+      accentColor: provider.accentColor,
+      services: services,
+    );
 
     return ProviderProfile(
-      provider: provider,
+      provider: mergedProvider,
       location: matched?.area.trim().isNotEmpty == true
           ? matched!.area.trim()
           : 'Phnom Penh, Cambodia',

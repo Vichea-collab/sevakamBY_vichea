@@ -3,22 +3,6 @@ import '../../domain/entities/provider.dart';
 import 'catalog_state.dart';
 
 class BookingCatalogState {
-  static const List<HomeAddress> homeAddresses = <HomeAddress>[
-    HomeAddress(
-      id: 'addr-home',
-      label: 'Home',
-      street: 'Phnom Penh',
-      city: 'Cambodia',
-      isDefault: true,
-    ),
-    HomeAddress(
-      id: 'addr-work',
-      label: 'Work',
-      street: 'Sen Sok, Phnom Penh',
-      city: 'Cambodia',
-    ),
-  ];
-
   static const List<int> bookingHourOptions = <int>[1, 2, 3, 4, 5, 6];
   static const List<int> workerCountOptions = <int>[1, 2, 3, 4];
   static const List<String> scheduleTimeOptions = <String>[
@@ -67,7 +51,7 @@ class BookingCatalogState {
       provider: provider,
       categoryName: categoryName,
       serviceName: resolvedService,
-      address: homeAddresses.first,
+      address: null,
       preferredDate: DateTime.now().add(const Duration(days: 1)),
       preferredTimeSlot: scheduleTimeOptions[1],
       hours: 2,

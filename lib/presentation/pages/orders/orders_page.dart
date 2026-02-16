@@ -4,11 +4,13 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/order.dart';
+import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/provider.dart';
 import '../../state/order_state.dart';
 import '../../state/booking_catalog_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/pagination_bar.dart';
 import '../../widgets/primary_button.dart';
 import 'order_detail_page.dart';
 import '../booking/booking_address_page.dart';
@@ -28,6 +30,7 @@ enum _FinderOrderTab { pending, inProgress, completed }
 class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
   _FinderOrderTab _activeTab = _FinderOrderTab.pending;
   String _filter = 'all';
+  bool _isPaging = false;
 
   @override
   void initState() {
@@ -54,157 +57,192 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
     return ValueListenableBuilder<List<OrderItem>>(
       valueListenable: OrderState.finderOrders,
       builder: (context, allOrders, _) {
-        final sourceOrders = _ordersForTab(_activeTab, allOrders);
-        final visibleOrders = sourceOrders
-            .where((order) => _matchesFilter(order))
-            .toList();
-        return Scaffold(
-          body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                children: [
-                  AppTopBar(
-                    title: 'Orders',
-                    showBack: false,
-                    actions: [
-                      PopupMenuButton<String>(
-                        initialValue: _filter,
-                        onSelected: (value) => setState(() => _filter = value),
-                        color: Colors.white,
-                        elevation: 8,
-                        offset: const Offset(0, 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: const BorderSide(color: AppColors.divider),
-                        ),
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(value: 'all', child: Text('All')),
-                          PopupMenuItem(value: 'today', child: Text('Today')),
-                          PopupMenuItem(
-                            value: 'upcoming',
-                            child: Text('Upcoming'),
+        return ValueListenableBuilder<PaginationMeta>(
+          valueListenable: OrderState.finderPagination,
+          builder: (context, pagination, _) {
+            final sourceOrders = _ordersForTab(_activeTab, allOrders);
+            final visibleOrders = sourceOrders
+                .where((order) => _matchesFilter(order))
+                .toList();
+            return Scaffold(
+              body: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    children: [
+                      AppTopBar(
+                        title: 'Orders',
+                        showBack: false,
+                        actions: [
+                          PopupMenuButton<String>(
+                            initialValue: _filter,
+                            onSelected: (value) =>
+                                setState(() => _filter = value),
+                            color: Colors.white,
+                            elevation: 8,
+                            offset: const Offset(0, 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(color: AppColors.divider),
+                            ),
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(value: 'all', child: Text('All')),
+                              PopupMenuItem(
+                                value: 'today',
+                                child: Text('Today'),
+                              ),
+                              PopupMenuItem(
+                                value: 'upcoming',
+                                child: Text('Upcoming'),
+                              ),
+                            ],
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.divider),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(_filterLabel(_filter)),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.expand_more, size: 16),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.divider),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(_filterLabel(_filter)),
-                              const SizedBox(width: 4),
-                              const Icon(Icons.expand_more, size: 16),
-                            ],
-                          ),
-                        ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _TabChip(
-                        label: 'Incoming',
-                        active: _activeTab == _FinderOrderTab.pending,
-                        onTap: () => setState(
-                          () => _activeTab = _FinderOrderTab.pending,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _TabChip(
-                        label: 'In Progress',
-                        active: _activeTab == _FinderOrderTab.inProgress,
-                        onTap: () => setState(
-                          () => _activeTab = _FinderOrderTab.inProgress,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _TabChip(
-                        label: 'History',
-                        active: _activeTab == _FinderOrderTab.completed,
-                        onTap: () => setState(
-                          () => _activeTab = _FinderOrderTab.completed,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: () => _loadOrders(forceNetwork: true),
-                      child: visibleOrders.isEmpty
-                          ? ListView(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              children: [
-                                const SizedBox(height: 80),
-                                _EmptyOrders(activeTab: _activeTab),
-                              ],
-                            )
-                          : ListView.separated(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              itemCount: visibleOrders.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: AppSpacing.md),
-                              itemBuilder: (context, index) {
-                                final order = visibleOrders[index];
-                                return _OrderCard(
-                                  order: order,
-                                  onTap: () => _openOrder(order),
-                                  onMarkCompleted:
-                                      order.status == OrderStatus.started
-                                      ? () => _markCompleted(order)
-                                      : null,
-                                );
-                              },
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          _TabChip(
+                            label: 'Incoming',
+                            active: _activeTab == _FinderOrderTab.pending,
+                            onTap: () => setState(
+                              () => _activeTab = _FinderOrderTab.pending,
                             ),
-                    ),
-                  ),
-                  if (_activeTab == _FinderOrderTab.inProgress &&
-                      visibleOrders.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: PrimaryButton(
-                        label: 'Make another booking',
-                        onPressed: () => Navigator.push(
-                          context,
-                          slideFadeRoute(
-                            BookingAddressPage(
-                              draft: BookingCatalogState.defaultBookingDraft(
-                                provider: const ProviderItem(
-                                  name: 'Service Provider',
-                                  role: 'Cleaner',
-                                  rating: 4.8,
-                                  imagePath: 'assets/images/profile.jpg',
-                                  accentColor: Color(0xFFEAF1FF),
+                          ),
+                          const SizedBox(width: 8),
+                          _TabChip(
+                            label: 'In Progress',
+                            active: _activeTab == _FinderOrderTab.inProgress,
+                            onTap: () => setState(
+                              () => _activeTab = _FinderOrderTab.inProgress,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _TabChip(
+                            label: 'History',
+                            active: _activeTab == _FinderOrderTab.completed,
+                            onTap: () => setState(
+                              () => _activeTab = _FinderOrderTab.completed,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Expanded(
+                        child: RefreshIndicator(
+                          onRefresh: () => _loadOrders(
+                            forceNetwork: true,
+                            page: _normalizedPage(pagination.page),
+                          ),
+                          child: visibleOrders.isEmpty
+                              ? ListView(
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  children: [
+                                    const SizedBox(height: 80),
+                                    _EmptyOrders(activeTab: _activeTab),
+                                  ],
+                                )
+                              : ListView.separated(
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  itemCount: visibleOrders.length,
+                                  separatorBuilder: (_, _) =>
+                                      const SizedBox(height: AppSpacing.md),
+                                  itemBuilder: (context, index) {
+                                    final order = visibleOrders[index];
+                                    return _OrderCard(
+                                      order: order,
+                                      onTap: () => _openOrder(order),
+                                      onMarkCompleted:
+                                          order.status == OrderStatus.started
+                                          ? () => _markCompleted(order)
+                                          : null,
+                                    );
+                                  },
                                 ),
-                                serviceName: 'House Cleaning',
+                        ),
+                      ),
+                      if (_activeTab == _FinderOrderTab.inProgress &&
+                          visibleOrders.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: PrimaryButton(
+                            label: 'Make another booking',
+                            onPressed: () => Navigator.push(
+                              context,
+                              slideFadeRoute(
+                                BookingAddressPage(
+                                  draft:
+                                      BookingCatalogState.defaultBookingDraft(
+                                        provider: const ProviderItem(
+                                          name: 'Service Provider',
+                                          role: 'Cleaner',
+                                          rating: 4.8,
+                                          imagePath:
+                                              'assets/images/profile.jpg',
+                                          accentColor: Color(0xFFEAF1FF),
+                                        ),
+                                        serviceName: 'House Cleaning',
+                                      ),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                ],
+                      if (pagination.totalPages > 1) ...[
+                        const SizedBox(height: 12),
+                        PaginationBar(
+                          currentPage: _normalizedPage(pagination.page),
+                          totalPages: pagination.totalPages,
+                          loading: _isPaging,
+                          onPageSelected: _goToPage,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-          bottomNavigationBar: const AppBottomNav(current: AppBottomTab.order),
+              bottomNavigationBar: const AppBottomNav(
+                current: AppBottomTab.order,
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  Future<void> _loadOrders({bool forceNetwork = false}) async {
-    await OrderState.refreshCurrentRole(forceNetwork: forceNetwork);
+  Future<void> _loadOrders({bool forceNetwork = false, int? page}) async {
+    final targetPage = _normalizedPage(
+      page ?? OrderState.finderPagination.value.page,
+    );
+    if (forceNetwork) {
+      await OrderState.refreshFinderOrders(page: targetPage);
+    } else {
+      await OrderState.refreshCurrentRole(page: targetPage);
+    }
     final latest = widget.latestOrder;
     if (latest == null) return;
+    if (targetPage != 1) return;
     final hasLatest = OrderState.finderOrders.value.any(
       (item) => item.id == latest.id,
     );
@@ -234,6 +272,21 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
     } catch (_) {
       if (!mounted) return;
       AppToast.error(context, 'Failed to update order status.');
+    }
+  }
+
+  Future<void> _goToPage(int page) async {
+    final targetPage = _normalizedPage(page);
+    if (_isPaging || targetPage == OrderState.finderPagination.value.page) {
+      return;
+    }
+    setState(() => _isPaging = true);
+    try {
+      await _loadOrders(forceNetwork: true, page: targetPage);
+    } finally {
+      if (mounted) {
+        setState(() => _isPaging = false);
+      }
     }
   }
 
@@ -315,6 +368,11 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
       default:
         return 'All';
     }
+  }
+
+  int _normalizedPage(int page) {
+    if (page < 1) return 1;
+    return page;
   }
 }
 

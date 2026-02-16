@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
+import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/profile_settings.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../state/chat_state.dart';
@@ -13,6 +14,7 @@ import '../../state/finder_post_state.dart';
 import '../../state/profile_image_state.dart';
 import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/pagination_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../chat/chat_conversation_page.dart';
 import '../chat/chat_list_page.dart';
@@ -28,79 +30,116 @@ class ProviderPortalHomePage extends StatefulWidget {
 }
 
 class _ProviderPortalHomePageState extends State<ProviderPortalHomePage> {
+  bool _isPaging = false;
+
   @override
   void initState() {
     super.initState();
-    unawaited(FinderPostState.refresh());
+    unawaited(FinderPostState.refresh(page: 1));
   }
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<FinderPostItem>>(
       valueListenable: FinderPostState.posts,
-      builder: (context, allPosts, _) {
-        final posts = allPosts;
+      builder: (context, posts, _) {
+        return ValueListenableBuilder<PaginationMeta>(
+          valueListenable: FinderPostState.pagination,
+          builder: (context, pagination, _) {
+            final currentPage = _normalizedPage(pagination.page);
 
-        return Scaffold(
-          body: SafeArea(
-            child: CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(child: const _ProviderTopHeader()),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.lg,
-                    AppSpacing.lg,
-                    AppSpacing.lg,
-                    AppSpacing.xl,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      _ProviderSearchBar(
-                        onTap: () => Navigator.push(
-                          context,
-                          slideFadeRoute(const ProviderFinderSearchPage()),
-                        ),
+            return Scaffold(
+              body: SafeArea(
+                child: CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(child: const _ProviderTopHeader()),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        AppSpacing.xl,
                       ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Text(
-                            'Finder Requests',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          _ProviderSearchBar(
+                            onTap: () => Navigator.push(
+                              context,
+                              slideFadeRoute(const ProviderFinderSearchPage()),
+                            ),
                           ),
-                          const Spacer(),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Text(
+                                'Finder Requests',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${pagination.totalItems} results',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
                           Text(
-                            '${posts.length} results',
+                            'Search by client name, service, or location',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(color: AppColors.textSecondary),
                           ),
-                        ],
+                          const SizedBox(height: 12),
+                          if (posts.isEmpty) const _EmptySearch(query: ''),
+                          if (posts.isNotEmpty)
+                            ...posts.map((post) => _FinderPostTile(post: post)),
+                          if (pagination.totalPages > 1) ...[
+                            const SizedBox(height: 12),
+                            PaginationBar(
+                              currentPage: currentPage,
+                              totalPages: pagination.totalPages,
+                              loading: _isPaging,
+                              onPageSelected: _goToPage,
+                            ),
+                          ],
+                        ]),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Search by client name, service, or location',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (posts.isEmpty) const _EmptySearch(query: ''),
-                      if (posts.isNotEmpty)
-                        ...posts.map((post) => _FinderPostTile(post: post)),
-                    ]),
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          bottomNavigationBar: const AppBottomNav(current: AppBottomTab.home),
+              ),
+              bottomNavigationBar: const AppBottomNav(
+                current: AppBottomTab.home,
+              ),
+            );
+          },
         );
       },
     );
+  }
+
+  Future<void> _goToPage(int page) async {
+    final targetPage = _normalizedPage(page);
+    if (_isPaging || targetPage == FinderPostState.pagination.value.page) {
+      return;
+    }
+    setState(() => _isPaging = true);
+    try {
+      await FinderPostState.refresh(page: targetPage);
+    } finally {
+      if (mounted) {
+        setState(() => _isPaging = false);
+      }
+    }
+  }
+
+  int _normalizedPage(int page) {
+    if (page < 1) return 1;
+    return page;
   }
 }
 

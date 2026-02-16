@@ -1,4 +1,5 @@
 import '../../domain/entities/order.dart';
+import '../../domain/entities/pagination.dart';
 import '../../domain/entities/profile_settings.dart';
 import '../../domain/repositories/profile_settings_repository.dart';
 import '../datasources/local/profile_settings_local_data_source.dart';
@@ -73,6 +74,15 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
   }
 
   @override
+  Future<int> loadProviderCompletedOrdersFromBackend() async {
+    try {
+      return await _remoteDataSource.fetchProviderCompletedOrders();
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  @override
   Future<void> saveProviderProfession(ProviderProfessionData profession) async {
     await _localDataSource.saveProviderProfession(profession: profession);
     try {
@@ -113,8 +123,16 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
   }
 
   @override
-  Future<List<HelpSupportTicket>> loadHelpTickets({required bool isProvider}) {
-    return _loadHelpTicketsInternal(isProvider: isProvider);
+  Future<PaginatedResult<HelpSupportTicket>> loadHelpTickets({
+    required bool isProvider,
+    int page = 1,
+    int limit = 10,
+  }) {
+    return _loadHelpTicketsInternal(
+      isProvider: isProvider,
+      page: page,
+      limit: limit,
+    );
   }
 
   @override
@@ -227,24 +245,50 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
     } catch (_) {}
   }
 
-  Future<List<HelpSupportTicket>> _loadHelpTicketsInternal({
+  Future<PaginatedResult<HelpSupportTicket>> _loadHelpTicketsInternal({
     required bool isProvider,
+    required int page,
+    required int limit,
   }) async {
     final local = await _localDataSource.loadHelpTickets(
       isProvider: isProvider,
     );
     try {
-      final rows = await _remoteDataSource.fetchHelpTickets();
-      final remote = rows.map(HelpSupportTicket.fromMap).toList();
-      if (remote.isNotEmpty) {
+      final result = await _remoteDataSource.fetchHelpTickets(
+        page: page,
+        limit: limit,
+      );
+      final remote = result.items.map(HelpSupportTicket.fromMap).toList();
+      if (remote.isNotEmpty && page == 1) {
         await _localDataSource.saveHelpTickets(
           isProvider: isProvider,
           tickets: remote,
         );
       }
-      return remote.isEmpty ? local : remote;
+      return PaginatedResult(
+        items: remote.isEmpty ? local : remote,
+        pagination: result.pagination,
+      );
     } catch (_) {
-      return local;
+      final totalItems = local.length;
+      final totalPages = totalItems == 0
+          ? 0
+          : ((totalItems + limit - 1) ~/ limit);
+      final start = ((page < 1 ? 1 : page) - 1) * limit;
+      final pageItems = start >= totalItems
+          ? const <HelpSupportTicket>[]
+          : local.skip(start).take(limit).toList(growable: false);
+      return PaginatedResult(
+        items: pageItems,
+        pagination: PaginationMeta(
+          page: page,
+          limit: limit,
+          totalItems: totalItems,
+          totalPages: totalPages,
+          hasPrevPage: totalPages > 0 && page > 1,
+          hasNextPage: totalPages > 0 && page < totalPages,
+        ),
+      );
     }
   }
 

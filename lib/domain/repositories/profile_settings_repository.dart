@@ -1,4 +1,5 @@
 import '../entities/order.dart';
+import '../entities/pagination.dart';
 import '../entities/profile_settings.dart';
 
 abstract class ProfileSettingsRepository {
@@ -14,6 +15,7 @@ abstract class ProfileSettingsRepository {
   });
   Future<ProviderProfessionData> loadProviderProfession();
   Future<ProviderProfessionData> loadProviderProfessionFromBackend();
+  Future<int> loadProviderCompletedOrdersFromBackend();
   Future<void> saveProviderProfession(ProviderProfessionData profession);
 
   Future<PaymentMethod> loadPaymentMethod({required bool isProvider});
@@ -28,7 +30,11 @@ abstract class ProfileSettingsRepository {
     required NotificationPreference notification,
   });
 
-  Future<List<HelpSupportTicket>> loadHelpTickets({required bool isProvider});
+  Future<PaginatedResult<HelpSupportTicket>> loadHelpTickets({
+    required bool isProvider,
+    int page = 1,
+    int limit = 10,
+  });
   Future<void> addHelpTicket({
     required bool isProvider,
     required HelpSupportTicket ticket,
