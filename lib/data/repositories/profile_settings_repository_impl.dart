@@ -39,6 +39,11 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
   }
 
   @override
+  Future<ProviderProfessionData> loadProviderProfession() {
+    return _localDataSource.loadProviderProfession();
+  }
+
+  @override
   Future<ProfileFormData> loadProfileFromBackend({
     required bool isProvider,
   }) async {
@@ -53,6 +58,29 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
     required ProfileFormData profile,
   }) {
     return _saveProfileInternal(isProvider: isProvider, profile: profile);
+  }
+
+  @override
+  Future<ProviderProfessionData> loadProviderProfessionFromBackend() async {
+    final local = await _localDataSource.loadProviderProfession();
+    try {
+      final remote = await _remoteDataSource.fetchProviderProfession();
+      await _localDataSource.saveProviderProfession(profession: remote);
+      return remote;
+    } catch (_) {
+      return local;
+    }
+  }
+
+  @override
+  Future<void> saveProviderProfession(ProviderProfessionData profession) async {
+    await _localDataSource.saveProviderProfession(profession: profession);
+    try {
+      final remote = await _remoteDataSource.updateProviderProfession(
+        profession: profession,
+      );
+      await _localDataSource.saveProviderProfession(profession: remote);
+    } catch (_) {}
   }
 
   @override

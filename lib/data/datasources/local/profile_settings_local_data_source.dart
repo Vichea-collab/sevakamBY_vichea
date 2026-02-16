@@ -16,6 +16,7 @@ class ProfileSettingsLocalDataSource {
       'profile.notification.${isProvider ? 'provider' : 'finder'}';
   String _helpKey(bool isProvider) =>
       'profile.help.${isProvider ? 'provider' : 'finder'}';
+  String _professionKey() => 'profile.profession.provider';
 
   Future<ProfileFormData> loadProfile({required bool isProvider}) async {
     final raw = (await _prefs).getString(_profileKey(isProvider));
@@ -40,6 +41,23 @@ class ProfileSettingsLocalDataSource {
     await (await _prefs).setString(
       _profileKey(isProvider),
       jsonEncode(profile.toMap()),
+    );
+  }
+
+  Future<ProviderProfessionData> loadProviderProfession() async {
+    final raw = (await _prefs).getString(_professionKey());
+    if (raw == null || raw.isEmpty) return ProviderProfessionData.defaults();
+    final map = jsonDecode(raw);
+    if (map is! Map<String, dynamic>) return ProviderProfessionData.defaults();
+    return ProviderProfessionData.fromMap(map);
+  }
+
+  Future<void> saveProviderProfession({
+    required ProviderProfessionData profession,
+  }) async {
+    await (await _prefs).setString(
+      _professionKey(),
+      jsonEncode(profession.toMap()),
     );
   }
 

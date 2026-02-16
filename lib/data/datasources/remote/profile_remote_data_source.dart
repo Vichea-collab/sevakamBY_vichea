@@ -88,6 +88,25 @@ class ProfileRemoteDataSource {
     );
   }
 
+  Future<ProviderProfessionData> fetchProviderProfession() async {
+    final response = await _apiClient.getJson(
+      '/api/providers/provider-profile',
+    );
+    final role = _safeMap(response['data']);
+    return _providerProfessionFromRole(role);
+  }
+
+  Future<ProviderProfessionData> updateProviderProfession({
+    required ProviderProfessionData profession,
+  }) async {
+    final response = await _apiClient.putJson(
+      '/api/providers/provider-profile',
+      profession.toMap(),
+    );
+    final role = _safeMap(response['data']);
+    return _providerProfessionFromRole(role);
+  }
+
   Future<Map<String, dynamic>> fetchSettings() async {
     final response = await _apiClient.getJson('/api/users/settings');
     return _safeMap(response['data']);
@@ -128,6 +147,33 @@ class ProfileRemoteDataSource {
       return value.map((key, item) => MapEntry(key.toString(), item));
     }
     return const <String, dynamic>{};
+  }
+
+  ProviderProfessionData _providerProfessionFromRole(
+    Map<String, dynamic> role,
+  ) {
+    final parsed = ProviderProfessionData.fromMap(role);
+    final defaults = ProviderProfessionData.defaults();
+    return parsed.copyWith(
+      serviceName: parsed.serviceName.trim().isEmpty
+          ? defaults.serviceName
+          : parsed.serviceName,
+      expertIn: parsed.expertIn.trim().isEmpty
+          ? defaults.expertIn
+          : parsed.expertIn,
+      availableFrom: parsed.availableFrom.trim().isEmpty
+          ? defaults.availableFrom
+          : parsed.availableFrom,
+      availableTo: parsed.availableTo.trim().isEmpty
+          ? defaults.availableTo
+          : parsed.availableTo,
+      experienceYears: parsed.experienceYears.trim().isEmpty
+          ? defaults.experienceYears
+          : parsed.experienceYears,
+      serviceArea: parsed.serviceArea.trim().isEmpty
+          ? defaults.serviceArea
+          : parsed.serviceArea,
+    );
   }
 
   String _dateText(dynamic value) {

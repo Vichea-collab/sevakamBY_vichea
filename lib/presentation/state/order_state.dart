@@ -227,8 +227,7 @@ class OrderState {
       onError: (error) {
         debugPrint('OrderState realtime stream failed, switching to API');
         debugPrint('$error');
-        final message = error.toString().toLowerCase();
-        if (message.contains('permission-denied')) {
+        if (_isPermissionDeniedError(error)) {
           _realtimeEnabled = false;
           debugPrint(
             'OrderState realtime disabled for this session due to Firestore permission rules.',
@@ -249,6 +248,24 @@ class OrderState {
     _streamRole = null;
     _streamUid = '';
     realtimeActive.value = false;
+  }
+
+  static bool _isPermissionDeniedError(Object error) {
+    final message = error.toString().toLowerCase();
+    if (message.contains('permission-denied') ||
+        message.contains('permission denied')) {
+      return true;
+    }
+
+    final dynamicError = error as dynamic;
+    final code = (dynamicError.code ?? '').toString().toLowerCase();
+    if (code == 'permission-denied' || code == 'permission_denied') {
+      return true;
+    }
+
+    final details = (dynamicError.message ?? '').toString().toLowerCase();
+    return details.contains('permission-denied') ||
+        details.contains('permission denied');
   }
 
   static int _createdAtMillis(Map<String, dynamic> row) {

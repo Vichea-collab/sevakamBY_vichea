@@ -9,7 +9,8 @@ import 'order_state.dart';
 import 'provider_post_state.dart';
 
 class AppSyncState with WidgetsBindingObserver {
-  static const Duration _syncInterval = Duration(seconds: 30);
+  static const Duration _syncInterval = Duration(seconds: 20);
+  static const Duration _forceFullSyncInterval = Duration(minutes: 2);
   static const Duration _catalogRefreshInterval = Duration(minutes: 3);
 
   static bool _initialized = false;
@@ -17,6 +18,7 @@ class AppSyncState with WidgetsBindingObserver {
   static bool _syncing = false;
   static Timer? _timer;
   static DateTime? _lastCatalogSyncedAt;
+  static DateTime? _lastFullSyncedAt;
 
   static Future<void> initialize({required bool signedIn}) async {
     if (_initialized) {
@@ -47,7 +49,7 @@ class AppSyncState with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_initialized || !_signedIn) return;
     if (state == AppLifecycleState.resumed) {
-      unawaited(_syncNow());
+      unawaited(_syncNow(forceFull: true));
       _startTimer();
       return;
     }
@@ -75,8 +77,15 @@ class AppSyncState with WidgetsBindingObserver {
     _syncing = true;
     try {
       final now = DateTime.now();
-      final shouldRefreshCatalog =
+      final shouldForceFull =
           forceFull ||
+          _lastFullSyncedAt == null ||
+          now.difference(_lastFullSyncedAt!) >= _forceFullSyncInterval;
+      if (shouldForceFull) {
+        _lastFullSyncedAt = now;
+      }
+      final shouldRefreshCatalog =
+          shouldForceFull ||
           _lastCatalogSyncedAt == null ||
           now.difference(_lastCatalogSyncedAt!) >= _catalogRefreshInterval;
 
@@ -92,12 +101,12 @@ class AppSyncState with WidgetsBindingObserver {
       }
 
       if (!ChatState.loading.value &&
-          (!ChatState.realtimeActive.value || forceFull)) {
+          (!ChatState.realtimeActive.value || shouldForceFull)) {
         tasks.add(_safeRun(ChatState.refresh));
       }
 
       if (!FinderPostState.loading.value &&
-          (!FinderPostState.realtimeActive.value || forceFull)) {
+          (!FinderPostState.realtimeActive.value || shouldForceFull)) {
         tasks.add(_safeRun(FinderPostState.refresh));
       }
 
@@ -109,7 +118,7 @@ class AppSyncState with WidgetsBindingObserver {
         tasks.add(
           _safeRun(
             () => OrderState.refreshCurrentRole(
-              forceNetwork: forceFull || !OrderState.realtimeActive.value,
+              forceNetwork: shouldForceFull || !OrderState.realtimeActive.value,
             ),
           ),
         );

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -27,6 +29,28 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
   void initState() {
     super.initState();
     _order = widget.order;
+    OrderState.providerOrders.addListener(_syncOrderFromState);
+    unawaited(OrderState.refreshCurrentRole(forceNetwork: true));
+  }
+
+  @override
+  void dispose() {
+    OrderState.providerOrders.removeListener(_syncOrderFromState);
+    super.dispose();
+  }
+
+  void _syncOrderFromState() {
+    ProviderOrderItem? updated;
+    for (final item in OrderState.providerOrders.value) {
+      if (item.id == _order.id) {
+        updated = item;
+        break;
+      }
+    }
+    final latest = updated;
+    if (latest == null) return;
+    if (!mounted || identical(latest, _order)) return;
+    setState(() => _order = latest);
   }
 
   @override

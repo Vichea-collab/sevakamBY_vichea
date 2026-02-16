@@ -12,6 +12,9 @@ abstract class ProfileSettingsRepository {
     required bool isProvider,
     required ProfileFormData profile,
   });
+  Future<ProviderProfessionData> loadProviderProfession();
+  Future<ProviderProfessionData> loadProviderProfessionFromBackend();
+  Future<void> saveProviderProfession(ProviderProfessionData profession);
 
   Future<PaymentMethod> loadPaymentMethod({required bool isProvider});
   Future<void> savePaymentMethod({

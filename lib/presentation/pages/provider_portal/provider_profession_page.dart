@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/app_toast.dart';
+import '../../../domain/entities/profile_settings.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../state/profile_settings_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 
@@ -13,12 +16,21 @@ class ProviderProfessionPage extends StatefulWidget {
 }
 
 class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
-  final _serviceName = TextEditingController(text: 'Cleaner');
-  final _expertIn = TextEditingController(text: 'Home clean, lawn clean, washing');
-  final _from = TextEditingController(text: '9:00 AM');
-  final _to = TextEditingController(text: '10:00 PM');
-  final _years = TextEditingController(text: '4');
-  final _area = TextEditingController(text: 'PP, Cambodia');
+  final _serviceName = TextEditingController();
+  final _expertIn = TextEditingController();
+  final _from = TextEditingController();
+  final _to = TextEditingController();
+  final _years = TextEditingController();
+  final _area = TextEditingController();
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _bindProfession(ProfileSettingsState.providerProfession.value);
+    _loadProfession();
+  }
 
   @override
   void dispose() {
@@ -40,6 +52,10 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
           child: ListView(
             children: [
               const AppTopBar(title: 'Profession'),
+              if (_loading) ...[
+                const SizedBox(height: 8),
+                const LinearProgressIndicator(minHeight: 2),
+              ],
               const SizedBox(height: 12),
               TextField(
                 controller: _serviceName,
@@ -81,9 +97,7 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
-                    child: SizedBox.shrink(),
-                  ),
+                  const Expanded(child: SizedBox.shrink()),
                 ],
               ),
               const SizedBox(height: 10),
@@ -93,13 +107,70 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
               ),
               const SizedBox(height: 24),
               PrimaryButton(
-                label: 'Save',
-                onPressed: () => Navigator.pop(context),
+                label: _saving ? 'Saving...' : 'Save',
+                onPressed: _saving ? null : _save,
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _loadProfession() async {
+    setState(() => _loading = true);
+    final success =
+        await ProfileSettingsState.syncProviderProfessionFromBackend();
+    if (!mounted) return;
+    _bindProfession(ProfileSettingsState.providerProfession.value);
+    setState(() => _loading = false);
+    if (!success) {
+      AppToast.warning(context, 'Using local profession data.');
+    }
+  }
+
+  Future<void> _save() async {
+    final payload = ProviderProfessionData(
+      serviceName: _serviceName.text.trim(),
+      expertIn: _expertIn.text.trim(),
+      availableFrom: _from.text.trim(),
+      availableTo: _to.text.trim(),
+      experienceYears: _years.text.trim(),
+      serviceArea: _area.text.trim(),
+    );
+
+    if (payload.serviceName.isEmpty ||
+        payload.expertIn.isEmpty ||
+        payload.availableFrom.isEmpty ||
+        payload.availableTo.isEmpty ||
+        payload.experienceYears.isEmpty ||
+        payload.serviceArea.isEmpty) {
+      AppToast.warning(context, 'Please fill all profession fields.');
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await ProfileSettingsState.saveProviderProfession(payload);
+      if (!mounted) return;
+      AppToast.success(context, 'Profession updated successfully.');
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.error(context, 'Failed to update profession.');
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  void _bindProfession(ProviderProfessionData value) {
+    _serviceName.text = value.serviceName;
+    _expertIn.text = value.expertIn;
+    _from.text = value.availableFrom;
+    _to.text = value.availableTo;
+    _years.text = value.experienceYears;
+    _area.text = value.serviceArea;
   }
 }

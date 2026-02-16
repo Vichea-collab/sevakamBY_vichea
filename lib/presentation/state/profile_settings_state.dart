@@ -28,6 +28,8 @@ class ProfileSettingsState {
   static final ValueNotifier<ProfileFormData> providerProfile = ValueNotifier(
     ProfileFormData.providerDefault(),
   );
+  static final ValueNotifier<ProviderProfessionData> providerProfession =
+      ValueNotifier(ProviderProfessionData.defaults());
 
   static final ValueNotifier<PaymentMethod> finderPaymentMethod = ValueNotifier(
     PaymentMethod.creditCard,
@@ -85,6 +87,7 @@ class ProfileSettingsState {
     providerHelpTickets.value = await _repository.loadHelpTickets(
       isProvider: true,
     );
+    providerProfession.value = await _repository.loadProviderProfession();
   }
 
   static void setBackendToken(String token) {
@@ -114,6 +117,8 @@ class ProfileSettingsState {
       );
       if (isProvider) {
         providerProfile.value = profile;
+        providerProfession.value = await _repository
+            .loadProviderProfessionFromBackend();
       } else {
         finderProfile.value = profile;
       }
@@ -121,6 +126,23 @@ class ProfileSettingsState {
     } catch (_) {
       return false;
     }
+  }
+
+  static Future<bool> syncProviderProfessionFromBackend() async {
+    try {
+      providerProfession.value = await _repository
+          .loadProviderProfessionFromBackend();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> saveProviderProfession(
+    ProviderProfessionData value,
+  ) async {
+    await _repository.saveProviderProfession(value);
+    providerProfession.value = value;
   }
 
   static Future<void> saveCurrentProfile(ProfileFormData profile) async {

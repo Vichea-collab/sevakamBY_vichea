@@ -29,9 +29,10 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
   @override
   void initState() {
     super.initState();
-    unawaited(OrderState.refreshCurrentRole(forceNetwork: true));
+    unawaited(_refreshNotifications(forceNetwork: true));
     _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
+      unawaited(_refreshNotifications());
       setState(() {});
     });
   }
@@ -136,8 +137,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
         return Scaffold(
           body: SafeArea(
             child: RefreshIndicator(
-              onRefresh: () =>
-                  OrderState.refreshCurrentRole(forceNetwork: true),
+              onRefresh: () => _refreshNotifications(forceNetwork: true),
               child: ListView(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 children: [
@@ -221,6 +221,12 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage> {
 
   void _openMessenger(BuildContext context) {
     Navigator.pushNamed(context, ChatListPage.routeName);
+  }
+
+  Future<void> _refreshNotifications({bool forceNetwork = false}) {
+    return OrderState.refreshCurrentRole(
+      forceNetwork: forceNetwork || !OrderState.realtimeActive.value,
+    );
   }
 
   DateTime? _latestStatusTime(Iterable<ProviderOrderItem> items) {

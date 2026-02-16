@@ -88,6 +88,75 @@ class ProfileFormData {
   }
 }
 
+class ProviderProfessionData {
+  final String serviceName;
+  final String expertIn;
+  final String availableFrom;
+  final String availableTo;
+  final String experienceYears;
+  final String serviceArea;
+
+  const ProviderProfessionData({
+    required this.serviceName,
+    required this.expertIn,
+    required this.availableFrom,
+    required this.availableTo,
+    required this.experienceYears,
+    required this.serviceArea,
+  });
+
+  factory ProviderProfessionData.defaults() {
+    return const ProviderProfessionData(
+      serviceName: 'Cleaner',
+      expertIn: 'Home clean, lawn clean, washing',
+      availableFrom: '9:00 AM',
+      availableTo: '10:00 PM',
+      experienceYears: '4',
+      serviceArea: 'PP, Cambodia',
+    );
+  }
+
+  ProviderProfessionData copyWith({
+    String? serviceName,
+    String? expertIn,
+    String? availableFrom,
+    String? availableTo,
+    String? experienceYears,
+    String? serviceArea,
+  }) {
+    return ProviderProfessionData(
+      serviceName: serviceName ?? this.serviceName,
+      expertIn: expertIn ?? this.expertIn,
+      availableFrom: availableFrom ?? this.availableFrom,
+      availableTo: availableTo ?? this.availableTo,
+      experienceYears: experienceYears ?? this.experienceYears,
+      serviceArea: serviceArea ?? this.serviceArea,
+    );
+  }
+
+  factory ProviderProfessionData.fromMap(Map<String, dynamic> map) {
+    return ProviderProfessionData(
+      serviceName: (map['serviceName'] ?? '').toString(),
+      expertIn: (map['expertIn'] ?? '').toString(),
+      availableFrom: (map['availableFrom'] ?? '').toString(),
+      availableTo: (map['availableTo'] ?? '').toString(),
+      experienceYears: (map['experienceYears'] ?? '').toString(),
+      serviceArea: (map['serviceArea'] ?? '').toString(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'serviceName': serviceName,
+      'expertIn': expertIn,
+      'availableFrom': availableFrom,
+      'availableTo': availableTo,
+      'experienceYears': experienceYears,
+      'serviceArea': serviceArea,
+    };
+  }
+}
+
 class NotificationPreference {
   final bool general;
   final bool sound;

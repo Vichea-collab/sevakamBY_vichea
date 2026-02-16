@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -355,118 +356,135 @@ class _FinderPostTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PressableScale(
-      onTap: () async {
-        if (post.finderUid.trim().isEmpty) {
-          AppToast.warning(context, 'Finder account unavailable for chat.');
-          return;
-        }
-        try {
-          final thread = await ChatState.openDirectThread(
-            peerUid: post.finderUid,
-            peerName: post.clientName,
-            peerIsProvider: false,
-          );
-          if (!context.mounted) return;
-          Navigator.push(
-            context,
-            slideFadeRoute(ChatConversationPage(thread: thread)),
-          );
-        } catch (_) {
-          if (!context.mounted) return;
-          AppToast.error(context, 'Unable to open live chat.');
-        }
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0C0F172A),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 23,
-              backgroundImage: AssetImage(post.avatarPath),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          post.clientName,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
-                              ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.access_time_rounded,
-                              size: 13,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(post.timeLabel),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    post.message,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      _MetaPill(text: post.category),
-                      _MetaPill(text: post.service),
-                      _MetaPill(text: post.location),
-                      if (post.preferredDate != null)
-                        _PreferredDatePill(preferredDate: post.preferredDate!),
-                    ],
-                  ),
-                ],
+      onTap: () => _openChat(context),
+      child: InkWell(
+        onTap: () => _openChat(context),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.divider),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0C0F172A),
+                blurRadius: 12,
+                offset: Offset(0, 4),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 23,
+                backgroundImage: AssetImage(post.avatarPath),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            post.clientName,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.access_time_rounded,
+                                size: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(post.timeLabel),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      post.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _MetaPill(text: post.category),
+                        _MetaPill(text: post.service),
+                        _MetaPill(text: post.location),
+                        if (post.preferredDate != null)
+                          _PreferredDatePill(
+                            preferredDate: post.preferredDate!,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _openChat(BuildContext context) async {
+    if (post.finderUid.trim().isEmpty) {
+      AppToast.warning(context, 'Finder account unavailable for chat.');
+      return;
+    }
+    final currentUid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
+    if (currentUid.isNotEmpty && currentUid == post.finderUid.trim()) {
+      AppToast.info(
+        context,
+        'This is your own request. Use another account to start a chat.',
+      );
+      return;
+    }
+
+    try {
+      final thread = await ChatState.openDirectThread(
+        peerUid: post.finderUid,
+        peerName: post.clientName,
+        peerIsProvider: false,
+      );
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        slideFadeRoute(ChatConversationPage(thread: thread)),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      AppToast.error(context, 'Unable to open live chat.');
+    }
   }
 }
 

@@ -35,9 +35,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   void initState() {
     super.initState();
-    unawaited(OrderState.refreshCurrentRole(forceNetwork: true));
+    unawaited(_refreshNotifications(forceNetwork: true));
     _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
+      unawaited(_refreshNotifications());
       setState(() {});
     });
     _promos = [
@@ -108,8 +109,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         return Scaffold(
           body: SafeArea(
             child: RefreshIndicator(
-              onRefresh: () =>
-                  OrderState.refreshCurrentRole(forceNetwork: true),
+              onRefresh: () => _refreshNotifications(forceNetwork: true),
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.lg,
@@ -275,12 +275,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   void _clearAllNotifications() {
-    final live = _buildLiveUpdates(OrderState.finderOrders.value);
+    final orderUpdateKeys = _buildLiveUpdates(OrderState.finderOrders.value)
+        .where((item) => item.kind == _NoticeFilter.orders)
+        .map((item) => item.key);
     setState(() {
-      _clearedUpdateKeys.addAll(live.map((e) => e.key));
-      _clearedPromoTitles.addAll(_promos.map((e) => e.title));
-      _readUpdateKeys.addAll(live.map((e) => e.key));
-      _readPromoTitles.addAll(_promos.map((e) => e.title));
+      _clearedUpdateKeys.addAll(orderUpdateKeys);
+      _readUpdateKeys.addAll(orderUpdateKeys);
     });
   }
 
@@ -288,8 +288,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final shouldClear = await showAppConfirmDialog(
       context: context,
       icon: Icons.delete_sweep_rounded,
-      title: 'Clear all notifications?',
-      message: 'This will remove all current notifications from this screen.',
+      title: 'Clear all order notifications?',
+      message:
+          'This only removes order updates from this screen. System and Promotions stay visible.',
       confirmText: 'Clear all',
       cancelText: 'Cancel',
       tone: AppDialogTone.warning,
@@ -312,6 +313,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   void _openMessenger() {
     Navigator.pushNamed(context, ChatListPage.routeName);
+  }
+
+  Future<void> _refreshNotifications({bool forceNetwork = false}) {
+    return OrderState.refreshCurrentRole(
+      forceNetwork: forceNetwork || !OrderState.realtimeActive.value,
+    );
   }
 
   List<_NotificationUpdate> _buildLiveUpdates(List<OrderItem> orders) {
