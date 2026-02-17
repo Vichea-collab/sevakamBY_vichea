@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -13,6 +14,8 @@ class AdminApiException implements Exception {
 }
 
 class AdminApiClient {
+  static const Duration _requestTimeout = Duration(seconds: 25);
+
   final String baseUrl;
   String _bearerToken;
   final http.Client _http;
@@ -29,11 +32,63 @@ class AdminApiClient {
   }
 
   Future<Map<String, dynamic>> getJson(String path) async {
+    return _requestJson('GET', path);
+  }
+
+  Future<Map<String, dynamic>> postJson(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    return _requestJson('POST', path, body: body);
+  }
+
+  Future<Map<String, dynamic>> patchJson(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    return _requestJson('PATCH', path, body: body);
+  }
+
+  Future<Map<String, dynamic>> _requestJson(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
     final uri = Uri.parse('$baseUrl$path');
-    final response = await _http
-        .get(uri, headers: _headers())
-        .timeout(const Duration(seconds: 8));
+    final headers = _headers();
+    final upper = method.toUpperCase();
+    final response = switch (upper) {
+      'GET' => await _sendWithTimeout(_http.get(uri, headers: headers)),
+      'POST' => await _sendWithTimeout(
+        _http.post(
+          uri,
+          headers: headers,
+          body: jsonEncode(body ?? const <String, dynamic>{}),
+        ),
+      ),
+      'PATCH' => await _sendWithTimeout(
+        _http.patch(
+          uri,
+          headers: headers,
+          body: jsonEncode(body ?? const <String, dynamic>{}),
+        ),
+      ),
+      _ => throw const AdminApiException('Unsupported HTTP method'),
+    };
     return _decode(response);
+  }
+
+  Future<http.Response> _sendWithTimeout(Future<http.Response> request) async {
+    try {
+      return await request.timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const AdminApiException(
+        'Request timed out. Please retry.',
+        statusCode: 408,
+      );
+    } on http.ClientException catch (error) {
+      throw AdminApiException('Network error: ${error.message}');
+    }
   }
 
   Map<String, String> _headers() {

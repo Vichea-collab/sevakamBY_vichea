@@ -206,6 +206,7 @@ class AdminUserRow {
   final String name;
   final String email;
   final String role;
+  final bool active;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -214,6 +215,7 @@ class AdminUserRow {
     required this.name,
     required this.email,
     required this.role,
+    required this.active,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -224,6 +226,7 @@ class AdminUserRow {
       name: _AdminParser.text(row['name'], fallback: 'Unnamed User'),
       email: _AdminParser.text(row['email']),
       role: _AdminParser.text(row['role'], fallback: 'user'),
+      active: _AdminParser.parseBool(row['active'], true),
       createdAt: _AdminParser.parseDate(row['createdAt']),
       updatedAt: _AdminParser.parseDate(row['updatedAt']),
     );
@@ -273,6 +276,7 @@ class AdminOrderRow {
 
 class AdminPostRow {
   final String id;
+  final String sourceCollection;
   final String type;
   final String ownerName;
   final String category;
@@ -283,6 +287,7 @@ class AdminPostRow {
 
   const AdminPostRow({
     required this.id,
+    required this.sourceCollection,
     required this.type,
     required this.ownerName,
     required this.category,
@@ -293,15 +298,374 @@ class AdminPostRow {
   });
 
   factory AdminPostRow.fromMap(Map<String, dynamic> row) {
+    final type = _AdminParser.text(row['type'], fallback: 'provider_offer');
     return AdminPostRow(
       id: _AdminParser.text(row['id']),
-      type: _AdminParser.text(row['type'], fallback: 'provider_offer'),
+      sourceCollection: _AdminParser.text(
+        row['sourceCollection'],
+        fallback: type == 'finder_request' ? 'finderPosts' : 'providerPosts',
+      ),
+      type: type,
       ownerName: _AdminParser.text(row['ownerName'], fallback: 'User'),
       category: _AdminParser.text(row['category']),
       service: _AdminParser.text(row['service']),
       location: _AdminParser.text(row['location']),
       status: _AdminParser.text(row['status'], fallback: 'open'),
       createdAt: _AdminParser.parseDate(row['createdAt']),
+    );
+  }
+}
+
+class AdminReadBudget {
+  final String dateKey;
+  final int dailyBudget;
+  final int estimatedReadsUsed;
+  final int estimatedReadsRemaining;
+  final double usedPercent;
+  final String level;
+
+  const AdminReadBudget({
+    required this.dateKey,
+    required this.dailyBudget,
+    required this.estimatedReadsUsed,
+    required this.estimatedReadsRemaining,
+    required this.usedPercent,
+    required this.level,
+  });
+
+  const AdminReadBudget.empty()
+    : dateKey = '',
+      dailyBudget = 50000,
+      estimatedReadsUsed = 0,
+      estimatedReadsRemaining = 50000,
+      usedPercent = 0,
+      level = 'healthy';
+
+  factory AdminReadBudget.fromMap(Map<String, dynamic> row) {
+    return AdminReadBudget(
+      dateKey: _AdminParser.text(row['dateKey']),
+      dailyBudget: _AdminParser.parseInt(row['dailyBudget'], 50000),
+      estimatedReadsUsed: _AdminParser.parseInt(row['estimatedReadsUsed'], 0),
+      estimatedReadsRemaining: _AdminParser.parseInt(
+        row['estimatedReadsRemaining'],
+        50000,
+      ),
+      usedPercent: _AdminParser.parseDouble(row['usedPercent']),
+      level: _AdminParser.text(row['level'], fallback: 'healthy'),
+    );
+  }
+}
+
+class AdminGlobalSearchResult {
+  final String query;
+  final int total;
+  final List<AdminSearchGroup> groups;
+
+  const AdminGlobalSearchResult({
+    required this.query,
+    required this.total,
+    required this.groups,
+  });
+
+  const AdminGlobalSearchResult.empty()
+    : query = '',
+      total = 0,
+      groups = const <AdminSearchGroup>[];
+
+  factory AdminGlobalSearchResult.fromMap(Map<String, dynamic> row) {
+    return AdminGlobalSearchResult(
+      query: _AdminParser.text(row['query']),
+      total: _AdminParser.parseInt(row['total'], 0),
+      groups: _AdminParser.parseMapList(
+        row['groups'],
+      ).map(AdminSearchGroup.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminSearchGroup {
+  final String section;
+  final String label;
+  final List<AdminSearchItem> items;
+
+  const AdminSearchGroup({
+    required this.section,
+    required this.label,
+    required this.items,
+  });
+
+  factory AdminSearchGroup.fromMap(Map<String, dynamic> row) {
+    return AdminSearchGroup(
+      section: _AdminParser.text(row['section']),
+      label: _AdminParser.text(row['label']),
+      items: _AdminParser.parseMapList(
+        row['items'],
+      ).map(AdminSearchItem.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminSearchItem {
+  final String id;
+  final String section;
+  final String title;
+  final String subtitle;
+
+  const AdminSearchItem({
+    required this.id,
+    required this.section,
+    required this.title,
+    required this.subtitle,
+  });
+
+  factory AdminSearchItem.fromMap(Map<String, dynamic> row) {
+    return AdminSearchItem(
+      id: _AdminParser.text(row['id']),
+      section: _AdminParser.text(row['section']),
+      title: _AdminParser.text(row['title'], fallback: 'Result'),
+      subtitle: _AdminParser.text(row['subtitle']),
+    );
+  }
+}
+
+class AdminAnalytics {
+  final int currentDays;
+  final int compareDays;
+  final AdminAnalyticsTotals current;
+  final AdminAnalyticsTotals previous;
+  final Map<String, double> deltaPercent;
+  final AdminAnalyticsFunnel funnel;
+  final List<AdminAnalyticsSeriesPoint> currentSeries;
+  final List<AdminAnalyticsSeriesPoint> previousSeries;
+  final List<AdminTopService> topServices;
+
+  const AdminAnalytics({
+    required this.currentDays,
+    required this.compareDays,
+    required this.current,
+    required this.previous,
+    required this.deltaPercent,
+    required this.funnel,
+    required this.currentSeries,
+    required this.previousSeries,
+    required this.topServices,
+  });
+
+  const AdminAnalytics.empty()
+    : currentDays = 14,
+      compareDays = 14,
+      current = const AdminAnalyticsTotals.empty(),
+      previous = const AdminAnalyticsTotals.empty(),
+      deltaPercent = const <String, double>{},
+      funnel = const AdminAnalyticsFunnel.empty(),
+      currentSeries = const <AdminAnalyticsSeriesPoint>[],
+      previousSeries = const <AdminAnalyticsSeriesPoint>[],
+      topServices = const <AdminTopService>[];
+
+  factory AdminAnalytics.fromMap(Map<String, dynamic> row) {
+    final range = _AdminParser.safeMap(row['range']);
+    final totals = _AdminParser.safeMap(row['totals']);
+    final trend = _AdminParser.safeMap(row['trend']);
+    final deltaRaw = totals['deltaPercent'];
+    final deltaPercent = <String, double>{};
+    if (deltaRaw is Map) {
+      for (final entry in deltaRaw.entries) {
+        deltaPercent[entry.key.toString()] = _AdminParser.parseDouble(
+          entry.value,
+        );
+      }
+    }
+    return AdminAnalytics(
+      currentDays: _AdminParser.parseInt(range['currentDays'], 14),
+      compareDays: _AdminParser.parseInt(range['compareDays'], 14),
+      current: AdminAnalyticsTotals.fromMap(
+        _AdminParser.safeMap(totals['current']),
+      ),
+      previous: AdminAnalyticsTotals.fromMap(
+        _AdminParser.safeMap(totals['previous']),
+      ),
+      deltaPercent: deltaPercent,
+      funnel: AdminAnalyticsFunnel.fromMap(_AdminParser.safeMap(row['funnel'])),
+      currentSeries: _AdminParser.parseMapList(
+        trend['currentSeries'],
+      ).map(AdminAnalyticsSeriesPoint.fromMap).toList(growable: false),
+      previousSeries: _AdminParser.parseMapList(
+        trend['previousSeries'],
+      ).map(AdminAnalyticsSeriesPoint.fromMap).toList(growable: false),
+      topServices: _AdminParser.parseMapList(
+        row['topServices'],
+      ).map(AdminTopService.fromMap).toList(growable: false),
+    );
+  }
+}
+
+class AdminAnalyticsTotals {
+  final int orders;
+  final int completedOrders;
+  final int cancelledOrders;
+  final double revenue;
+
+  const AdminAnalyticsTotals({
+    required this.orders,
+    required this.completedOrders,
+    required this.cancelledOrders,
+    required this.revenue,
+  });
+
+  const AdminAnalyticsTotals.empty()
+    : orders = 0,
+      completedOrders = 0,
+      cancelledOrders = 0,
+      revenue = 0;
+
+  factory AdminAnalyticsTotals.fromMap(Map<String, dynamic> row) {
+    return AdminAnalyticsTotals(
+      orders: _AdminParser.parseInt(row['orders'], 0),
+      completedOrders: _AdminParser.parseInt(row['completedOrders'], 0),
+      cancelledOrders: _AdminParser.parseInt(row['cancelledOrders'], 0),
+      revenue: _AdminParser.parseDouble(row['revenue']),
+    );
+  }
+}
+
+class AdminAnalyticsFunnel {
+  final int postIntents;
+  final int activeChats;
+  final int bookedOrders;
+  final int completedOrders;
+
+  const AdminAnalyticsFunnel({
+    required this.postIntents,
+    required this.activeChats,
+    required this.bookedOrders,
+    required this.completedOrders,
+  });
+
+  const AdminAnalyticsFunnel.empty()
+    : postIntents = 0,
+      activeChats = 0,
+      bookedOrders = 0,
+      completedOrders = 0;
+
+  factory AdminAnalyticsFunnel.fromMap(Map<String, dynamic> row) {
+    return AdminAnalyticsFunnel(
+      postIntents: _AdminParser.parseInt(row['postIntents'], 0),
+      activeChats: _AdminParser.parseInt(row['activeChats'], 0),
+      bookedOrders: _AdminParser.parseInt(row['bookedOrders'], 0),
+      completedOrders: _AdminParser.parseInt(row['completedOrders'], 0),
+    );
+  }
+}
+
+class AdminAnalyticsSeriesPoint {
+  final String date;
+  final int orders;
+  final double revenue;
+
+  const AdminAnalyticsSeriesPoint({
+    required this.date,
+    required this.orders,
+    required this.revenue,
+  });
+
+  factory AdminAnalyticsSeriesPoint.fromMap(Map<String, dynamic> row) {
+    return AdminAnalyticsSeriesPoint(
+      date: _AdminParser.text(row['date']),
+      orders: _AdminParser.parseInt(row['orders'], 0),
+      revenue: _AdminParser.parseDouble(row['revenue']),
+    );
+  }
+}
+
+class AdminTopService {
+  final String serviceName;
+  final int completedOrders;
+  final double revenue;
+
+  const AdminTopService({
+    required this.serviceName,
+    required this.completedOrders,
+    required this.revenue,
+  });
+
+  factory AdminTopService.fromMap(Map<String, dynamic> row) {
+    return AdminTopService(
+      serviceName: _AdminParser.text(row['serviceName'], fallback: 'Service'),
+      completedOrders: _AdminParser.parseInt(row['completedOrders'], 0),
+      revenue: _AdminParser.parseDouble(row['revenue']),
+    );
+  }
+}
+
+class AdminActionResult {
+  final String id;
+  final String reason;
+  final String undoToken;
+  final DateTime? undoExpiresAt;
+
+  const AdminActionResult({
+    required this.id,
+    required this.reason,
+    required this.undoToken,
+    required this.undoExpiresAt,
+  });
+
+  factory AdminActionResult.fromMap(Map<String, dynamic> row) {
+    return AdminActionResult(
+      id: _AdminParser.text(row['id']),
+      reason: _AdminParser.text(row['reason']),
+      undoToken: _AdminParser.text(row['undoToken']),
+      undoExpiresAt: _AdminParser.parseDate(row['undoExpiresAt']),
+    );
+  }
+}
+
+class AdminUndoHistoryRow {
+  final String id;
+  final String undoToken;
+  final String actionType;
+  final String targetLabel;
+  final String reason;
+  final String docPath;
+  final DateTime? createdAt;
+  final DateTime? expiresAt;
+  final DateTime? usedAt;
+  final String usedBy;
+  final String state;
+  final bool canUndo;
+
+  const AdminUndoHistoryRow({
+    required this.id,
+    required this.undoToken,
+    required this.actionType,
+    required this.targetLabel,
+    required this.reason,
+    required this.docPath,
+    required this.createdAt,
+    required this.expiresAt,
+    required this.usedAt,
+    required this.usedBy,
+    required this.state,
+    required this.canUndo,
+  });
+
+  factory AdminUndoHistoryRow.fromMap(Map<String, dynamic> row) {
+    return AdminUndoHistoryRow(
+      id: _AdminParser.text(row['id']),
+      undoToken: _AdminParser.text(
+        row['undoToken'],
+        fallback: _AdminParser.text(row['id']),
+      ),
+      actionType: _AdminParser.text(row['actionType'], fallback: 'action'),
+      targetLabel: _AdminParser.text(row['targetLabel']),
+      reason: _AdminParser.text(row['reason']),
+      docPath: _AdminParser.text(row['docPath']),
+      createdAt: _AdminParser.parseDate(row['createdAt']),
+      expiresAt: _AdminParser.parseDate(row['expiresAt']),
+      usedAt: _AdminParser.parseDate(row['usedAt']),
+      usedBy: _AdminParser.text(row['usedBy']),
+      state: _AdminParser.text(row['state'], fallback: 'available'),
+      canUndo: _AdminParser.parseBool(row['canUndo'], false),
     );
   }
 }
@@ -426,6 +790,12 @@ class _AdminParser {
   static List<Map<String, dynamic>> parseMapList(dynamic value) {
     if (value is! List) return const <Map<String, dynamic>>[];
     return value.whereType<Map>().map(_safeMap).toList(growable: false);
+  }
+
+  static Map<String, dynamic> safeMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return _safeMap(value);
+    return const <String, dynamic>{};
   }
 
   static Map<String, dynamic> _safeMap(Map value) {

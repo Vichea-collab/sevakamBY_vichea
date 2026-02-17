@@ -37,7 +37,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     unawaited(ChatState.markThreadAsRead(widget.thread.id));
     unawaited(_loadInitial());
     _pollTimer = Timer.periodic(
-      const Duration(seconds: 3),
+      const Duration(seconds: 12),
       (_) => unawaited(_refreshLatest()),
     );
   }

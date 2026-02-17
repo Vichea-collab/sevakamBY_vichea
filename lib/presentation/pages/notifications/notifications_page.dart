@@ -36,7 +36,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   void initState() {
     super.initState();
     unawaited(_refreshNotifications(forceNetwork: true));
-    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+    _ticker = Timer.periodic(const Duration(minutes: 2), (_) {
       if (!mounted) return;
       unawaited(_refreshNotifications());
       setState(() {});

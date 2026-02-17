@@ -9,9 +9,10 @@ import 'order_state.dart';
 import 'provider_post_state.dart';
 
 class AppSyncState with WidgetsBindingObserver {
-  static const Duration _syncInterval = Duration(seconds: 20);
-  static const Duration _forceFullSyncInterval = Duration(minutes: 2);
-  static const Duration _catalogRefreshInterval = Duration(minutes: 3);
+  // Spark-friendly cadence to reduce Firestore reads.
+  static const Duration _syncInterval = Duration(minutes: 2);
+  static const Duration _forceFullSyncInterval = Duration(minutes: 10);
+  static const Duration _catalogRefreshInterval = Duration(minutes: 30);
 
   static bool _initialized = false;
   static bool _signedIn = false;
@@ -111,7 +112,7 @@ class AppSyncState with WidgetsBindingObserver {
           _safeRun(() async {
             await FinderPostState.refresh();
             if (shouldForceFull || FinderPostState.allPosts.value.isEmpty) {
-              await FinderPostState.refreshAllForLookup();
+              await FinderPostState.refreshAllForLookup(maxPages: 3);
             }
           }),
         );
@@ -122,7 +123,7 @@ class AppSyncState with WidgetsBindingObserver {
           _safeRun(() async {
             await ProviderPostState.refresh();
             if (shouldForceFull || ProviderPostState.allPosts.value.isEmpty) {
-              await ProviderPostState.refreshAllForLookup();
+              await ProviderPostState.refreshAllForLookup(maxPages: 3);
             }
           }),
         );

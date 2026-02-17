@@ -53,7 +53,9 @@ class FinderPostState {
       return;
     }
     unawaited(refresh(page: 1));
-    unawaited(refreshAllForLookup());
+    if (allPosts.value.isEmpty) {
+      unawaited(refreshAllForLookup(maxPages: 3));
+    }
   }
 
   static Future<void> refresh({int? page, int limit = _pageSize}) async {
@@ -110,12 +112,16 @@ class FinderPostState {
     pagination.value = _withAdjustedTotalItems(pagination.value, delta: 1);
   }
 
-  static Future<void> refreshAllForLookup({int limit = _pageSize}) async {
+  static Future<void> refreshAllForLookup({
+    int limit = _pageSize,
+    int maxPages = 5,
+  }) async {
     allPostsLoading.value = true;
     try {
       final combined = <FinderPostItem>[];
       var page = 1;
-      while (page <= 300) {
+      final safeMaxPages = maxPages < 1 ? 1 : maxPages;
+      while (page <= safeMaxPages) {
         final result = await _repository.loadFinderRequests(
           page: page,
           limit: limit,

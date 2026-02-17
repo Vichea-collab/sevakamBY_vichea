@@ -188,7 +188,7 @@ class ChatState {
     controller.onListen = () {
       unawaited(poll());
       pollTimer = Timer.periodic(
-        const Duration(seconds: 3),
+        const Duration(seconds: 12),
         (_) => unawaited(poll()),
       );
     };

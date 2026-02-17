@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -76,6 +77,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   bool _bootstrapping = true;
   _AdminSection _section = _AdminSection.overview;
   late final TextEditingController _searchController;
+  Timer? _searchDebounce;
 
   String _searchQuery = '';
   String _userRoleFilter = 'all';
@@ -83,6 +85,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   String _postTypeFilter = 'all';
   String _ticketStatusFilter = 'all';
   String _serviceStateFilter = 'all';
+  String _undoHistoryStateFilter = 'all';
+  int _analyticsDays = 14;
+  int _analyticsCompareDays = 14;
+  int _undoHistoryPage = 1;
 
   @override
   void initState() {
@@ -91,12 +97,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _searchController.addListener(() {
       if (!mounted) return;
       setState(() => _searchQuery = _searchController.text);
+      _searchDebounce?.cancel();
+      _searchDebounce = Timer(const Duration(milliseconds: 420), () {
+        if (!mounted) return;
+        unawaited(_onSearchChanged());
+      });
     });
     unawaited(_bootstrap());
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -231,7 +243,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
-  Future<void> _runAuthed(Future<void> Function() action) async {
+  Future<T> _runAuthed<T>(Future<T> Function() action) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) {
@@ -242,11 +254,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
     await _setBearerToken(user, forceRefresh: false);
     try {
-      await action();
+      return await action();
     } on AdminApiException catch (error) {
       if (error.statusCode != 401) rethrow;
       await _setBearerToken(user, forceRefresh: true);
-      await action();
+      return action();
     }
   }
 
@@ -264,12 +276,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Future<void> _refreshAllData() async {
     await Future.wait<void>([
       AdminDashboardState.refreshOverview(),
-      AdminDashboardState.refreshUsers(page: 1),
-      AdminDashboardState.refreshOrders(page: 1),
-      AdminDashboardState.refreshPosts(page: 1),
-      AdminDashboardState.refreshTickets(page: 1),
-      AdminDashboardState.refreshServices(page: 1),
+      AdminDashboardState.refreshReadBudget(),
+      AdminDashboardState.refreshAnalytics(
+        days: _analyticsDays,
+        compareDays: _analyticsCompareDays,
+      ),
     ]);
+    if (_section == _AdminSection.overview) {
+      _undoHistoryPage = 1;
+      await _reloadCurrentSection(page: _undoHistoryPage);
+      return;
+    }
+    await _reloadCurrentSection(page: 1);
   }
 
   Future<void> _refreshAll() async {
@@ -282,7 +300,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Future<void> _loadUsers(int page) async {
     try {
-      await _runAuthed(() => AdminDashboardState.refreshUsers(page: page));
+      await _runAuthed(
+        () => AdminDashboardState.refreshUsers(
+          page: page,
+          query: _searchQuery,
+          role: _userRoleFilter == 'all' ? '' : _userRoleFilter,
+        ),
+      );
     } catch (error) {
       _showError(error);
     }
@@ -290,7 +314,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Future<void> _loadOrders(int page) async {
     try {
-      await _runAuthed(() => AdminDashboardState.refreshOrders(page: page));
+      await _runAuthed(
+        () => AdminDashboardState.refreshOrders(
+          page: page,
+          query: _searchQuery,
+          status: _orderStatusFilter == 'all' ? '' : _orderStatusFilter,
+        ),
+      );
     } catch (error) {
       _showError(error);
     }
@@ -298,7 +328,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Future<void> _loadPosts(int page) async {
     try {
-      await _runAuthed(() => AdminDashboardState.refreshPosts(page: page));
+      await _runAuthed(
+        () => AdminDashboardState.refreshPosts(
+          page: page,
+          query: _searchQuery,
+          type: _postTypeFilter == 'all' ? '' : _postTypeFilter,
+        ),
+      );
     } catch (error) {
       _showError(error);
     }
@@ -306,7 +342,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Future<void> _loadTickets(int page) async {
     try {
-      await _runAuthed(() => AdminDashboardState.refreshTickets(page: page));
+      await _runAuthed(
+        () => AdminDashboardState.refreshTickets(
+          page: page,
+          query: _searchQuery,
+          status: _ticketStatusFilter == 'all' ? '' : _ticketStatusFilter,
+        ),
+      );
     } catch (error) {
       _showError(error);
     }
@@ -314,7 +356,63 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Future<void> _loadServices(int page) async {
     try {
-      await _runAuthed(() => AdminDashboardState.refreshServices(page: page));
+      await _runAuthed(
+        () => AdminDashboardState.refreshServices(
+          page: page,
+          query: _searchQuery,
+          active: _serviceStateFilter == 'all'
+              ? ''
+              : (_serviceStateFilter == 'active' ? 'true' : 'false'),
+        ),
+      );
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _loadUndoHistory(int page) async {
+    _undoHistoryPage = page < 1 ? 1 : page;
+    try {
+      await _runAuthed(
+        () => AdminDashboardState.refreshUndoHistory(
+          page: _undoHistoryPage,
+          query: _searchQuery,
+          state: _undoHistoryStateFilter == 'all'
+              ? ''
+              : _undoHistoryStateFilter,
+        ),
+      );
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _reloadCurrentSection({int page = 1}) async {
+    switch (_section) {
+      case _AdminSection.overview:
+        return _loadUndoHistory(page);
+      case _AdminSection.users:
+        return _loadUsers(page);
+      case _AdminSection.orders:
+        return _loadOrders(page);
+      case _AdminSection.posts:
+        return _loadPosts(page);
+      case _AdminSection.tickets:
+        return _loadTickets(page);
+      case _AdminSection.services:
+        return _loadServices(page);
+    }
+  }
+
+  Future<void> _onSearchChanged() async {
+    try {
+      await _runAuthed(() async {
+        await AdminDashboardState.runGlobalSearch(
+          query: _searchQuery,
+          limit: 4,
+        );
+        await _reloadCurrentSection(page: 1);
+      });
     } catch (error) {
       _showError(error);
     }
@@ -333,6 +431,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     setState(() {
       _section = section;
     });
+    unawaited(_reloadCurrentSection(page: 1));
   }
 
   void _showError(Object error) {
@@ -348,6 +447,191 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       );
   }
 
+  _AdminSection? _sectionFromKey(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'users':
+        return _AdminSection.users;
+      case 'orders':
+        return _AdminSection.orders;
+      case 'posts':
+        return _AdminSection.posts;
+      case 'tickets':
+        return _AdminSection.tickets;
+      case 'services':
+        return _AdminSection.services;
+      case 'overview':
+        return _AdminSection.overview;
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _jumpToSearchResult(AdminSearchItem item) async {
+    final target = _sectionFromKey(item.section);
+    if (target == null) return;
+    if (_section != target) {
+      setState(() => _section = target);
+    }
+    _searchController.text = item.title;
+    _searchController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _searchController.text.length),
+    );
+    await _reloadCurrentSection(page: 1);
+  }
+
+  Future<String?> _askActionReason({
+    required String title,
+    required String actionLabel,
+  }) async {
+    final controller = TextEditingController();
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Text(title),
+            content: TextField(
+              controller: controller,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(hintText: 'Reason (required)'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, controller.text.trim()),
+                child: Text(actionLabel),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _runSafeAction({
+    required String dialogTitle,
+    required String actionLabel,
+    required Future<AdminActionResult> Function(String reason) run,
+  }) async {
+    final reason = await _askActionReason(
+      title: dialogTitle,
+      actionLabel: actionLabel,
+    );
+    if (reason == null || reason.trim().length < 3) return;
+    try {
+      final result = await _runAuthed(() async {
+        final response = await run(reason.trim());
+        await AdminDashboardState.refreshReadBudget();
+        await AdminDashboardState.refreshUndoHistory(
+          page: 1,
+          query: _searchQuery,
+          state: _undoHistoryStateFilter == 'all'
+              ? ''
+              : _undoHistoryStateFilter,
+        );
+        _undoHistoryPage = 1;
+        await _reloadCurrentSection(page: 1);
+        return response;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Action completed. Reason: ${result.reason}'),
+          behavior: SnackBarBehavior.floating,
+          action: result.undoToken.isEmpty
+              ? null
+              : SnackBarAction(
+                  label: 'Undo',
+                  onPressed: () async {
+                    try {
+                      await _runAuthed(() async {
+                        await AdminDashboardState.undoAction(
+                          undoToken: result.undoToken,
+                        );
+                        await AdminDashboardState.refreshReadBudget();
+                        await AdminDashboardState.refreshUndoHistory(
+                          page: _undoHistoryPage,
+                          query: _searchQuery,
+                          state: _undoHistoryStateFilter == 'all'
+                              ? ''
+                              : _undoHistoryStateFilter,
+                        );
+                      });
+                      await _reloadCurrentSection(page: 1);
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Action reverted.'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    } catch (error) {
+                      _showError(error);
+                    }
+                  },
+                ),
+        ),
+      );
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _undoFromHistory(AdminUndoHistoryRow row) async {
+    if (!row.canUndo) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Undo this action?'),
+          content: Text(
+            'This will restore ${row.targetLabel.isEmpty ? row.docPath : row.targetLabel} to its previous state.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Undo now'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _runAuthed(() async {
+        await AdminDashboardState.undoAction(undoToken: row.undoToken);
+        await AdminDashboardState.refreshReadBudget();
+        await AdminDashboardState.refreshUndoHistory(
+          page: _undoHistoryPage,
+          query: _searchQuery,
+          state: _undoHistoryStateFilter == 'all'
+              ? ''
+              : _undoHistoryStateFilter,
+        );
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Action reverted from history.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
   Widget _buildMainContent({required bool desktop}) {
     return Column(
       children: [
@@ -355,6 +639,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           section: _section,
           searchController: _searchController,
           onRefresh: _refreshAll,
+        ),
+        ValueListenableBuilder<AdminReadBudget>(
+          valueListenable: AdminDashboardState.readBudget,
+          builder: (context, budget, _) {
+            return _ReadBudgetCard(budget: budget);
+          },
+        ),
+        ValueListenableBuilder<AdminGlobalSearchResult>(
+          valueListenable: AdminDashboardState.globalSearch,
+          builder: (context, result, _) {
+            if (_searchQuery.trim().length < 2 || result.groups.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return _GlobalSearchPanel(
+              result: result,
+              onTap: (item) => unawaited(_jumpToSearchResult(item)),
+            );
+          },
         ),
         Expanded(
           child: RefreshIndicator(
@@ -389,6 +691,23 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         return _buildTicketsSection();
       case _AdminSection.services:
         return _buildServicesSection();
+    }
+  }
+
+  Future<void> _setAnalyticsRange(int days) async {
+    setState(() {
+      _analyticsDays = days;
+      _analyticsCompareDays = days;
+    });
+    try {
+      await _runAuthed(
+        () => AdminDashboardState.refreshAnalytics(
+          days: _analyticsDays,
+          compareDays: _analyticsCompareDays,
+        ),
+      );
+    } catch (error) {
+      _showError(error);
     }
   }
 
@@ -443,6 +762,47 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 _OverviewKpiGrid(kpis: kpis),
                 const SizedBox(height: 14),
                 _StatusBoard(status: orderStatus),
+                const SizedBox(height: 12),
+                ValueListenableBuilder<AdminAnalytics>(
+                  valueListenable: AdminDashboardState.analytics,
+                  builder: (context, analytics, _) {
+                    return _OverviewAnalyticsCard(
+                      analytics: analytics,
+                      selectedDays: _analyticsDays,
+                      onDaysChanged: (days) =>
+                          unawaited(_setAnalyticsRange(days)),
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
+                ValueListenableBuilder<bool>(
+                  valueListenable: AdminDashboardState.loadingUndoHistory,
+                  builder: (context, historyLoading, _) {
+                    return ValueListenableBuilder<List<AdminUndoHistoryRow>>(
+                      valueListenable: AdminDashboardState.undoHistory,
+                      builder: (context, historyItems, _) {
+                        return ValueListenableBuilder<AdminPagination>(
+                          valueListenable:
+                              AdminDashboardState.undoHistoryPagination,
+                          builder: (context, historyPagination, _) {
+                            return _UndoHistoryCard(
+                              loading: historyLoading,
+                              items: historyItems,
+                              pagination: historyPagination,
+                              selectedState: _undoHistoryStateFilter,
+                              onStateChanged: (value) {
+                                setState(() => _undoHistoryStateFilter = value);
+                                unawaited(_loadUndoHistory(1));
+                              },
+                              onPageSelected: _loadUndoHistory,
+                              onUndo: _undoFromHistory,
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
                 const SizedBox(height: 14),
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -613,10 +973,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             _DropdownOption(value: 'finder', label: 'Finder'),
             _DropdownOption(value: 'user', label: 'User'),
           ],
-          onChanged: (value) => setState(() => _userRoleFilter = value),
+          onChanged: (value) {
+            setState(() => _userRoleFilter = value);
+            unawaited(_loadUsers(1));
+          },
         ),
       ],
-      columns: const ['Name', 'Email', 'Role', 'Updated'],
+      columns: const ['Name', 'Email', 'Role', 'State', 'Updated', 'Action'],
       emptyText: 'No users found for this page.',
       summaryBuilder: (items) {
         final admins = items
@@ -671,7 +1034,32 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           DataCell(_Pill(text: item.role, color: AppColors.primary)),
           DataCell(
+            _Pill(
+              text: item.active ? 'Active' : 'Suspended',
+              color: item.active ? AppColors.success : AppColors.warning,
+            ),
+          ),
+          DataCell(
             _cellText(_formatDateTime(item.updatedAt ?? item.createdAt)),
+          ),
+          DataCell(
+            _actionMenu(
+              actions: [
+                _ActionMenuItem(
+                  label: item.active ? 'Suspend' : 'Activate',
+                  onTap: () => _runSafeAction(
+                    dialogTitle:
+                        '${item.active ? 'Suspend' : 'Activate'} user ${item.name}?',
+                    actionLabel: item.active ? 'Suspend' : 'Activate',
+                    run: (reason) => AdminDashboardState.updateUserStatus(
+                      userId: item.id,
+                      active: !item.active,
+                      reason: reason,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ];
       },
@@ -699,7 +1087,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             _DropdownOption(value: 'cancelled', label: 'Cancelled'),
             _DropdownOption(value: 'declined', label: 'Declined'),
           ],
-          onChanged: (value) => setState(() => _orderStatusFilter = value),
+          onChanged: (value) {
+            setState(() => _orderStatusFilter = value);
+            unawaited(_loadOrders(1));
+          },
         ),
       ],
       columns: const [
@@ -710,6 +1101,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         'Payment',
         'Total',
         'Created',
+        'Action',
       ],
       emptyText: 'No orders found for this page.',
       summaryBuilder: (items) {
@@ -772,6 +1164,36 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           DataCell(_cellText(_toMoney(item.total))),
           DataCell(_cellText(_formatDateTime(item.createdAt))),
+          DataCell(
+            _actionMenu(
+              actions: [
+                _ActionMenuItem(
+                  label: 'Mark completed',
+                  onTap: () => _runSafeAction(
+                    dialogTitle: 'Mark order ${item.id} as completed?',
+                    actionLabel: 'Complete',
+                    run: (reason) => AdminDashboardState.updateOrderStatus(
+                      orderId: item.id,
+                      status: 'completed',
+                      reason: reason,
+                    ),
+                  ),
+                ),
+                _ActionMenuItem(
+                  label: 'Mark cancelled',
+                  onTap: () => _runSafeAction(
+                    dialogTitle: 'Mark order ${item.id} as cancelled?',
+                    actionLabel: 'Cancel',
+                    run: (reason) => AdminDashboardState.updateOrderStatus(
+                      orderId: item.id,
+                      status: 'cancelled',
+                      reason: reason,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ];
       },
     );
@@ -794,7 +1216,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             _DropdownOption(value: 'provider_offer', label: 'Provider offer'),
             _DropdownOption(value: 'finder_request', label: 'Finder request'),
           ],
-          onChanged: (value) => setState(() => _postTypeFilter = value),
+          onChanged: (value) {
+            setState(() => _postTypeFilter = value);
+            unawaited(_loadPosts(1));
+          },
         ),
       ],
       columns: const [
@@ -804,6 +1229,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         'Location',
         'Status',
         'Created',
+        'Action',
       ],
       emptyText: 'No posts found for this page.',
       summaryBuilder: (items) {
@@ -875,6 +1301,38 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ),
           ),
           DataCell(_cellText(_formatDateTime(item.createdAt))),
+          DataCell(
+            _actionMenu(
+              actions: [
+                _ActionMenuItem(
+                  label: 'Open',
+                  onTap: () => _runSafeAction(
+                    dialogTitle: 'Open this post again?',
+                    actionLabel: 'Open',
+                    run: (reason) => AdminDashboardState.updatePostStatus(
+                      sourceCollection: item.sourceCollection,
+                      postId: item.id,
+                      status: 'open',
+                      reason: reason,
+                    ),
+                  ),
+                ),
+                _ActionMenuItem(
+                  label: 'Close',
+                  onTap: () => _runSafeAction(
+                    dialogTitle: 'Close this post?',
+                    actionLabel: 'Close',
+                    run: (reason) => AdminDashboardState.updatePostStatus(
+                      sourceCollection: item.sourceCollection,
+                      postId: item.id,
+                      status: 'closed',
+                      reason: reason,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ];
       },
     );
@@ -898,10 +1356,20 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             _DropdownOption(value: 'resolved', label: 'Resolved'),
             _DropdownOption(value: 'closed', label: 'Closed'),
           ],
-          onChanged: (value) => setState(() => _ticketStatusFilter = value),
+          onChanged: (value) {
+            setState(() => _ticketStatusFilter = value);
+            unawaited(_loadTickets(1));
+          },
         ),
       ],
-      columns: const ['Title', 'Message', 'User UID', 'Status', 'Created'],
+      columns: const [
+        'Title',
+        'Message',
+        'User UID',
+        'Status',
+        'Created',
+        'Action',
+      ],
       emptyText: 'No tickets found for this page.',
       summaryBuilder: (items) {
         final open = items
@@ -964,6 +1432,38 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ),
           ),
           DataCell(_cellText(_formatDateTime(item.createdAt))),
+          DataCell(
+            _actionMenu(
+              actions: [
+                _ActionMenuItem(
+                  label: 'Resolve',
+                  onTap: () => _runSafeAction(
+                    dialogTitle: 'Resolve ticket ${item.id}?',
+                    actionLabel: 'Resolve',
+                    run: (reason) => AdminDashboardState.updateTicketStatus(
+                      userUid: item.userUid,
+                      ticketId: item.id,
+                      status: 'resolved',
+                      reason: reason,
+                    ),
+                  ),
+                ),
+                _ActionMenuItem(
+                  label: 'Close',
+                  onTap: () => _runSafeAction(
+                    dialogTitle: 'Close ticket ${item.id}?',
+                    actionLabel: 'Close',
+                    run: (reason) => AdminDashboardState.updateTicketStatus(
+                      userUid: item.userUid,
+                      ticketId: item.id,
+                      status: 'closed',
+                      reason: reason,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ];
       },
     );
@@ -986,10 +1486,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             _DropdownOption(value: 'active', label: 'Active'),
             _DropdownOption(value: 'inactive', label: 'Inactive'),
           ],
-          onChanged: (value) => setState(() => _serviceStateFilter = value),
+          onChanged: (value) {
+            setState(() => _serviceStateFilter = value);
+            unawaited(_loadServices(1));
+          },
         ),
       ],
-      columns: const ['Service', 'Category', 'State', 'Image', 'ID'],
+      columns: const ['Service', 'Category', 'State', 'Image', 'ID', 'Action'],
       emptyText: 'No services found for this page.',
       summaryBuilder: (items) {
         final active = items.where((item) => item.active).length;
@@ -1039,7 +1542,46 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             _cellText(item.imageUrl.isEmpty ? '-' : 'Available', width: 100),
           ),
           DataCell(_cellText(item.id, width: 180)),
+          DataCell(
+            _actionMenu(
+              actions: [
+                _ActionMenuItem(
+                  label: item.active ? 'Deactivate' : 'Activate',
+                  onTap: () => _runSafeAction(
+                    dialogTitle:
+                        '${item.active ? 'Deactivate' : 'Activate'} service ${item.name}?',
+                    actionLabel: item.active ? 'Deactivate' : 'Activate',
+                    run: (reason) => AdminDashboardState.updateServiceActive(
+                      serviceId: item.id,
+                      active: !item.active,
+                      reason: reason,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ];
+      },
+    );
+  }
+
+  Widget _actionMenu({required List<_ActionMenuItem> actions}) {
+    if (actions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return PopupMenuButton<int>(
+      icon: const Icon(Icons.more_vert_rounded),
+      tooltip: 'Actions',
+      onSelected: (index) {
+        if (index < 0 || index >= actions.length) return;
+        unawaited(Future.sync(actions[index].onTap));
+      },
+      itemBuilder: (context) {
+        return List<PopupMenuEntry<int>>.generate(actions.length, (index) {
+          final action = actions[index];
+          return PopupMenuItem<int>(value: index, child: Text(action.label));
+        });
       },
     );
   }
@@ -1566,13 +2108,13 @@ class _OverviewKpiGrid extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    height: 54,
-                    width: 54,
+                    height: 72,
+                    width: 72,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(18),
                       color: AppColors.primary.withValues(alpha: 0.12),
                     ),
-                    child: Icon(card.icon, color: AppColors.primary, size: 34),
+                    child: Icon(card.icon, color: AppColors.primary, size: 44),
                   ),
                   const Spacer(),
                   Text(
@@ -1671,6 +2213,989 @@ class _StatusBoard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _ReadBudgetCard extends StatelessWidget {
+  final AdminReadBudget budget;
+
+  const _ReadBudgetCard({required this.budget});
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = budget.usedPercent.clamp(0, 1).toDouble();
+    final level = budget.level.trim().toLowerCase();
+    final color = switch (level) {
+      'critical' => AppColors.danger,
+      'warning' => AppColors.warning,
+      _ => AppColors.success,
+    };
+    final label = switch (level) {
+      'critical' => 'Critical read usage',
+      'warning' => 'Read usage warning',
+      _ => 'Read usage healthy',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFD8E3F6)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x120F172A),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: color.withValues(alpha: 0.15),
+                  ),
+                  child: Icon(Icons.speed_rounded, color: color, size: 24),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Firestore Read Budget',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$label • ${budget.dateKey.isEmpty ? 'Today' : budget.dateKey}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _Pill(
+                  text: '${(percent * 100).toStringAsFixed(1)}%',
+                  color: color,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                minHeight: 9,
+                value: percent,
+                backgroundColor: const Color(0xFFEAF0FF),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _Pill(
+                  text: 'Used: ${budget.estimatedReadsUsed}',
+                  color: AppColors.primary,
+                ),
+                _Pill(
+                  text: 'Remaining: ${budget.estimatedReadsRemaining}',
+                  color: AppColors.success,
+                ),
+                _Pill(
+                  text: 'Budget: ${budget.dailyBudget}',
+                  color: const Color(0xFF64748B),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GlobalSearchPanel extends StatelessWidget {
+  final AdminGlobalSearchResult result;
+  final ValueChanged<AdminSearchItem> onTap;
+
+  const _GlobalSearchPanel({required this.result, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFD8E3F6)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x120F172A),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.travel_explore_rounded,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Global results for "${result.query}"',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                _Pill(
+                  text: '${result.total} matches',
+                  color: AppColors.primary,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ...result.groups.map((group) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      group.label,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    ...group.items.map(
+                      (item) => InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => onTap(item),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF7FAFF),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFDCE6F7)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _searchSectionIcon(item.section),
+                                size: 18,
+                                color: AppColors.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    if (item.subtitle.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        item.subtitle,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 14,
+                                color: AppColors.textSecondary,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OverviewAnalyticsCard extends StatelessWidget {
+  final AdminAnalytics analytics;
+  final int selectedDays;
+  final ValueChanged<int> onDaysChanged;
+
+  const _OverviewAnalyticsCard({
+    required this.analytics,
+    required this.selectedDays,
+    required this.onDaysChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final delta = analytics.deltaPercent;
+    final maxFunnel = math.max(
+      1,
+      math.max(
+        analytics.funnel.postIntents,
+        math.max(
+          analytics.funnel.activeChats,
+          math.max(
+            analytics.funnel.bookedOrders,
+            analytics.funnel.completedOrders,
+          ),
+        ),
+      ),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFD8E3F6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Performance Analytics',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Wrap(
+                spacing: 6,
+                children: [7, 14, 30]
+                    .map((days) {
+                      final selected = days == selectedDays;
+                      return ChoiceChip(
+                        selected: selected,
+                        label: Text('${days}d'),
+                        onSelected: (_) => onDaysChanged(days),
+                        selectedColor: AppColors.primary.withValues(
+                          alpha: 0.16,
+                        ),
+                        side: BorderSide(
+                          color: selected
+                              ? AppColors.primary
+                              : const Color(0xFFD7E1F3),
+                        ),
+                        labelStyle: TextStyle(
+                          color: selected
+                              ? AppColors.primaryDark
+                              : AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      );
+                    })
+                    .toList(growable: false),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 920;
+              final tiles = [
+                _AnalyticsMetricTile(
+                  label: 'Orders',
+                  value: '${analytics.current.orders}',
+                  delta: delta['orders'] ?? 0,
+                  color: AppColors.primary,
+                ),
+                _AnalyticsMetricTile(
+                  label: 'Completed',
+                  value: '${analytics.current.completedOrders}',
+                  delta: delta['completedOrders'] ?? 0,
+                  color: AppColors.success,
+                ),
+                _AnalyticsMetricTile(
+                  label: 'Cancelled',
+                  value: '${analytics.current.cancelledOrders}',
+                  delta: delta['cancelledOrders'] ?? 0,
+                  color: AppColors.warning,
+                ),
+                _AnalyticsMetricTile(
+                  label: 'Revenue',
+                  value: _toMoney(analytics.current.revenue),
+                  delta: delta['revenue'] ?? 0,
+                  color: const Color(0xFF0284C7),
+                ),
+              ];
+              if (!wide) {
+                return Column(
+                  children: tiles
+                      .map(
+                        (tile) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: tile,
+                        ),
+                      )
+                      .toList(growable: false),
+                );
+              }
+              return Row(
+                children: tiles
+                    .map(
+                      (tile) => Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: tile,
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Conversion funnel',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _FunnelStage(
+                label: 'Post intents',
+                value: analytics.funnel.postIntents,
+                max: maxFunnel,
+                color: const Color(0xFF1D4ED8),
+              ),
+              _FunnelStage(
+                label: 'Active chats',
+                value: analytics.funnel.activeChats,
+                max: maxFunnel,
+                color: const Color(0xFF0284C7),
+              ),
+              _FunnelStage(
+                label: 'Booked',
+                value: analytics.funnel.bookedOrders,
+                max: maxFunnel,
+                color: const Color(0xFF14B8A6),
+              ),
+              _FunnelStage(
+                label: 'Completed',
+                value: analytics.funnel.completedOrders,
+                max: maxFunnel,
+                color: const Color(0xFF16A34A),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _TrendBars(
+            currentSeries: analytics.currentSeries,
+            previousSeries: analytics.previousSeries,
+          ),
+          if (analytics.topServices.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Top services',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            ...analytics.topServices.take(5).map((service) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7FAFF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFDCE6F7)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        service.serviceName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _Pill(
+                      text: '${service.completedOrders} done',
+                      color: AppColors.success,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _toMoney(service.revenue),
+                      style: const TextStyle(
+                        color: AppColors.primaryDark,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _UndoHistoryCard extends StatelessWidget {
+  final bool loading;
+  final List<AdminUndoHistoryRow> items;
+  final AdminPagination pagination;
+  final String selectedState;
+  final ValueChanged<String> onStateChanged;
+  final Future<void> Function(int page) onPageSelected;
+  final Future<void> Function(AdminUndoHistoryRow row) onUndo;
+
+  const _UndoHistoryCard({
+    required this.loading,
+    required this.items,
+    required this.pagination,
+    required this.selectedState,
+    required this.onStateChanged,
+    required this.onPageSelected,
+    required this.onUndo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFD8E3F6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.history_rounded, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Undo history',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 190,
+                child: DropdownButtonFormField<String>(
+                  initialValue: selectedState,
+                  decoration: InputDecoration(
+                    labelText: 'State',
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFD3DDEF)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppColors.primary,
+                        width: 1.2,
+                      ),
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('All states')),
+                    DropdownMenuItem(
+                      value: 'available',
+                      child: Text('Available'),
+                    ),
+                    DropdownMenuItem(value: 'used', child: Text('Used')),
+                    DropdownMenuItem(value: 'expired', child: Text('Expired')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    onStateChanged(value);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Track reversible actions and restore items while undo is still valid.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          if (loading)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          const SizedBox(height: 10),
+          if (items.isEmpty)
+            Text(
+              'No undo actions found.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+            )
+          else
+            ...items.map((item) {
+              final stateColor = _undoStateColor(item.state);
+              final target = item.targetLabel.isEmpty
+                  ? item.docPath
+                  : item.targetLabel;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFDDE6F8)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${_prettyUndoActionType(item.actionType)} • ${target.isEmpty ? item.id : target}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _Pill(
+                          text: _prettyStatus(item.state),
+                          color: stateColor,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.reason.isEmpty ? 'No reason provided.' : item.reason,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        Text(
+                          'Created: ${_formatDateTime(item.createdAt)}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          'Expires: ${_formatDateTime(item.expiresAt)}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (item.usedAt != null)
+                          Text(
+                            'Used: ${_formatDateTime(item.usedAt)}',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (item.canUndo) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton.icon(
+                          onPressed: () => onUndo(item),
+                          icon: const Icon(Icons.undo_rounded, size: 18),
+                          label: const Text('Undo now'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primaryDark,
+                            side: const BorderSide(color: AppColors.primary),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+          const SizedBox(height: 6),
+          Text(
+            'Page ${pagination.page} • ${items.length} items',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          _CompactPager(
+            page: pagination.page,
+            totalPages: pagination.totalPages,
+            loading: loading,
+            onPageSelected: onPageSelected,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnalyticsMetricTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final double delta;
+  final Color color;
+
+  const _AnalyticsMetricTile({
+    required this.label,
+    required this.value,
+    required this.delta,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final positive = delta >= 0;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFDDE6F8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              color: (positive ? AppColors.success : AppColors.danger)
+                  .withValues(alpha: 0.12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  positive
+                      ? Icons.arrow_upward_rounded
+                      : Icons.arrow_downward_rounded,
+                  color: positive ? AppColors.success : AppColors.danger,
+                  size: 14,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${delta.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                    color: positive ? AppColors.success : AppColors.danger,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FunnelStage extends StatelessWidget {
+  final String label;
+  final int value;
+  final int max;
+  final Color color;
+
+  const _FunnelStage({
+    required this.label,
+    required this.value,
+    required this.max,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = (value / math.max(1, max)).clamp(0, 1).toDouble();
+    return Container(
+      width: 180,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFDDE6F8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '$value',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: progress,
+              backgroundColor: const Color(0xFFEAF0FF),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendBars extends StatelessWidget {
+  final List<AdminAnalyticsSeriesPoint> currentSeries;
+  final List<AdminAnalyticsSeriesPoint> previousSeries;
+
+  const _TrendBars({required this.currentSeries, required this.previousSeries});
+
+  @override
+  Widget build(BuildContext context) {
+    if (currentSeries.isEmpty && previousSeries.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final maxOrders = math.max<int>(
+      1,
+      [
+        ...currentSeries.map((item) => item.orders),
+        ...previousSeries.map((item) => item.orders),
+      ].fold<int>(0, math.max),
+    );
+    final points = math.max(currentSeries.length, previousSeries.length);
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFDDE6F8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Daily trend (orders)',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 90,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List<Widget>.generate(points, (index) {
+                final current = index < currentSeries.length
+                    ? currentSeries[index].orders
+                    : 0;
+                final previous = index < previousSeries.length
+                    ? previousSeries[index].orders
+                    : 0;
+                final currentHeight = 10 + (64 * (current / maxOrders));
+                final previousHeight = 10 + (64 * (previous / maxOrders));
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 1),
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Stack(
+                        alignment: Alignment.bottomCenter,
+                        children: [
+                          Container(
+                            width: 12,
+                            height: previousHeight,
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF94A3B8,
+                              ).withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                          Container(
+                            width: 9,
+                            height: currentHeight,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: const [
+              _TrendLegend(color: AppColors.primary, label: 'Current'),
+              SizedBox(width: 10),
+              _TrendLegend(color: Color(0xFF94A3B8), label: 'Previous'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendLegend extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _TrendLegend({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+IconData _searchSectionIcon(String section) {
+  switch (section.trim().toLowerCase()) {
+    case 'users':
+      return Icons.group_rounded;
+    case 'orders':
+      return Icons.receipt_long_rounded;
+    case 'posts':
+      return Icons.campaign_rounded;
+    case 'tickets':
+      return Icons.support_agent_rounded;
+    case 'services':
+      return Icons.handyman_rounded;
+    default:
+      return Icons.search_rounded;
   }
 }
 
@@ -1975,6 +3500,13 @@ class _DropdownOption {
   const _DropdownOption({required this.value, required this.label});
 }
 
+class _ActionMenuItem {
+  final String label;
+  final FutureOr<void> Function() onTap;
+
+  const _ActionMenuItem({required this.label, required this.onTap});
+}
+
 class _MetricChipData {
   final String label;
   final String value;
@@ -2210,4 +3742,31 @@ Color _postTypeColor(String type) {
     'finder_request' => const Color(0xFF14B8A6),
     _ => AppColors.textSecondary,
   };
+}
+
+Color _undoStateColor(String state) {
+  return switch (state.trim().toLowerCase()) {
+    'available' => AppColors.success,
+    'used' => const Color(0xFF64748B),
+    'expired' => AppColors.warning,
+    _ => AppColors.textSecondary,
+  };
+}
+
+String _prettyUndoActionType(String actionType) {
+  final value = actionType.trim().toLowerCase();
+  switch (value) {
+    case 'user_status':
+      return 'User status';
+    case 'order_status':
+      return 'Order status';
+    case 'post_status':
+      return 'Post status';
+    case 'ticket_status':
+      return 'Ticket status';
+    case 'service_active':
+      return 'Service state';
+    default:
+      return _prettyStatus(value);
+  }
 }
