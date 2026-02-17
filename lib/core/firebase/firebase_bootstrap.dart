@@ -94,6 +94,12 @@ class FirebaseBootstrap {
   }
 
   static Future<void> _activateWebAppCheckIfConfigured() async {
+    if (kDebugMode) {
+      // Avoid local web dev throttle/errors when App Check web token
+      // cannot be issued for localhost.
+      debugPrint('Firebase App Check (web) skipped in debug mode.');
+      return;
+    }
     final siteKey = AppEnv.firebaseRecaptchaV3SiteKey();
     if (siteKey.isEmpty) {
       debugPrint(

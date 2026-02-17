@@ -6,6 +6,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/profile_settings.dart';
+import 'help_support_chat_page.dart';
 import '../../state/profile_settings_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pagination_bar.dart';
@@ -54,20 +55,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppTopBar(
-                title: 'Help & support',
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      AppToast.info(
-                        context,
-                        'Live chat integration is coming next.',
-                      );
-                    },
-                    child: const Text('Live chat'),
-                  ),
-                ],
-              ),
+              AppTopBar(title: 'Help & support', actions: const []),
               const SizedBox(height: 12),
               Center(
                 child: Container(
@@ -142,17 +130,23 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 onPressed: _sending ? null : _sendTicket,
               ),
               const SizedBox(height: 10),
-              SizedBox(
+              Container(
                 width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    AppToast.info(
-                      context,
-                      'Live chat integration is coming next.',
-                    );
-                  },
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  label: const Text('Live chat'),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFD5DFF0)),
+                ),
+                child: const Text(
+                  'Open any ticket below to chat directly with admin support.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -184,35 +178,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                                   ?.copyWith(color: AppColors.textSecondary),
                             ),
                             const SizedBox(height: 8),
-                            ...tickets.map(
-                              (ticket) => Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      ticket.title,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyLarge
-                                          ?.copyWith(
-                                            color: AppColors.textPrimary,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      ticket.message,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                            ...tickets.map(_buildTicketCard),
                             if (pagination.totalPages > 1)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
@@ -241,18 +207,20 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
     setState(() => _sending = true);
-    await ProfileSettingsState.addCurrentHelpTicket(
+    final created = await ProfileSettingsState.addCurrentHelpTicket(
       HelpSupportTicket(
         title: _titleController.text.trim(),
         message: _messageController.text.trim(),
         createdAt: DateTime.now(),
       ),
     );
+    await ProfileSettingsState.refreshCurrentHelpTickets(page: 1);
     if (!mounted) return;
     setState(() => _sending = false);
     _titleController.clear();
     _messageController.clear();
     AppToast.success(context, 'Your request has been saved.');
+    await _openChat(created);
   }
 
   Future<void> _goToPage(int page) async {
@@ -274,5 +242,116 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   int _normalizedPage(int page) {
     if (page < 1) return 1;
     return page;
+  }
+
+  Widget _buildTicketCard(HelpSupportTicket ticket) {
+    final normalized = ticket.status.toLowerCase();
+    final statusColor = switch (normalized) {
+      'resolved' => AppColors.success,
+      'closed' => AppColors.textSecondary,
+      _ => AppColors.warning,
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => _openChat(ticket),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF9FBFF),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFD7E1F2)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      ticket.title,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      normalized.isEmpty ? 'open' : normalized,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                ticket.lastMessageText.isEmpty
+                    ? ticket.message
+                    : ticket.lastMessageText,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _formatDate(ticket.lastMessageAt ?? ticket.createdAt),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _openChat(ticket),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                    label: const Text('Open chat'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openChat(HelpSupportTicket ticket) async {
+    if (ticket.id.isEmpty) {
+      AppToast.info(
+        context,
+        'Ticket is syncing. Pull to refresh then open chat.',
+      );
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => HelpSupportChatPage(ticket: ticket),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final local = date.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
   }
 }

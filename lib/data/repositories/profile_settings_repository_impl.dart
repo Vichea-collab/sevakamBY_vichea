@@ -136,11 +136,44 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
   }
 
   @override
-  Future<void> addHelpTicket({
+  Future<HelpSupportTicket> addHelpTicket({
     required bool isProvider,
     required HelpSupportTicket ticket,
   }) {
     return _addHelpTicketInternal(isProvider: isProvider, ticket: ticket);
+  }
+
+  @override
+  Future<PaginatedResult<HelpTicketMessage>> loadHelpTicketMessages({
+    required bool isProvider,
+    required String ticketId,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final result = await _remoteDataSource.fetchHelpTicketMessages(
+      ticketId: ticketId,
+      page: page,
+      limit: limit,
+    );
+    return PaginatedResult(
+      items: result.items
+          .map(HelpTicketMessage.fromMap)
+          .toList(growable: false),
+      pagination: result.pagination,
+    );
+  }
+
+  @override
+  Future<HelpTicketMessage> sendHelpTicketMessage({
+    required bool isProvider,
+    required String ticketId,
+    required String text,
+  }) async {
+    final message = await _remoteDataSource.sendHelpTicketMessage(
+      ticketId: ticketId,
+      text: text,
+    );
+    return HelpTicketMessage.fromMap(message);
   }
 
   Future<void> _saveProfileInternal({
@@ -292,19 +325,33 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
     }
   }
 
-  Future<void> _addHelpTicketInternal({
+  Future<HelpSupportTicket> _addHelpTicketInternal({
     required bool isProvider,
     required HelpSupportTicket ticket,
   }) async {
+    final localTicket = ticket.id.isEmpty
+        ? HelpSupportTicket(
+            id: 'local-${ticket.createdAt.microsecondsSinceEpoch}',
+            title: ticket.title,
+            message: ticket.message,
+            status: ticket.status,
+            createdAt: ticket.createdAt,
+            updatedAt: ticket.updatedAt,
+            lastMessageText: ticket.lastMessageText,
+            lastMessageAt: ticket.lastMessageAt,
+          )
+        : ticket;
     await _localDataSource.addHelpTicket(
       isProvider: isProvider,
-      ticket: ticket,
+      ticket: localTicket,
     );
     try {
-      await _remoteDataSource.createHelpTicket(
+      final created = await _remoteDataSource.createHelpTicket(
         title: ticket.title,
         message: ticket.message,
       );
+      return HelpSupportTicket.fromMap(created);
     } catch (_) {}
+    return localTicket;
   }
 }

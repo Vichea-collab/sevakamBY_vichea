@@ -130,6 +130,41 @@ class AdminRepositoryImpl implements AdminRepository {
   }
 
   @override
+  Future<AdminPage<AdminTicketMessageRow>> fetchTicketMessages({
+    required String userUid,
+    required String ticketId,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final result = await _remoteDataSource.fetchTicketMessages(
+      userUid: userUid,
+      ticketId: ticketId,
+      page: page,
+      limit: limit,
+    );
+    return AdminPage(
+      items: result.items
+          .map(AdminTicketMessageRow.fromMap)
+          .toList(growable: false),
+      pagination: result.pagination,
+    );
+  }
+
+  @override
+  Future<AdminTicketMessageRow> sendTicketMessage({
+    required String userUid,
+    required String ticketId,
+    required String text,
+  }) async {
+    final row = await _remoteDataSource.sendTicketMessage(
+      userUid: userUid,
+      ticketId: ticketId,
+      text: text,
+    );
+    return AdminTicketMessageRow.fromMap(row);
+  }
+
+  @override
   Future<AdminPage<AdminServiceRow>> fetchServices({
     int page = 1,
     int limit = 10,

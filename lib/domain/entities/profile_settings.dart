@@ -220,41 +220,112 @@ class NotificationPreference {
 }
 
 class HelpSupportTicket {
+  final String id;
   final String title;
   final String message;
+  final String status;
   final DateTime createdAt;
+  final DateTime? updatedAt;
+  final String lastMessageText;
+  final DateTime? lastMessageAt;
 
   const HelpSupportTicket({
+    this.id = '',
     required this.title,
     required this.message,
+    this.status = 'open',
     required this.createdAt,
+    this.updatedAt,
+    this.lastMessageText = '',
+    this.lastMessageAt,
   });
 
   factory HelpSupportTicket.fromMap(Map<String, dynamic> map) {
-    final rawValue = map['createdAt'];
-    String rawDate = '';
-    if (rawValue is Map && rawValue['_seconds'] is num) {
-      final seconds = rawValue['_seconds'] as num;
-      rawDate = DateTime.fromMillisecondsSinceEpoch(
-        (seconds * 1000).round(),
-      ).toIso8601String();
-    } else {
-      rawDate = (rawValue ?? '').toString();
-    }
+    final createdAt = _parseDateDynamic(map['createdAt']) ?? DateTime.now();
+    final message = (map['message'] ?? '').toString();
+    final lastMessageText = (map['lastMessageText'] ?? '').toString().trim();
     return HelpSupportTicket(
+      id: (map['id'] ?? '').toString(),
       title: (map['title'] ?? '').toString(),
-      message: (map['message'] ?? '').toString(),
-      createdAt: DateTime.tryParse(rawDate) ?? DateTime.now(),
+      message: message,
+      status: (map['status'] ?? 'open').toString(),
+      createdAt: createdAt,
+      updatedAt: _parseDateDynamic(map['updatedAt']),
+      lastMessageText: lastMessageText.isEmpty ? message : lastMessageText,
+      lastMessageAt: _parseDateDynamic(map['lastMessageAt']),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'title': title,
       'message': message,
+      'status': status,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+      'lastMessageText': lastMessageText,
+      'lastMessageAt': lastMessageAt?.toIso8601String(),
+    };
+  }
+}
+
+class HelpTicketMessage {
+  final String id;
+  final String text;
+  final String type;
+  final String senderUid;
+  final String senderRole;
+  final String senderName;
+  final DateTime createdAt;
+
+  const HelpTicketMessage({
+    this.id = '',
+    required this.text,
+    this.type = 'text',
+    this.senderUid = '',
+    this.senderRole = 'finder',
+    this.senderName = 'User',
+    required this.createdAt,
+  });
+
+  factory HelpTicketMessage.fromMap(Map<String, dynamic> map) {
+    return HelpTicketMessage(
+      id: (map['id'] ?? '').toString(),
+      text: (map['text'] ?? map['message'] ?? '').toString(),
+      type: (map['type'] ?? 'text').toString(),
+      senderUid: (map['senderUid'] ?? '').toString(),
+      senderRole: (map['senderRole'] ?? 'finder').toString(),
+      senderName: (map['senderName'] ?? 'User').toString(),
+      createdAt: _parseDateDynamic(map['createdAt']) ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'text': text,
+      'type': type,
+      'senderUid': senderUid,
+      'senderRole': senderRole,
+      'senderName': senderName,
       'createdAt': createdAt.toIso8601String(),
     };
   }
+}
+
+DateTime? _parseDateDynamic(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is String) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed != null) return parsed;
+  }
+  if (value is Map && value['_seconds'] is num) {
+    final seconds = value['_seconds'] as num;
+    return DateTime.fromMillisecondsSinceEpoch((seconds * 1000).round());
+  }
+  return null;
 }
 
 String paymentMethodToStorageValue(PaymentMethod method) {

@@ -123,6 +123,31 @@ class AdminRemoteDataSource {
     );
   }
 
+  Future<AdminPage<Map<String, dynamic>>> fetchTicketMessages({
+    required String userUid,
+    required String ticketId,
+    int page = 1,
+    int limit = defaultPageSize,
+  }) {
+    return _fetchPaginated(
+      '/api/admin/tickets/${Uri.encodeComponent(userUid)}/${Uri.encodeComponent(ticketId)}/messages',
+      page: page,
+      limit: limit,
+    );
+  }
+
+  Future<Map<String, dynamic>> sendTicketMessage({
+    required String userUid,
+    required String ticketId,
+    required String text,
+  }) async {
+    final response = await _apiClient.postJson(
+      '/api/admin/tickets/${Uri.encodeComponent(userUid)}/${Uri.encodeComponent(ticketId)}/messages',
+      body: {'text': text},
+    );
+    return _safeMap(response['data']);
+  }
+
   Future<AdminPage<Map<String, dynamic>>> fetchServices({
     int page = 1,
     int limit = defaultPageSize,

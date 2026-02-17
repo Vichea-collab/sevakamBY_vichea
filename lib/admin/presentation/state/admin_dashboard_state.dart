@@ -29,6 +29,7 @@ class AdminDashboardState {
   static final ValueNotifier<bool> loadingAnalytics = ValueNotifier(false);
   static final ValueNotifier<bool> loadingGlobalSearch = ValueNotifier(false);
   static final ValueNotifier<bool> loadingUndoHistory = ValueNotifier(false);
+  static final ValueNotifier<bool> loadingTicketMessages = ValueNotifier(false);
 
   static final ValueNotifier<AdminOverview> overview = ValueNotifier(
     const AdminOverview.empty(),
@@ -59,6 +60,8 @@ class AdminDashboardState {
   );
   static final ValueNotifier<List<AdminUndoHistoryRow>> undoHistory =
       ValueNotifier(const <AdminUndoHistoryRow>[]);
+  static final ValueNotifier<List<AdminTicketMessageRow>> ticketMessages =
+      ValueNotifier(const <AdminTicketMessageRow>[]);
 
   static final ValueNotifier<AdminPagination> usersPagination = ValueNotifier(
     const AdminPagination.initial(limit: pageSize),
@@ -75,6 +78,8 @@ class AdminDashboardState {
   static final ValueNotifier<AdminPagination> servicesPagination =
       ValueNotifier(const AdminPagination.initial(limit: pageSize));
   static final ValueNotifier<AdminPagination> undoHistoryPagination =
+      ValueNotifier(const AdminPagination.initial(limit: pageSize));
+  static final ValueNotifier<AdminPagination> ticketMessagesPagination =
       ValueNotifier(const AdminPagination.initial(limit: pageSize));
 
   static void setBackendToken(String token) {
@@ -96,6 +101,7 @@ class AdminDashboardState {
     tickets.value = const <AdminTicketRow>[];
     services.value = const <AdminServiceRow>[];
     undoHistory.value = const <AdminUndoHistoryRow>[];
+    ticketMessages.value = const <AdminTicketMessageRow>[];
 
     usersPagination.value = const AdminPagination.initial(limit: pageSize);
     ordersPagination.value = const AdminPagination.initial(limit: pageSize);
@@ -103,6 +109,9 @@ class AdminDashboardState {
     ticketsPagination.value = const AdminPagination.initial(limit: pageSize);
     servicesPagination.value = const AdminPagination.initial(limit: pageSize);
     undoHistoryPagination.value = const AdminPagination.initial(
+      limit: pageSize,
+    );
+    ticketMessagesPagination.value = const AdminPagination.initial(
       limit: pageSize,
     );
   }
@@ -292,6 +301,42 @@ class AdminDashboardState {
     } finally {
       loadingUndoHistory.value = false;
     }
+  }
+
+  static Future<void> refreshTicketMessages({
+    required String userUid,
+    required String ticketId,
+    int page = 1,
+    int limit = pageSize,
+  }) async {
+    final safePage = page < 1 ? 1 : page;
+    loadingTicketMessages.value = true;
+    try {
+      final result = await _repository.fetchTicketMessages(
+        userUid: userUid,
+        ticketId: ticketId,
+        page: safePage,
+        limit: limit,
+      );
+      ticketMessages.value = result.items;
+      ticketMessagesPagination.value = result.pagination;
+    } finally {
+      loadingTicketMessages.value = false;
+    }
+  }
+
+  static Future<AdminTicketMessageRow> sendTicketMessage({
+    required String userUid,
+    required String ticketId,
+    required String text,
+  }) async {
+    final message = await _repository.sendTicketMessage(
+      userUid: userUid,
+      ticketId: ticketId,
+      text: text,
+    );
+    ticketMessages.value = [...ticketMessages.value, message];
+    return message;
   }
 
   static Future<AdminActionResult> updateUserStatus({

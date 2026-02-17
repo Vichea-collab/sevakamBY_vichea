@@ -35,8 +35,19 @@ abstract class ProfileSettingsRepository {
     int page = 1,
     int limit = 10,
   });
-  Future<void> addHelpTicket({
+  Future<HelpSupportTicket> addHelpTicket({
     required bool isProvider,
     required HelpSupportTicket ticket,
+  });
+  Future<PaginatedResult<HelpTicketMessage>> loadHelpTicketMessages({
+    required bool isProvider,
+    required String ticketId,
+    int page = 1,
+    int limit = 10,
+  });
+  Future<HelpTicketMessage> sendHelpTicketMessage({
+    required bool isProvider,
+    required String ticketId,
+    required String text,
   });
 }

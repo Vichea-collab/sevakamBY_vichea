@@ -36,6 +36,17 @@ abstract class AdminRepository {
     String query = '',
     String status = '',
   });
+  Future<AdminPage<AdminTicketMessageRow>> fetchTicketMessages({
+    required String userUid,
+    required String ticketId,
+    int page = 1,
+    int limit = 10,
+  });
+  Future<AdminTicketMessageRow> sendTicketMessage({
+    required String userUid,
+    required String ticketId,
+    required String text,
+  });
   Future<AdminPage<AdminServiceRow>> fetchServices({
     int page = 1,
     int limit = 10,

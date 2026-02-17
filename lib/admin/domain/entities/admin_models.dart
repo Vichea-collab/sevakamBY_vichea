@@ -673,6 +673,8 @@ class AdminUndoHistoryRow {
 class AdminTicketRow {
   final String id;
   final String userUid;
+  final String userName;
+  final String userEmail;
   final String title;
   final String message;
   final String status;
@@ -681,6 +683,8 @@ class AdminTicketRow {
   const AdminTicketRow({
     required this.id,
     required this.userUid,
+    required this.userName,
+    required this.userEmail,
     required this.title,
     required this.message,
     required this.status,
@@ -691,9 +695,46 @@ class AdminTicketRow {
     return AdminTicketRow(
       id: _AdminParser.text(row['id']),
       userUid: _AdminParser.text(row['userUid']),
+      userName: _AdminParser.text(row['userName'], fallback: 'User'),
+      userEmail: _AdminParser.text(row['userEmail']),
       title: _AdminParser.text(row['title'], fallback: 'Support request'),
       message: _AdminParser.text(row['message']),
       status: _AdminParser.text(row['status'], fallback: 'open'),
+      createdAt: _AdminParser.parseDate(row['createdAt']),
+    );
+  }
+}
+
+class AdminTicketMessageRow {
+  final String id;
+  final String text;
+  final String type;
+  final String senderUid;
+  final String senderRole;
+  final String senderName;
+  final DateTime? createdAt;
+
+  const AdminTicketMessageRow({
+    required this.id,
+    required this.text,
+    required this.type,
+    required this.senderUid,
+    required this.senderRole,
+    required this.senderName,
+    required this.createdAt,
+  });
+
+  factory AdminTicketMessageRow.fromMap(Map<String, dynamic> row) {
+    return AdminTicketMessageRow(
+      id: _AdminParser.text(row['id']),
+      text: _AdminParser.text(
+        row['text'],
+        fallback: _AdminParser.text(row['message']),
+      ),
+      type: _AdminParser.text(row['type'], fallback: 'text'),
+      senderUid: _AdminParser.text(row['senderUid']),
+      senderRole: _AdminParser.text(row['senderRole'], fallback: 'finder'),
+      senderName: _AdminParser.text(row['senderName'], fallback: 'User'),
       createdAt: _AdminParser.parseDate(row['createdAt']),
     );
   }

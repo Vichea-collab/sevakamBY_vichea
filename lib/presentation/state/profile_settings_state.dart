@@ -13,6 +13,7 @@ import 'app_role_state.dart';
 
 class ProfileSettingsState {
   static const int _helpPageSize = 10;
+  static const int _helpMessagePageSize = 10;
 
   static final ProfileSettingsRepository _repository =
       ProfileSettingsRepositoryImpl(
@@ -54,6 +55,18 @@ class ProfileSettingsState {
       ValueNotifier(const PaginationMeta.initial(limit: _helpPageSize));
   static final ValueNotifier<PaginationMeta> providerHelpTicketsPagination =
       ValueNotifier(const PaginationMeta.initial(limit: _helpPageSize));
+  static final ValueNotifier<List<HelpTicketMessage>> finderHelpTicketMessages =
+      ValueNotifier(const <HelpTicketMessage>[]);
+  static final ValueNotifier<List<HelpTicketMessage>>
+  providerHelpTicketMessages = ValueNotifier(const <HelpTicketMessage>[]);
+  static final ValueNotifier<PaginationMeta>
+  finderHelpTicketMessagesPagination = ValueNotifier(
+    const PaginationMeta.initial(limit: _helpMessagePageSize),
+  );
+  static final ValueNotifier<PaginationMeta>
+  providerHelpTicketMessagesPagination = ValueNotifier(
+    const PaginationMeta.initial(limit: _helpMessagePageSize),
+  );
 
   static bool _initialized = false;
 
@@ -205,12 +218,17 @@ class ProfileSettingsState {
     }
   }
 
-  static Future<void> addCurrentHelpTicket(HelpSupportTicket ticket) async {
-    await _repository.addHelpTicket(isProvider: isProvider, ticket: ticket);
+  static Future<HelpSupportTicket> addCurrentHelpTicket(
+    HelpSupportTicket ticket,
+  ) async {
+    final created = await _repository.addHelpTicket(
+      isProvider: isProvider,
+      ticket: ticket,
+    );
     final current = isProvider
         ? providerHelpTickets.value
         : finderHelpTickets.value;
-    final updated = [ticket, ...current];
+    final updated = [created, ...current];
     if (isProvider) {
       providerHelpTickets.value = updated.take(_helpPageSize).toList();
       providerHelpTicketsPagination.value = _withAdjustedTotalItems(
@@ -224,6 +242,7 @@ class ProfileSettingsState {
         delta: 1,
       );
     }
+    return created;
   }
 
   static Future<void> refreshCurrentHelpTickets({int page = 1}) async {
@@ -239,6 +258,46 @@ class ProfileSettingsState {
       finderHelpTickets.value = result.items;
       finderHelpTicketsPagination.value = result.pagination;
     }
+  }
+
+  static Future<void> refreshCurrentHelpTicketMessages({
+    required String ticketId,
+    int page = 1,
+  }) async {
+    final result = await _repository.loadHelpTicketMessages(
+      isProvider: isProvider,
+      ticketId: ticketId,
+      page: page,
+      limit: _helpMessagePageSize,
+    );
+    if (isProvider) {
+      providerHelpTicketMessages.value = result.items;
+      providerHelpTicketMessagesPagination.value = result.pagination;
+    } else {
+      finderHelpTicketMessages.value = result.items;
+      finderHelpTicketMessagesPagination.value = result.pagination;
+    }
+  }
+
+  static Future<HelpTicketMessage> sendCurrentHelpTicketMessage({
+    required String ticketId,
+    required String text,
+  }) async {
+    final message = await _repository.sendHelpTicketMessage(
+      isProvider: isProvider,
+      ticketId: ticketId,
+      text: text,
+    );
+    final currentMessages = isProvider
+        ? providerHelpTicketMessages.value
+        : finderHelpTicketMessages.value;
+    final updatedMessages = [...currentMessages, message];
+    if (isProvider) {
+      providerHelpTicketMessages.value = updatedMessages;
+    } else {
+      finderHelpTicketMessages.value = updatedMessages;
+    }
+    return message;
   }
 
   static PaginationMeta _withAdjustedTotalItems(

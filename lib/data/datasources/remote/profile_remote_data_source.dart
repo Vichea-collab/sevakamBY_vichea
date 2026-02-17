@@ -172,14 +172,54 @@ class ProfileRemoteDataSource {
     return PaginatedResult(items: items, pagination: pagination);
   }
 
-  Future<void> createHelpTicket({
+  Future<Map<String, dynamic>> createHelpTicket({
     required String title,
     required String message,
   }) async {
-    await _apiClient.postJson('/api/users/help-tickets', {
+    final response = await _apiClient.postJson('/api/users/help-tickets', {
       'title': title,
       'message': message,
     });
+    return _safeMap(response['data']);
+  }
+
+  Future<PaginatedResult<Map<String, dynamic>>> fetchHelpTicketMessages({
+    required String ticketId,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final response = await _apiClient.getJson(
+      '/api/users/help-tickets/${Uri.encodeComponent(ticketId)}/messages?page=$page&limit=$limit',
+    );
+    final data = response['data'];
+    final items = data is! List
+        ? const <Map<String, dynamic>>[]
+        : data
+              .whereType<Map>()
+              .map((item) {
+                return item.map(
+                  (key, value) => MapEntry(key.toString(), value),
+                );
+              })
+              .toList(growable: false);
+    final pagination = PaginationMeta.fromMap(
+      _safeMap(response['pagination']),
+      fallbackPage: page,
+      fallbackLimit: limit,
+      fallbackTotalItems: items.length,
+    );
+    return PaginatedResult(items: items, pagination: pagination);
+  }
+
+  Future<Map<String, dynamic>> sendHelpTicketMessage({
+    required String ticketId,
+    required String text,
+  }) async {
+    final response = await _apiClient.postJson(
+      '/api/users/help-tickets/${Uri.encodeComponent(ticketId)}/messages',
+      {'text': text},
+    );
+    return _safeMap(response['data']);
   }
 
   Map<String, dynamic> _safeMap(dynamic value) {

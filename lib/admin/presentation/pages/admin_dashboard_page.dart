@@ -632,6 +632,321 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
+  Future<void> _openTicketChat(AdminTicketRow ticket) async {
+    final uid = ticket.userUid.trim();
+    final ticketId = ticket.id.trim();
+    if (uid.isEmpty || ticketId.isEmpty) {
+      _showError(const AdminApiException('Invalid ticket target'));
+      return;
+    }
+
+    final inputController = TextEditingController();
+    var currentPage = 1;
+    var paging = false;
+    var sending = false;
+    await _runAuthed(
+      () => AdminDashboardState.refreshTicketMessages(
+        userUid: uid,
+        ticketId: ticketId,
+        page: 1,
+      ),
+    );
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+                insetPadding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 24,
+                ),
+                child: Container(
+                  constraints: const BoxConstraints(
+                    maxWidth: 760,
+                    maxHeight: 680,
+                  ),
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  ticket.title,
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  (ticket.userEmail.isEmpty
+                                          ? ticket.userName
+                                          : '${ticket.userName} • ${ticket.userEmail}')
+                                      .trim(),
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _Pill(
+                            text: _prettyStatus(ticket.status),
+                            color: _statusColor(ticket.status),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFF),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFDCE6F7)),
+                          ),
+                          child: ValueListenableBuilder<List<AdminTicketMessageRow>>(
+                            valueListenable: AdminDashboardState.ticketMessages,
+                            builder: (context, messages, _) {
+                              return ValueListenableBuilder<AdminPagination>(
+                                valueListenable: AdminDashboardState
+                                    .ticketMessagesPagination,
+                                builder: (context, pagination, _) {
+                                  return Column(
+                                    children: [
+                                      if (AdminDashboardState
+                                          .loadingTicketMessages
+                                          .value)
+                                        const Padding(
+                                          padding: EdgeInsets.only(bottom: 8),
+                                          child: LinearProgressIndicator(
+                                            minHeight: 2,
+                                          ),
+                                        ),
+                                      Expanded(
+                                        child: messages.isEmpty
+                                            ? const Center(
+                                                child: Text(
+                                                  'No messages yet in this ticket.',
+                                                ),
+                                              )
+                                            : ListView.separated(
+                                                itemCount: messages.length,
+                                                separatorBuilder: (_, _) =>
+                                                    const SizedBox(height: 8),
+                                                itemBuilder: (context, index) {
+                                                  final message =
+                                                      messages[index];
+                                                  final fromAdmin =
+                                                      message.senderRole
+                                                          .toLowerCase() ==
+                                                      'admin';
+                                                  return Align(
+                                                    alignment: fromAdmin
+                                                        ? Alignment.centerRight
+                                                        : Alignment.centerLeft,
+                                                    child: Container(
+                                                      constraints:
+                                                          const BoxConstraints(
+                                                            maxWidth: 430,
+                                                          ),
+                                                      padding:
+                                                          const EdgeInsets.fromLTRB(
+                                                            10,
+                                                            8,
+                                                            10,
+                                                            8,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: fromAdmin
+                                                            ? AppColors.primary
+                                                                  .withValues(
+                                                                    alpha: 0.14,
+                                                                  )
+                                                            : Colors.white,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              10,
+                                                            ),
+                                                        border: Border.all(
+                                                          color: fromAdmin
+                                                              ? AppColors
+                                                                    .primary
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.28,
+                                                                    )
+                                                              : const Color(
+                                                                  0xFFD6DEED,
+                                                                ),
+                                                        ),
+                                                      ),
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            message.senderName,
+                                                            style: TextStyle(
+                                                              color: fromAdmin
+                                                                  ? AppColors
+                                                                        .primaryDark
+                                                                  : AppColors
+                                                                        .textSecondary,
+                                                              fontSize: 12,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 4,
+                                                          ),
+                                                          Text(
+                                                            message.text,
+                                                            style: const TextStyle(
+                                                              color: AppColors
+                                                                  .textPrimary,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 4,
+                                                          ),
+                                                          Text(
+                                                            _formatDateTime(
+                                                              message.createdAt,
+                                                            ),
+                                                            style: const TextStyle(
+                                                              color: AppColors
+                                                                  .textSecondary,
+                                                              fontSize: 11,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                      ),
+                                      if (pagination.totalPages > 1) ...[
+                                        const SizedBox(height: 8),
+                                        _CompactPager(
+                                          page: pagination.page,
+                                          totalPages: pagination.totalPages,
+                                          loading: paging,
+                                          onPageSelected: (page) async {
+                                            if (paging) return;
+                                            setDialogState(() {
+                                              paging = true;
+                                            });
+                                            currentPage = page;
+                                            try {
+                                              await _runAuthed(
+                                                () =>
+                                                    AdminDashboardState.refreshTicketMessages(
+                                                      userUid: uid,
+                                                      ticketId: ticketId,
+                                                      page: currentPage,
+                                                    ),
+                                              );
+                                            } catch (error) {
+                                              _showError(error);
+                                            } finally {
+                                              if (context.mounted) {
+                                                setDialogState(() {
+                                                  paging = false;
+                                                });
+                                              }
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: inputController,
+                        minLines: 1,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          hintText: 'Reply to this ticket...',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: sending
+                                  ? null
+                                  : () async {
+                                      final text = inputController.text.trim();
+                                      if (text.isEmpty) return;
+                                      setDialogState(() => sending = true);
+                                      try {
+                                        await _runAuthed(() async {
+                                          await AdminDashboardState.sendTicketMessage(
+                                            userUid: uid,
+                                            ticketId: ticketId,
+                                            text: text,
+                                          );
+                                          await AdminDashboardState.refreshTicketMessages(
+                                            userUid: uid,
+                                            ticketId: ticketId,
+                                            page: 1,
+                                          );
+                                          await _loadTickets(1);
+                                        });
+                                        inputController.clear();
+                                        currentPage = 1;
+                                      } catch (error) {
+                                        _showError(error);
+                                      } finally {
+                                        if (context.mounted) {
+                                          setDialogState(() => sending = false);
+                                        }
+                                      }
+                                    },
+                              icon: const Icon(Icons.send_rounded),
+                              label: Text(sending ? 'Sending...' : 'Send'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildMainContent({required bool desktop}) {
     return Column(
       children: [
@@ -1365,7 +1680,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       columns: const [
         'Title',
         'Message',
-        'User UID',
+        'Requester',
         'Status',
         'Created',
         'Action',
@@ -1410,7 +1725,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               if (!statusMatch) return false;
               if (query.isEmpty) return true;
               final haystack =
-                  '${item.title} ${item.message} ${item.userUid} ${item.status}'
+                  '${item.title} ${item.message} ${item.userUid} ${item.userName} ${item.userEmail} ${item.status}'
                       .toLowerCase();
               return haystack.contains(query);
             })
@@ -1423,7 +1738,34 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             _cellText(item.message.isEmpty ? '-' : item.message, width: 230),
           ),
           DataCell(
-            _cellText(item.userUid.isEmpty ? '-' : item.userUid, width: 180),
+            SizedBox(
+              width: 200,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    item.userName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    item.userEmail.isEmpty ? item.userUid : item.userEmail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           DataCell(
             _Pill(
@@ -1435,6 +1777,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           DataCell(
             _actionMenu(
               actions: [
+                _ActionMenuItem(
+                  label: 'Chat',
+                  onTap: () => _openTicketChat(item),
+                ),
                 _ActionMenuItem(
                   label: 'Resolve',
                   onTap: () => _runSafeAction(
