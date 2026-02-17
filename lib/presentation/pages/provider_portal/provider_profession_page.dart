@@ -22,6 +22,9 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
   final _to = TextEditingController();
   final _years = TextEditingController();
   final _area = TextEditingController();
+  final _companyName = TextEditingController();
+  final _maxWorkers = TextEditingController();
+  String _providerType = 'individual';
   bool _loading = true;
   bool _saving = false;
 
@@ -40,6 +43,8 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
     _to.dispose();
     _years.dispose();
     _area.dispose();
+    _companyName.dispose();
+    _maxWorkers.dispose();
     super.dispose();
   }
 
@@ -105,6 +110,43 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
                 controller: _area,
                 decoration: const InputDecoration(labelText: 'Service area'),
               ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: _providerType,
+                decoration: const InputDecoration(labelText: 'Provider type'),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'individual',
+                    child: Text('Individual'),
+                  ),
+                  DropdownMenuItem(value: 'company', child: Text('Company')),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _providerType = value;
+                    if (_providerType == 'individual') {
+                      _companyName.clear();
+                      _maxWorkers.text = '1';
+                    }
+                  });
+                },
+              ),
+              if (_providerType == 'company') ...[
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _companyName,
+                  decoration: const InputDecoration(labelText: 'Company name'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _maxWorkers,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Maximum workers per booking',
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               PrimaryButton(
                 label: _saving ? 'Saving...' : 'Save',
@@ -130,6 +172,14 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
   }
 
   Future<void> _save() async {
+    final providerType = _providerType == 'company' ? 'company' : 'individual';
+    final maxWorkersText = providerType == 'company'
+        ? _maxWorkers.text.trim()
+        : '1';
+    final companyNameText = providerType == 'company'
+        ? _companyName.text.trim()
+        : '';
+
     final payload = ProviderProfessionData(
       serviceName: _serviceName.text.trim(),
       expertIn: _expertIn.text.trim(),
@@ -137,6 +187,9 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
       availableTo: _to.text.trim(),
       experienceYears: _years.text.trim(),
       serviceArea: _area.text.trim(),
+      providerType: providerType,
+      companyName: companyNameText,
+      maxWorkers: maxWorkersText,
     );
 
     if (payload.serviceName.isEmpty ||
@@ -146,6 +199,15 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
         payload.experienceYears.isEmpty ||
         payload.serviceArea.isEmpty) {
       AppToast.warning(context, 'Please fill all profession fields.');
+      return;
+    }
+    if (payload.providerType == 'company' && payload.companyName.isEmpty) {
+      AppToast.warning(context, 'Company name is required.');
+      return;
+    }
+    final parsedMaxWorkers = int.tryParse(payload.maxWorkers);
+    if (parsedMaxWorkers == null || parsedMaxWorkers < 1) {
+      AppToast.warning(context, 'Max workers must be at least 1.');
       return;
     }
 
@@ -172,5 +234,12 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
     _to.text = value.availableTo;
     _years.text = value.experienceYears;
     _area.text = value.serviceArea;
+    _providerType = value.providerType.trim().toLowerCase() == 'company'
+        ? 'company'
+        : 'individual';
+    _companyName.text = _providerType == 'company' ? value.companyName : '';
+    _maxWorkers.text = _providerType == 'company'
+        ? (value.maxWorkers.trim().isEmpty ? '1' : value.maxWorkers)
+        : '1';
   }
 }

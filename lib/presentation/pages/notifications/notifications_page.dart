@@ -323,7 +323,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   List<_NotificationUpdate> _buildLiveUpdates(List<OrderItem> orders) {
     final sortedOrders = List<OrderItem>.from(orders)
-      ..sort((a, b) => b.bookedAt.compareTo(a.bookedAt));
+      ..sort(
+        (a, b) =>
+            _statusEventTime(b).millisecondsSinceEpoch -
+            _statusEventTime(a).millisecondsSinceEpoch,
+      );
     final updates = <_NotificationUpdate>[];
     for (final order in sortedOrders) {
       final status = order.status;

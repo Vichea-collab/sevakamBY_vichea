@@ -59,6 +59,12 @@ class ProviderPostRemoteDataSource {
       id: id.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : id,
       providerUid: (row['providerUid'] ?? '').toString(),
       providerName: (row['providerName'] ?? 'Service Provider').toString(),
+      providerType: _providerType(row['providerType']),
+      providerCompanyName: (row['providerCompanyName'] ?? '').toString(),
+      providerMaxWorkers: _providerMaxWorkers(
+        row['providerMaxWorkers'],
+        _providerType(row['providerType']),
+      ),
       category: (row['category'] ?? '').toString(),
       service: (row['service'] ?? '').toString(),
       area: (row['area'] ?? '').toString(),
@@ -82,6 +88,20 @@ class ProviderPostRemoteDataSource {
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value) ?? 0;
     return 0;
+  }
+
+  String _providerType(dynamic value) {
+    final normalized = (value ?? '').toString().trim().toLowerCase();
+    if (normalized == 'company') return 'company';
+    return 'individual';
+  }
+
+  int _providerMaxWorkers(dynamic value, String providerType) {
+    if (providerType != 'company') return 1;
+    if (value is num && value > 0) return value.toInt();
+    final parsed = int.tryParse((value ?? '').toString().trim());
+    if (parsed != null && parsed > 0) return parsed;
+    return 1;
   }
 
   DateTime? _parseDate(dynamic value) {

@@ -302,6 +302,9 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
       imagePath: imagePath,
       accentColor: _accentFromCategory(role),
       services: services,
+      providerType: post.providerType,
+      companyName: post.providerCompanyName.trim(),
+      maxWorkers: post.providerMaxWorkers < 1 ? 1 : post.providerMaxWorkers,
     );
   }
 

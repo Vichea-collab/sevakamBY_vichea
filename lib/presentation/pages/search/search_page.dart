@@ -582,7 +582,7 @@ class _SearchPageState extends State<SearchPage> {
       if (existing == null) {
         providersByKey[providerKey] = _ProviderAggregate.fromPost(post);
       } else {
-        existing.addService(post.service);
+        existing.absorb(post);
       }
     }
 
@@ -642,6 +642,9 @@ class _SearchPageState extends State<SearchPage> {
       imagePath: value.avatarPath,
       accentColor: _accentFromCategory(role),
       services: value.services.toList(growable: false)..sort(),
+      providerType: value.providerType,
+      companyName: value.providerCompanyName,
+      maxWorkers: value.providerMaxWorkers,
     );
   }
 }
@@ -651,6 +654,9 @@ class _ProviderAggregate {
   final String providerName;
   final String category;
   final String avatarPath;
+  String providerType;
+  String providerCompanyName;
+  int providerMaxWorkers;
   final Set<String> services;
 
   _ProviderAggregate({
@@ -658,6 +664,9 @@ class _ProviderAggregate {
     required this.providerName,
     required this.category,
     required this.avatarPath,
+    required this.providerType,
+    required this.providerCompanyName,
+    required this.providerMaxWorkers,
     required this.services,
   });
 
@@ -670,14 +679,32 @@ class _ProviderAggregate {
       providerName: post.providerName.trim(),
       category: post.category.trim(),
       avatarPath: imagePath,
+      providerType: post.providerType,
+      providerCompanyName: post.providerCompanyName.trim(),
+      providerMaxWorkers: post.providerMaxWorkers < 1
+          ? 1
+          : post.providerMaxWorkers,
       services: <String>{post.service.trim()},
     );
   }
 
-  void addService(String value) {
-    final service = value.trim();
-    if (service.isEmpty) return;
-    services.add(service);
+  void absorb(ProviderPostItem post) {
+    final service = post.service.trim();
+    if (service.isNotEmpty) {
+      services.add(service);
+    }
+    if (post.providerType.trim().toLowerCase() == 'company') {
+      providerType = 'company';
+      if (post.providerCompanyName.trim().isNotEmpty) {
+        providerCompanyName = post.providerCompanyName.trim();
+      }
+      final maxWorkers = post.providerMaxWorkers < 1
+          ? 1
+          : post.providerMaxWorkers;
+      if (maxWorkers > providerMaxWorkers) {
+        providerMaxWorkers = maxWorkers;
+      }
+    }
   }
 }
 

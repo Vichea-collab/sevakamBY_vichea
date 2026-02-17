@@ -32,6 +32,9 @@ class ProviderPostItem {
   final String id;
   final String providerUid;
   final String providerName;
+  final String providerType;
+  final String providerCompanyName;
+  final int providerMaxWorkers;
   final String category;
   final String service;
   final String area;
@@ -45,6 +48,9 @@ class ProviderPostItem {
     required this.id,
     this.providerUid = '',
     required this.providerName,
+    this.providerType = 'individual',
+    this.providerCompanyName = '',
+    this.providerMaxWorkers = 1,
     required this.category,
     required this.service,
     required this.area,

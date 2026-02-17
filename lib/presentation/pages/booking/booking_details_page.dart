@@ -256,7 +256,12 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
     return cleaningServices.contains(_selectedService);
   }
 
-  bool get _allowWorkersInput => _isCleaningService;
+  bool get _allowWorkersInput => widget.draft.provider.isCompany;
+
+  int get _maxWorkerSelectable {
+    final maxWorkers = widget.draft.provider.safeMaxWorkers;
+    return maxWorkers < 1 ? 1 : maxWorkers;
+  }
 
   String get _hoursQuestionLabel {
     return _isCleaningService
@@ -277,12 +282,14 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   }
 
   void _applyGeneralDetailDefaultsForService() {
-    if (_isCleaningService) {
+    if (_allowWorkersInput) {
       if (_workers < 1) _workers = 1;
-      return;
+      if (_workers > _maxWorkerSelectable) _workers = _maxWorkerSelectable;
+    } else {
+      _workers = 1;
     }
+    if (_isCleaningService) return;
     if (_hours > 4) _hours = 2;
-    _workers = 1;
   }
 
   Future<void> _pickDate() async {
@@ -372,10 +379,15 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
 
   Future<void> _pickWorkers() async {
     if (!_allowWorkersInput) return;
+    final options = List<int>.generate(
+      _maxWorkerSelectable,
+      (index) => index + 1,
+    );
+    final selected = _workers.clamp(1, _maxWorkerSelectable);
     final picked = await _showOptionSheet<int>(
       title: 'How many workers?',
-      options: BookingCatalogState.workerCountOptions,
-      selected: _workers,
+      options: options,
+      selected: selected,
       labelBuilder: (item) => '$item worker${item > 1 ? 's' : ''}',
       iconBuilder: (item) =>
           const Icon(Icons.groups_outlined, size: 17, color: AppColors.primary),

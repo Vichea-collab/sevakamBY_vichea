@@ -26,6 +26,9 @@ class OrderRepositoryImpl implements OrderRepository {
       'providerRole': draft.provider.role,
       'providerRating': draft.provider.rating,
       'providerImagePath': draft.provider.imagePath,
+      'providerType': draft.provider.providerType,
+      'providerCompanyName': draft.provider.companyName,
+      'providerMaxWorkers': draft.provider.safeMaxWorkers,
       'categoryName': draft.categoryName,
       'serviceName': draft.serviceName,
       'addressLabel': draft.address?.label ?? '',
@@ -175,6 +178,12 @@ class OrderRepositoryImpl implements OrderRepository {
       rating: _toDouble(row['providerRating'], fallback: 4.0),
       imagePath: _safeAssetPath(row['providerImagePath']),
       accentColor: const Color(0xFFEAF1FF),
+      providerType: _providerType((row['providerType'] ?? '').toString()),
+      companyName: (row['providerCompanyName'] ?? '').toString(),
+      maxWorkers: _providerMaxWorkers(
+        row['providerMaxWorkers'],
+        _providerType((row['providerType'] ?? '').toString()),
+      ),
     );
     final address = HomeAddress(
       id: (row['id'] ?? '').toString(),
@@ -330,6 +339,21 @@ class OrderRepositoryImpl implements OrderRepository {
     if (value is num) return value.toDouble();
     final parsed = double.tryParse((value ?? '').toString());
     return parsed ?? fallback;
+  }
+
+  String _providerType(String value) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'company') return 'company';
+    return 'individual';
+  }
+
+  int _providerMaxWorkers(dynamic value, String providerType) {
+    if (providerType != 'company') return 1;
+    if (value is int && value > 0) return value;
+    if (value is num && value > 0) return value.toInt();
+    final parsed = int.tryParse((value ?? '').toString().trim());
+    if (parsed != null && parsed > 0) return parsed;
+    return 1;
   }
 
   bool _toBool(dynamic value) {

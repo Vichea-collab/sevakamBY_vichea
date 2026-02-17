@@ -235,6 +235,15 @@ class ProfileRemoteDataSource {
   ) {
     final parsed = ProviderProfessionData.fromMap(role);
     final defaults = ProviderProfessionData.defaults();
+    final providerType = _normalizedProviderType(
+      parsed.providerType,
+      fallback: defaults.providerType,
+    );
+    final maxWorkers = _normalizedMaxWorkers(
+      parsed.maxWorkers,
+      providerType: providerType,
+      fallback: defaults.maxWorkers,
+    );
     return parsed.copyWith(
       serviceName: parsed.serviceName.trim().isEmpty
           ? defaults.serviceName
@@ -254,7 +263,35 @@ class ProfileRemoteDataSource {
       serviceArea: parsed.serviceArea.trim().isEmpty
           ? defaults.serviceArea
           : parsed.serviceArea,
+      providerType: providerType,
+      companyName: providerType == 'company' ? parsed.companyName.trim() : '',
+      maxWorkers: maxWorkers,
     );
+  }
+
+  String _normalizedProviderType(
+    String value, {
+    String fallback = 'individual',
+  }) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'company') return 'company';
+    if (normalized == 'individual') return 'individual';
+    return fallback;
+  }
+
+  String _normalizedMaxWorkers(
+    String value, {
+    required String providerType,
+    String fallback = '1',
+  }) {
+    if (providerType != 'company') return '1';
+    final parsed = int.tryParse(value.trim());
+    if (parsed != null && parsed > 0) return parsed.toString();
+    final fallbackParsed = int.tryParse(fallback.trim());
+    if (fallbackParsed != null && fallbackParsed > 0) {
+      return fallbackParsed.toString();
+    }
+    return '1';
   }
 
   String _dateText(dynamic value) {

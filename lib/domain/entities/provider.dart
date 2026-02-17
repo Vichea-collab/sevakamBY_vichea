@@ -8,6 +8,9 @@ class ProviderItem {
   final String imagePath;
   final Color accentColor;
   final List<String> services;
+  final String providerType;
+  final String companyName;
+  final int maxWorkers;
 
   const ProviderItem({
     this.uid = '',
@@ -17,7 +20,14 @@ class ProviderItem {
     required this.imagePath,
     required this.accentColor,
     this.services = const <String>[],
+    this.providerType = 'individual',
+    this.companyName = '',
+    this.maxWorkers = 1,
   });
+
+  bool get isCompany => providerType.trim().toLowerCase() == 'company';
+
+  int get safeMaxWorkers => maxWorkers < 1 ? 1 : maxWorkers;
 }
 
 class ProviderSection {

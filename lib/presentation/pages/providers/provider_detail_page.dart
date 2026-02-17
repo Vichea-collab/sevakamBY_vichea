@@ -227,6 +227,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       imagePath: provider.imagePath,
       accentColor: provider.accentColor,
       services: services,
+      providerType: provider.providerType,
+      companyName: provider.companyName,
+      maxWorkers: provider.maxWorkers,
     );
 
     return ProviderProfile(
