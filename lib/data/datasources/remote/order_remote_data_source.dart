@@ -19,6 +19,13 @@ class OrderRemoteDataSource {
     return _safeMap(response['data']);
   }
 
+  Future<Map<String, dynamic>> quoteFinderOrder(
+    Map<String, dynamic> payload,
+  ) async {
+    final response = await _apiClient.postJson('/api/orders/quote', payload);
+    return _safeMap(response['data']);
+  }
+
   Future<PaginatedResult<Map<String, dynamic>>> fetchFinderOrders({
     int page = 1,
     int limit = _defaultPageSize,

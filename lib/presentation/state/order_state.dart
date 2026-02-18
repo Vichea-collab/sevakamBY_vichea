@@ -244,6 +244,16 @@ class OrderState {
     return created;
   }
 
+  static Future<BookingPriceQuote> quoteFinderOrder(BookingDraft draft) async {
+    final ready = await _ensureBackendToken();
+    if (!ready) return BookingPriceQuote.fromDraft(draft);
+    try {
+      return await _runWithAuthRetry(() => _repository.quoteFinderOrder(draft));
+    } catch (_) {
+      return BookingPriceQuote.fromDraft(draft);
+    }
+  }
+
   static Future<List<HomeAddress>> fetchSavedAddresses() {
     return _repository.fetchSavedAddresses();
   }

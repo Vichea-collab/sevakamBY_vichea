@@ -11,7 +11,15 @@ import '../../data/network/admin_api_client.dart';
 import '../../domain/entities/admin_models.dart';
 import '../state/admin_dashboard_state.dart';
 
-enum _AdminSection { overview, users, orders, posts, tickets, services }
+enum _AdminSection {
+  overview,
+  users,
+  orders,
+  posts,
+  tickets,
+  services,
+  broadcasts,
+}
 
 extension _AdminSectionX on _AdminSection {
   String get label {
@@ -28,6 +36,8 @@ extension _AdminSectionX on _AdminSection {
         return 'Tickets';
       case _AdminSection.services:
         return 'Services';
+      case _AdminSection.broadcasts:
+        return 'Broadcasts';
     }
   }
 
@@ -45,6 +55,8 @@ extension _AdminSectionX on _AdminSection {
         return 'Support workload and open incidents';
       case _AdminSection.services:
         return 'Service catalog and category coverage';
+      case _AdminSection.broadcasts:
+        return 'System announcements and promo-code campaigns';
     }
   }
 
@@ -62,6 +74,8 @@ extension _AdminSectionX on _AdminSection {
         return Icons.support_agent_rounded;
       case _AdminSection.services:
         return Icons.handyman_rounded;
+      case _AdminSection.broadcasts:
+        return Icons.campaign_rounded;
     }
   }
 }
@@ -85,15 +99,38 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   String _postTypeFilter = 'all';
   String _ticketStatusFilter = 'all';
   String _serviceStateFilter = 'all';
+  String _broadcastTypeFilter = 'all';
+  String _broadcastStatusFilter = 'all';
+  String _broadcastRoleFilter = 'all';
   String _undoHistoryStateFilter = 'all';
+  String _broadcastComposerType = 'system';
+  String _broadcastComposerDiscountType = 'percent';
+  bool _broadcastComposerFinder = true;
+  bool _broadcastComposerProvider = true;
+  bool _broadcastComposerActive = true;
+  bool _broadcastComposerSaving = false;
   int _analyticsDays = 14;
   int _analyticsCompareDays = 14;
   int _undoHistoryPage = 1;
+  late final TextEditingController _broadcastTitleController;
+  late final TextEditingController _broadcastMessageController;
+  late final TextEditingController _broadcastPromoCodeController;
+  late final TextEditingController _broadcastDiscountValueController;
+  late final TextEditingController _broadcastMinSubtotalController;
+  late final TextEditingController _broadcastMaxDiscountController;
+  late final TextEditingController _broadcastUsageLimitController;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    _broadcastTitleController = TextEditingController();
+    _broadcastMessageController = TextEditingController();
+    _broadcastPromoCodeController = TextEditingController();
+    _broadcastDiscountValueController = TextEditingController(text: '10');
+    _broadcastMinSubtotalController = TextEditingController(text: '0');
+    _broadcastMaxDiscountController = TextEditingController(text: '0');
+    _broadcastUsageLimitController = TextEditingController(text: '0');
     _searchController.addListener(() {
       if (!mounted) return;
       setState(() => _searchQuery = _searchController.text);
@@ -110,6 +147,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   void dispose() {
     _searchDebounce?.cancel();
     _searchController.dispose();
+    _broadcastTitleController.dispose();
+    _broadcastMessageController.dispose();
+    _broadcastPromoCodeController.dispose();
+    _broadcastDiscountValueController.dispose();
+    _broadcastMinSubtotalController.dispose();
+    _broadcastMaxDiscountController.dispose();
+    _broadcastUsageLimitController.dispose();
     super.dispose();
   }
 
@@ -370,6 +414,22 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
+  Future<void> _loadBroadcasts(int page) async {
+    try {
+      await _runAuthed(
+        () => AdminDashboardState.refreshBroadcasts(
+          page: page,
+          query: _searchQuery,
+          type: _broadcastTypeFilter == 'all' ? '' : _broadcastTypeFilter,
+          status: _broadcastStatusFilter == 'all' ? '' : _broadcastStatusFilter,
+          role: _broadcastRoleFilter == 'all' ? '' : _broadcastRoleFilter,
+        ),
+      );
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
   Future<void> _loadUndoHistory(int page) async {
     _undoHistoryPage = page < 1 ? 1 : page;
     try {
@@ -401,6 +461,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         return _loadTickets(page);
       case _AdminSection.services:
         return _loadServices(page);
+      case _AdminSection.broadcasts:
+        return _loadBroadcasts(page);
     }
   }
 
@@ -459,6 +521,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         return _AdminSection.tickets;
       case 'services':
         return _AdminSection.services;
+      case 'broadcasts':
+        return _AdminSection.broadcasts;
       case 'overview':
         return _AdminSection.overview;
       default:
@@ -1002,6 +1066,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         return _buildTicketsSection();
       case _AdminSection.services:
         return _buildServicesSection();
+      case _AdminSection.broadcasts:
+        return _buildBroadcastsSection();
     }
   }
 
@@ -1908,6 +1974,311 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  Future<void> _submitBroadcastComposer() async {
+    final title = _broadcastTitleController.text.trim();
+    final message = _broadcastMessageController.text.trim();
+    if (title.length < 3 || message.length < 3) {
+      _showError(
+        const AdminApiException(
+          'Broadcast title and message must be at least 3 characters.',
+        ),
+      );
+      return;
+    }
+
+    final targetRoles = <String>[
+      if (_broadcastComposerFinder) 'finder',
+      if (_broadcastComposerProvider) 'provider',
+    ];
+    if (targetRoles.isEmpty) {
+      _showError(const AdminApiException('Select at least one audience role.'));
+      return;
+    }
+
+    final isPromo = _broadcastComposerType == 'promotion';
+    final promoCode = _broadcastPromoCodeController.text.trim().toUpperCase();
+    final discountValue =
+        double.tryParse(_broadcastDiscountValueController.text.trim()) ?? 0;
+    final minSubtotal =
+        double.tryParse(_broadcastMinSubtotalController.text.trim()) ?? 0;
+    final maxDiscount =
+        double.tryParse(_broadcastMaxDiscountController.text.trim()) ?? 0;
+    final usageLimit =
+        int.tryParse(_broadcastUsageLimitController.text.trim()) ?? 0;
+
+    if (isPromo) {
+      if (promoCode.isEmpty) {
+        _showError(const AdminApiException('Promo code is required.'));
+        return;
+      }
+      if (discountValue <= 0) {
+        _showError(const AdminApiException('Discount value must be > 0.'));
+        return;
+      }
+    }
+
+    setState(() => _broadcastComposerSaving = true);
+    try {
+      await _runAuthed(
+        () => AdminDashboardState.createBroadcast(
+          type: _broadcastComposerType,
+          title: title,
+          message: message,
+          targetRoles: targetRoles,
+          active: _broadcastComposerActive,
+          promoCode: isPromo ? promoCode : '',
+          discountType: _broadcastComposerDiscountType,
+          discountValue: isPromo ? discountValue : 0,
+          minSubtotal: isPromo ? minSubtotal : 0,
+          maxDiscount: isPromo ? maxDiscount : 0,
+          usageLimit: isPromo ? usageLimit : 0,
+        ),
+      );
+
+      _broadcastTitleController.clear();
+      _broadcastMessageController.clear();
+      _broadcastPromoCodeController.clear();
+      _broadcastDiscountValueController.text = '10';
+      _broadcastMinSubtotalController.text = '0';
+      _broadcastMaxDiscountController.text = '0';
+      _broadcastUsageLimitController.text = '0';
+      _broadcastComposerType = 'system';
+      _broadcastComposerDiscountType = 'percent';
+      _broadcastComposerActive = true;
+      _broadcastComposerFinder = true;
+      _broadcastComposerProvider = true;
+
+      await _loadBroadcasts(1);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Broadcast published successfully.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      _showError(error);
+    } finally {
+      if (mounted) {
+        setState(() => _broadcastComposerSaving = false);
+      }
+    }
+  }
+
+  Future<void> _toggleBroadcastActive(AdminBroadcastRow row) async {
+    final nextActive = !row.active;
+    try {
+      await _runAuthed(
+        () => AdminDashboardState.updateBroadcastActive(
+          broadcastId: row.id,
+          active: nextActive,
+        ),
+      );
+      await _loadBroadcasts(1);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            nextActive
+                ? 'Broadcast activated successfully.'
+                : 'Broadcast deactivated successfully.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Widget _buildBroadcastsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _BroadcastComposerCard(
+          type: _broadcastComposerType,
+          discountType: _broadcastComposerDiscountType,
+          finderSelected: _broadcastComposerFinder,
+          providerSelected: _broadcastComposerProvider,
+          active: _broadcastComposerActive,
+          saving: _broadcastComposerSaving,
+          titleController: _broadcastTitleController,
+          messageController: _broadcastMessageController,
+          promoCodeController: _broadcastPromoCodeController,
+          discountValueController: _broadcastDiscountValueController,
+          minSubtotalController: _broadcastMinSubtotalController,
+          maxDiscountController: _broadcastMaxDiscountController,
+          usageLimitController: _broadcastUsageLimitController,
+          onTypeChanged: (value) =>
+              setState(() => _broadcastComposerType = value),
+          onDiscountTypeChanged: (value) =>
+              setState(() => _broadcastComposerDiscountType = value),
+          onFinderToggle: () => setState(
+            () => _broadcastComposerFinder = !_broadcastComposerFinder,
+          ),
+          onProviderToggle: () => setState(
+            () => _broadcastComposerProvider = !_broadcastComposerProvider,
+          ),
+          onActiveChanged: (value) =>
+              setState(() => _broadcastComposerActive = value),
+          onSubmit: _submitBroadcastComposer,
+        ),
+        const SizedBox(height: 12),
+        _AdminTableCard<AdminBroadcastRow>(
+          title: 'Broadcast Feed',
+          subtitle: 'Monitor system notices and promo campaign lifecycle.',
+          loadingListenable: AdminDashboardState.loadingBroadcasts,
+          rowsListenable: AdminDashboardState.broadcasts,
+          paginationListenable: AdminDashboardState.broadcastsPagination,
+          onPageSelected: _loadBroadcasts,
+          controls: [
+            _DropdownFilter(
+              label: 'Type',
+              value: _broadcastTypeFilter,
+              options: const [
+                _DropdownOption(value: 'all', label: 'All types'),
+                _DropdownOption(value: 'system', label: 'System'),
+                _DropdownOption(value: 'promotion', label: 'Promotion'),
+              ],
+              onChanged: (value) {
+                setState(() => _broadcastTypeFilter = value);
+                unawaited(_loadBroadcasts(1));
+              },
+            ),
+            _DropdownFilter(
+              label: 'Lifecycle',
+              value: _broadcastStatusFilter,
+              options: const [
+                _DropdownOption(value: 'all', label: 'All states'),
+                _DropdownOption(value: 'active', label: 'Active'),
+                _DropdownOption(value: 'scheduled', label: 'Scheduled'),
+                _DropdownOption(value: 'expired', label: 'Expired'),
+                _DropdownOption(value: 'inactive', label: 'Inactive'),
+              ],
+              onChanged: (value) {
+                setState(() => _broadcastStatusFilter = value);
+                unawaited(_loadBroadcasts(1));
+              },
+            ),
+            _DropdownFilter(
+              label: 'Audience',
+              value: _broadcastRoleFilter,
+              options: const [
+                _DropdownOption(value: 'all', label: 'All audience'),
+                _DropdownOption(value: 'finder', label: 'Finder'),
+                _DropdownOption(value: 'provider', label: 'Provider'),
+              ],
+              onChanged: (value) {
+                setState(() => _broadcastRoleFilter = value);
+                unawaited(_loadBroadcasts(1));
+              },
+            ),
+          ],
+          columns: const [
+            'Type',
+            'Title',
+            'Audience',
+            'Lifecycle',
+            'Promo',
+            'Created',
+            'Action',
+          ],
+          emptyText: 'No broadcasts found for this page.',
+          summaryBuilder: (items) {
+            final active = items
+                .where((item) => item.lifecycle.toLowerCase() == 'active')
+                .length;
+            final promos = items
+                .where((item) => item.type.toLowerCase() == 'promotion')
+                .length;
+            final scheduled = items
+                .where((item) => item.lifecycle.toLowerCase() == 'scheduled')
+                .length;
+            return [
+              _MetricChipData(
+                label: 'Page broadcasts',
+                value: '${items.length}',
+              ),
+              _MetricChipData(
+                label: 'Active',
+                value: '$active',
+                color: AppColors.success,
+              ),
+              _MetricChipData(
+                label: 'Promotions',
+                value: '$promos',
+                color: const Color(0xFF0EA5E9),
+              ),
+              _MetricChipData(
+                label: 'Scheduled',
+                value: '$scheduled',
+                color: AppColors.warning,
+              ),
+            ];
+          },
+          filterRows: (items) {
+            final query = _searchQuery.trim().toLowerCase();
+            return items
+                .where((item) {
+                  final typeMatch =
+                      _broadcastTypeFilter == 'all' ||
+                      item.type.toLowerCase() == _broadcastTypeFilter;
+                  if (!typeMatch) return false;
+                  final lifecycleMatch =
+                      _broadcastStatusFilter == 'all' ||
+                      item.lifecycle.toLowerCase() == _broadcastStatusFilter;
+                  if (!lifecycleMatch) return false;
+                  final roleMatch =
+                      _broadcastRoleFilter == 'all' ||
+                      item.targetRoles.any(
+                        (role) =>
+                            role.toLowerCase().trim() == _broadcastRoleFilter,
+                      );
+                  if (!roleMatch) return false;
+                  if (query.isEmpty) return true;
+                  final haystack =
+                      '${item.type} ${item.title} ${item.message} ${item.promoCode} ${item.lifecycle} ${item.targetRoles.join(' ')}'
+                          .toLowerCase();
+                  return haystack.contains(query);
+                })
+                .toList(growable: false);
+          },
+          rowCells: (item) {
+            final type = item.type.toLowerCase();
+            final typeColor = type == 'promotion'
+                ? const Color(0xFF0EA5E9)
+                : AppColors.primary;
+            return [
+              DataCell(_Pill(text: _prettyStatus(item.type), color: typeColor)),
+              DataCell(_cellText(item.title, width: 210)),
+              DataCell(_cellText(item.targetRoles.join(', '), width: 140)),
+              DataCell(
+                _Pill(
+                  text: _prettyStatus(item.lifecycle),
+                  color: _statusColor(item.lifecycle),
+                ),
+              ),
+              DataCell(
+                _cellText(item.promoCode.isEmpty ? '-' : item.promoCode),
+              ),
+              DataCell(_cellText(_formatDateTime(item.createdAt), width: 150)),
+              DataCell(
+                _actionMenu(
+                  actions: [
+                    _ActionMenuItem(
+                      label: item.active ? 'Deactivate' : 'Activate',
+                      onTap: () => _toggleBroadcastActive(item),
+                    ),
+                  ],
+                ),
+              ),
+            ];
+          },
+        ),
+      ],
+    );
+  }
+
   Widget _actionMenu({required List<_ActionMenuItem> actions}) {
     if (actions.isEmpty) {
       return const SizedBox.shrink();
@@ -2366,6 +2737,425 @@ class _AdminTableCard<T> extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _BroadcastComposerCard extends StatelessWidget {
+  final String type;
+  final String discountType;
+  final bool finderSelected;
+  final bool providerSelected;
+  final bool active;
+  final bool saving;
+  final TextEditingController titleController;
+  final TextEditingController messageController;
+  final TextEditingController promoCodeController;
+  final TextEditingController discountValueController;
+  final TextEditingController minSubtotalController;
+  final TextEditingController maxDiscountController;
+  final TextEditingController usageLimitController;
+  final ValueChanged<String> onTypeChanged;
+  final ValueChanged<String> onDiscountTypeChanged;
+  final VoidCallback onFinderToggle;
+  final VoidCallback onProviderToggle;
+  final ValueChanged<bool> onActiveChanged;
+  final Future<void> Function() onSubmit;
+
+  const _BroadcastComposerCard({
+    required this.type,
+    required this.discountType,
+    required this.finderSelected,
+    required this.providerSelected,
+    required this.active,
+    required this.saving,
+    required this.titleController,
+    required this.messageController,
+    required this.promoCodeController,
+    required this.discountValueController,
+    required this.minSubtotalController,
+    required this.maxDiscountController,
+    required this.usageLimitController,
+    required this.onTypeChanged,
+    required this.onDiscountTypeChanged,
+    required this.onFinderToggle,
+    required this.onProviderToggle,
+    required this.onActiveChanged,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isPromo = type == 'promotion';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFD8E3F6)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 20,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Broadcast Composer',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Publish system messages and promo campaigns to finder/provider notifications.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (saving)
+                const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          if (saving)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 960;
+              if (!wide) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _composerControls(context, isPromo),
+                    const SizedBox(height: 10),
+                    _composerInputs(context, isPromo),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: _composerControls(context, isPromo),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: _composerInputs(context, isPromo)),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: saving ? null : () => unawaited(onSubmit()),
+              icon: const Icon(Icons.send_rounded),
+              label: Text(saving ? 'Publishing...' : 'Publish broadcast'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _composerControls(BuildContext context, bool isPromo) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          initialValue: type,
+          decoration: InputDecoration(
+            labelText: 'Broadcast type',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFD3DDEF)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.primary,
+                width: 1.2,
+              ),
+            ),
+            isDense: true,
+          ),
+          items: const [
+            DropdownMenuItem(value: 'system', child: Text('System')),
+            DropdownMenuItem(value: 'promotion', child: Text('Promotion')),
+          ],
+          onChanged: (next) {
+            if (next == null) return;
+            onTypeChanged(next);
+          },
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Audience',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilterChip(
+              selected: finderSelected,
+              label: const Text('Finder'),
+              onSelected: (_) => onFinderToggle(),
+              selectedColor: AppColors.primary.withValues(alpha: 0.16),
+              side: BorderSide(
+                color: finderSelected
+                    ? AppColors.primary
+                    : const Color(0xFFD3DDEF),
+              ),
+            ),
+            FilterChip(
+              selected: providerSelected,
+              label: const Text('Provider'),
+              onSelected: (_) => onProviderToggle(),
+              selectedColor: AppColors.primary.withValues(alpha: 0.16),
+              side: BorderSide(
+                color: providerSelected
+                    ? AppColors.primary
+                    : const Color(0xFFD3DDEF),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          value: active,
+          title: const Text('Active now'),
+          subtitle: const Text('Turn off to save as inactive'),
+          onChanged: onActiveChanged,
+        ),
+        if (isPromo) ...[
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            initialValue: discountType,
+            decoration: InputDecoration(
+              labelText: 'Discount type',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFD3DDEF)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 1.2,
+                ),
+              ),
+              isDense: true,
+            ),
+            items: const [
+              DropdownMenuItem(value: 'percent', child: Text('Percent (%)')),
+              DropdownMenuItem(value: 'fixed', child: Text('Fixed (USD)')),
+            ],
+            onChanged: (next) {
+              if (next == null) return;
+              onDiscountTypeChanged(next);
+            },
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _composerInputs(BuildContext context, bool isPromo) {
+    return Column(
+      children: [
+        TextField(
+          controller: titleController,
+          decoration: const InputDecoration(
+            labelText: 'Title',
+            hintText: 'Short headline for notification',
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: messageController,
+          minLines: 3,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: 'Message',
+            hintText: 'Write announcement or promo details',
+          ),
+        ),
+        if (isPromo) ...[
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 760;
+              if (!wide) {
+                return Column(
+                  children: [
+                    TextField(
+                      controller: promoCodeController,
+                      decoration: const InputDecoration(
+                        labelText: 'Promo code',
+                        hintText: 'PROMO20',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: discountValueController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Discount',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: minSubtotalController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Min subtotal',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: maxDiscountController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Max discount',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: usageLimitController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Usage limit',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: promoCodeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Promo code',
+                            hintText: 'PROMO20',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: discountValueController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Discount',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: minSubtotalController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Min subtotal',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: maxDiscountController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Max discount',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: usageLimitController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Usage limit (0 = unlimited)',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ],
     );
   }
 }
@@ -3534,6 +4324,8 @@ IconData _searchSectionIcon(String section) {
       return Icons.support_agent_rounded;
     case 'services':
       return Icons.handyman_rounded;
+    case 'broadcasts':
+      return Icons.campaign_rounded;
     default:
       return Icons.search_rounded;
   }
@@ -4072,6 +4864,10 @@ Color _statusColor(String status) {
     'declined' => const Color(0xFFE11D48),
     'resolved' => AppColors.success,
     'closed' => const Color(0xFF64748B),
+    'active' => AppColors.success,
+    'scheduled' => AppColors.warning,
+    'expired' => AppColors.danger,
+    'inactive' => const Color(0xFF64748B),
     _ => AppColors.textSecondary,
   };
 }

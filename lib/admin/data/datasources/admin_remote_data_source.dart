@@ -165,6 +165,27 @@ class AdminRemoteDataSource {
     );
   }
 
+  Future<AdminPage<Map<String, dynamic>>> fetchBroadcasts({
+    int page = 1,
+    int limit = defaultPageSize,
+    String query = '',
+    String type = '',
+    String status = '',
+    String role = '',
+  }) {
+    return _fetchPaginated(
+      '/api/admin/broadcasts',
+      page: page,
+      limit: limit,
+      query: {
+        if (query.trim().isNotEmpty) 'q': query.trim(),
+        if (type.trim().isNotEmpty) 'type': type.trim(),
+        if (status.trim().isNotEmpty) 'status': status.trim(),
+        if (role.trim().isNotEmpty) 'role': role.trim(),
+      },
+    );
+  }
+
   Future<AdminPage<Map<String, dynamic>>> fetchUndoHistory({
     int page = 1,
     int limit = defaultPageSize,
@@ -240,6 +261,60 @@ class AdminRemoteDataSource {
     final response = await _apiClient.patchJson(
       '/api/admin/services/${Uri.encodeComponent(serviceId)}/active',
       body: {'active': active, 'reason': reason},
+    );
+    return _safeMap(response['data']);
+  }
+
+  Future<Map<String, dynamic>> createBroadcast({
+    required String type,
+    required String title,
+    required String message,
+    required List<String> targetRoles,
+    required bool active,
+    String promoCode = '',
+    String discountType = 'percent',
+    double discountValue = 0,
+    double minSubtotal = 0,
+    double maxDiscount = 0,
+    int usageLimit = 0,
+    String? startAtIso,
+    String? endAtIso,
+  }) async {
+    final body = <String, dynamic>{
+      'type': type,
+      'title': title,
+      'message': message,
+      'targetRoles': targetRoles,
+      'active': active,
+    };
+    if (promoCode.trim().isNotEmpty) {
+      body['promoCode'] = promoCode.trim().toUpperCase();
+      body['discountType'] = discountType;
+      body['discountValue'] = discountValue;
+      body['minSubtotal'] = minSubtotal;
+      body['maxDiscount'] = maxDiscount;
+      body['usageLimit'] = usageLimit;
+    }
+    if (startAtIso != null && startAtIso.trim().isNotEmpty) {
+      body['startAt'] = startAtIso.trim();
+    }
+    if (endAtIso != null && endAtIso.trim().isNotEmpty) {
+      body['endAt'] = endAtIso.trim();
+    }
+    final response = await _apiClient.postJson(
+      '/api/admin/broadcasts',
+      body: body,
+    );
+    return _safeMap(response['data']);
+  }
+
+  Future<Map<String, dynamic>> updateBroadcastActive({
+    required String broadcastId,
+    required bool active,
+  }) async {
+    final response = await _apiClient.patchJson(
+      '/api/admin/broadcasts/${Uri.encodeComponent(broadcastId)}/active',
+      body: {'active': active},
     );
     return _safeMap(response['data']);
   }

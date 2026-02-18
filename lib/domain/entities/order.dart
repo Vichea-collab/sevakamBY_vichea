@@ -141,6 +141,37 @@ class BookingDraft {
   double get total => subtotal + processingFee - discount;
 }
 
+class BookingPriceQuote {
+  final String promoCode;
+  final bool promoApplied;
+  final String promoMessage;
+  final double subtotal;
+  final double processingFee;
+  final double discount;
+  final double total;
+
+  const BookingPriceQuote({
+    this.promoCode = '',
+    this.promoApplied = false,
+    this.promoMessage = '',
+    required this.subtotal,
+    required this.processingFee,
+    required this.discount,
+    required this.total,
+  });
+
+  factory BookingPriceQuote.fromDraft(BookingDraft draft) {
+    return BookingPriceQuote(
+      promoCode: draft.promoCode.trim(),
+      promoApplied: draft.promoCode.trim().isNotEmpty && draft.discount > 0,
+      subtotal: draft.subtotal,
+      processingFee: draft.processingFee,
+      discount: draft.discount,
+      total: draft.total,
+    );
+  }
+}
+
 class OrderItem {
   final String id;
   final ProviderItem provider;

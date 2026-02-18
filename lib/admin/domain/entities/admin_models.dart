@@ -769,6 +769,62 @@ class AdminServiceRow {
   }
 }
 
+class AdminBroadcastRow {
+  final String id;
+  final String type;
+  final String title;
+  final String message;
+  final List<String> targetRoles;
+  final String promoCode;
+  final String promoCodeId;
+  final bool active;
+  final String lifecycle;
+  final DateTime? startAt;
+  final DateTime? endAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final String createdByUid;
+  final String createdByName;
+
+  const AdminBroadcastRow({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.message,
+    required this.targetRoles,
+    required this.promoCode,
+    required this.promoCodeId,
+    required this.active,
+    required this.lifecycle,
+    required this.startAt,
+    required this.endAt,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.createdByUid,
+    required this.createdByName,
+  });
+
+  factory AdminBroadcastRow.fromMap(Map<String, dynamic> row) {
+    return AdminBroadcastRow(
+      id: _AdminParser.text(row['id']),
+      type: _AdminParser.text(row['type'], fallback: 'system'),
+      title: _AdminParser.text(row['title'], fallback: 'Broadcast'),
+      message: _AdminParser.text(row['message']),
+      targetRoles: _AdminParser.parseStringList(row['targetRoles']),
+      promoCode: _AdminParser.text(row['promoCode']),
+      promoCodeId: _AdminParser.text(row['promoCodeId']),
+      active: _AdminParser.parseBool(row['active'], true),
+      lifecycle: _AdminParser.text(row['lifecycle'], fallback: 'active'),
+      startAt: _AdminParser.parseDate(row['startAt']),
+      endAt: _AdminParser.parseDate(row['endAt']),
+      createdAt: _AdminParser.parseDate(row['createdAt']),
+      updatedAt: _AdminParser.parseDate(row['updatedAt']),
+      createdByUid: _AdminParser.text(row['createdByUid']),
+      createdByName: _AdminParser.text(row['createdByName']),
+    );
+  }
+}
+
 class AdminPage<T> {
   final List<T> items;
   final AdminPagination pagination;
@@ -831,6 +887,14 @@ class _AdminParser {
   static List<Map<String, dynamic>> parseMapList(dynamic value) {
     if (value is! List) return const <Map<String, dynamic>>[];
     return value.whereType<Map>().map(_safeMap).toList(growable: false);
+  }
+
+  static List<String> parseStringList(dynamic value) {
+    if (value is! List) return const <String>[];
+    return value
+        .map((entry) => text(entry))
+        .where((entry) => entry.isNotEmpty)
+        .toList(growable: false);
   }
 
   static Map<String, dynamic> safeMap(dynamic value) {

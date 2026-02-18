@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -22,6 +24,9 @@ class BookingPaymentPage extends StatefulWidget {
 class _BookingPaymentPageState extends State<BookingPaymentPage> {
   late PaymentMethod _selectedMethod;
   late TextEditingController _promoController;
+  BookingPriceQuote? _quote;
+  Timer? _quoteDebounce;
+  bool _quoting = false;
   bool _submitting = false;
 
   @override
@@ -29,10 +34,12 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
     super.initState();
     _selectedMethod = widget.draft.paymentMethod;
     _promoController = TextEditingController(text: widget.draft.promoCode);
+    unawaited(_refreshQuote());
   }
 
   @override
   void dispose() {
+    _quoteDebounce?.cancel();
     _promoController.dispose();
     super.dispose();
   }
@@ -43,6 +50,13 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
       paymentMethod: _selectedMethod,
       promoCode: _promoController.text.trim(),
     );
+    final quote = _quote ?? BookingPriceQuote.fromDraft(draft);
+    final promoText = quote.promoMessage.trim();
+    final promoMessageColor = quote.promoApplied
+        ? AppColors.success
+        : promoText.isNotEmpty
+        ? AppColors.danger
+        : AppColors.textSecondary;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -95,8 +109,24 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                   hintText: 'Promo code',
                   prefixIcon: Icon(Icons.local_offer_outlined),
                 ),
-                onChanged: (_) => setState(() {}),
+                onChanged: (_) => _queueQuoteRefresh(),
               ),
+              if (_quoting) ...[
+                const SizedBox(height: 8),
+                const LinearProgressIndicator(minHeight: 2),
+              ],
+              if (promoText.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  promoText,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: promoMessageColor,
+                    fontWeight: quote.promoApplied
+                        ? FontWeight.w600
+                        : FontWeight.w500,
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
               Text(
                 'Order Summary',
@@ -162,21 +192,21 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                 ),
                 child: Column(
                   children: [
-                    _AmountRow(label: 'Sub Total', amount: draft.subtotal),
+                    _AmountRow(label: 'Sub Total', amount: quote.subtotal),
                     _AmountRow(
                       label: 'Processing fee',
-                      amount: draft.processingFee,
+                      amount: quote.processingFee,
                     ),
                     _AmountRow(
                       label: draft.promoCode.trim().isEmpty
                           ? 'Promo code'
                           : 'Promo code (${draft.promoCode.trim()})',
-                      amount: -draft.discount,
+                      amount: -quote.discount,
                     ),
                     const Divider(height: 20),
                     _AmountRow(
                       label: 'Booking Cost',
-                      amount: draft.total,
+                      amount: quote.total,
                       bold: true,
                     ),
                   ],
@@ -190,7 +220,9 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                           ? 'Create KHQR & Pay'
                           : 'Confirm Booking'),
                 icon: Icons.check_circle_outline_rounded,
-                onPressed: _submitting ? null : () => _placeBooking(draft),
+                onPressed: _submitting || _quoting
+                    ? null
+                    : () => _placeBooking(draft),
               ),
             ],
           ),
@@ -200,6 +232,18 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
   }
 
   Future<void> _placeBooking(BookingDraft draft) async {
+    final latestQuote = await _refreshQuote();
+    if (!mounted) return;
+    if (draft.promoCode.trim().isNotEmpty && latestQuote.promoApplied != true) {
+      AppToast.error(
+        context,
+        latestQuote.promoMessage.trim().isNotEmpty
+            ? latestQuote.promoMessage
+            : 'Promo code is invalid. Please update promo code.',
+      );
+      return;
+    }
+
     setState(() => _submitting = true);
     try {
       final createdOrder = await OrderState.createFinderOrder(draft);
@@ -234,6 +278,48 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
       if (mounted) {
         setState(() => _submitting = false);
       }
+    }
+  }
+
+  void _queueQuoteRefresh() {
+    setState(() {});
+    _quoteDebounce?.cancel();
+    _quoteDebounce = Timer(const Duration(milliseconds: 420), () {
+      if (!mounted) return;
+      unawaited(_refreshQuote());
+    });
+  }
+
+  Future<BookingPriceQuote> _refreshQuote() async {
+    final draft = widget.draft.copyWith(
+      paymentMethod: _selectedMethod,
+      promoCode: _promoController.text.trim(),
+    );
+    if (mounted) {
+      setState(() => _quoting = true);
+    }
+    try {
+      final quote = await OrderState.quoteFinderOrder(draft);
+      if (mounted) {
+        setState(() {
+          _quote = quote;
+          _quoting = false;
+        });
+      } else {
+        _quote = quote;
+      }
+      return quote;
+    } catch (_) {
+      final fallback = BookingPriceQuote.fromDraft(draft);
+      if (mounted) {
+        setState(() {
+          _quote = fallback;
+          _quoting = false;
+        });
+      } else {
+        _quote = fallback;
+      }
+      return fallback;
     }
   }
 

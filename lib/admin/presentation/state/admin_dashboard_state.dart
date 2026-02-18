@@ -25,6 +25,7 @@ class AdminDashboardState {
   static final ValueNotifier<bool> loadingPosts = ValueNotifier(false);
   static final ValueNotifier<bool> loadingTickets = ValueNotifier(false);
   static final ValueNotifier<bool> loadingServices = ValueNotifier(false);
+  static final ValueNotifier<bool> loadingBroadcasts = ValueNotifier(false);
   static final ValueNotifier<bool> loadingReadBudget = ValueNotifier(false);
   static final ValueNotifier<bool> loadingAnalytics = ValueNotifier(false);
   static final ValueNotifier<bool> loadingGlobalSearch = ValueNotifier(false);
@@ -58,6 +59,8 @@ class AdminDashboardState {
   static final ValueNotifier<List<AdminServiceRow>> services = ValueNotifier(
     const <AdminServiceRow>[],
   );
+  static final ValueNotifier<List<AdminBroadcastRow>> broadcasts =
+      ValueNotifier(const <AdminBroadcastRow>[]);
   static final ValueNotifier<List<AdminUndoHistoryRow>> undoHistory =
       ValueNotifier(const <AdminUndoHistoryRow>[]);
   static final ValueNotifier<List<AdminTicketMessageRow>> ticketMessages =
@@ -76,6 +79,8 @@ class AdminDashboardState {
     const AdminPagination.initial(limit: pageSize),
   );
   static final ValueNotifier<AdminPagination> servicesPagination =
+      ValueNotifier(const AdminPagination.initial(limit: pageSize));
+  static final ValueNotifier<AdminPagination> broadcastsPagination =
       ValueNotifier(const AdminPagination.initial(limit: pageSize));
   static final ValueNotifier<AdminPagination> undoHistoryPagination =
       ValueNotifier(const AdminPagination.initial(limit: pageSize));
@@ -100,6 +105,7 @@ class AdminDashboardState {
     posts.value = const <AdminPostRow>[];
     tickets.value = const <AdminTicketRow>[];
     services.value = const <AdminServiceRow>[];
+    broadcasts.value = const <AdminBroadcastRow>[];
     undoHistory.value = const <AdminUndoHistoryRow>[];
     ticketMessages.value = const <AdminTicketMessageRow>[];
 
@@ -108,6 +114,7 @@ class AdminDashboardState {
     postsPagination.value = const AdminPagination.initial(limit: pageSize);
     ticketsPagination.value = const AdminPagination.initial(limit: pageSize);
     servicesPagination.value = const AdminPagination.initial(limit: pageSize);
+    broadcastsPagination.value = const AdminPagination.initial(limit: pageSize);
     undoHistoryPagination.value = const AdminPagination.initial(
       limit: pageSize,
     );
@@ -281,6 +288,32 @@ class AdminDashboardState {
     }
   }
 
+  static Future<void> refreshBroadcasts({
+    int page = 1,
+    int limit = pageSize,
+    String query = '',
+    String type = '',
+    String status = '',
+    String role = '',
+  }) async {
+    final safePage = page < 1 ? 1 : page;
+    loadingBroadcasts.value = true;
+    try {
+      final result = await _repository.fetchBroadcasts(
+        page: safePage,
+        limit: limit,
+        query: query,
+        type: type,
+        status: status,
+        role: role,
+      );
+      broadcasts.value = result.items;
+      broadcastsPagination.value = result.pagination;
+    } finally {
+      loadingBroadcasts.value = false;
+    }
+  }
+
   static Future<void> refreshUndoHistory({
     int page = 1,
     int limit = pageSize,
@@ -400,6 +433,48 @@ class AdminDashboardState {
       serviceId: serviceId,
       active: active,
       reason: reason,
+    );
+  }
+
+  static Future<AdminBroadcastRow> createBroadcast({
+    required String type,
+    required String title,
+    required String message,
+    required List<String> targetRoles,
+    required bool active,
+    String promoCode = '',
+    String discountType = 'percent',
+    double discountValue = 0,
+    double minSubtotal = 0,
+    double maxDiscount = 0,
+    int usageLimit = 0,
+    String? startAtIso,
+    String? endAtIso,
+  }) {
+    return _repository.createBroadcast(
+      type: type,
+      title: title,
+      message: message,
+      targetRoles: targetRoles,
+      active: active,
+      promoCode: promoCode,
+      discountType: discountType,
+      discountValue: discountValue,
+      minSubtotal: minSubtotal,
+      maxDiscount: maxDiscount,
+      usageLimit: usageLimit,
+      startAtIso: startAtIso,
+      endAtIso: endAtIso,
+    );
+  }
+
+  static Future<AdminBroadcastRow> updateBroadcastActive({
+    required String broadcastId,
+    required bool active,
+  }) {
+    return _repository.updateBroadcastActive(
+      broadcastId: broadcastId,
+      active: active,
     );
   }
 

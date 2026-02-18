@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../domain/entities/order.dart';
 import '../../state/order_state.dart';
+import '../../state/user_notification_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
@@ -30,35 +31,16 @@ class _NotificationsPageState extends State<NotificationsPage> {
   final Set<String> _clearedPromoTitles = <String>{};
   Timer? _ticker;
 
-  late List<_PromoNotice> _promos;
-
   @override
   void initState() {
     super.initState();
     unawaited(_refreshNotifications(forceNetwork: true));
+    unawaited(UserNotificationState.refresh());
     _ticker = Timer.periodic(const Duration(minutes: 2), (_) {
       if (!mounted) return;
       unawaited(_refreshNotifications());
-      setState(() {});
+      unawaited(UserNotificationState.refresh());
     });
-    _promos = [
-      const _PromoNotice(
-        title: 'EID FITR 2023',
-        description:
-            'Get 2% discount on all orders on this Eid Al Fitr (Max discount = USD 100)',
-        trailingLabel: 'Expired',
-        trailingColor: AppColors.danger,
-        unread: false,
-      ),
-      const _PromoNotice(
-        title: 'EID AZHA 2023',
-        description: 'Get 5% discount on all orders on this Eid Al Azha.',
-        trailingLabel: 'Active',
-        trailingColor: AppColors.success,
-        dateRange: '15 Jan - 30 Feb',
-        unread: true,
-      ),
-    ];
   }
 
   @override
@@ -72,210 +54,233 @@ class _NotificationsPageState extends State<NotificationsPage> {
     return ValueListenableBuilder<List<OrderItem>>(
       valueListenable: OrderState.finderOrders,
       builder: (context, orders, _) {
-        final liveUpdates = _buildLiveUpdates(orders);
-        final updates = liveUpdates
-            .map(
-              (item) =>
-                  item.copyWith(unread: !_readUpdateKeys.contains(item.key)),
-            )
-            .where((item) => !_clearedUpdateKeys.contains(item.key))
-            .toList();
-        final promos = _promos
-            .map(
-              (item) =>
-                  item.copyWith(unread: !_readPromoTitles.contains(item.title)),
-            )
-            .where((item) => !_clearedPromoTitles.contains(item.title))
-            .toList();
+        return ValueListenableBuilder<List<UserNotificationItem>>(
+          valueListenable: UserNotificationState.notices,
+          builder: (context, notices, _) {
+            final backendSystemUpdates = _buildSystemUpdates(notices);
+            final backendPromos = _buildPromoNotices(notices);
 
-        final visibleUpdates = updates.where((item) {
-          return _filter == _NoticeFilter.all ||
-              (_filter == _NoticeFilter.orders &&
-                  item.kind == _NoticeFilter.orders) ||
-              (_filter == _NoticeFilter.system &&
-                  item.kind == _NoticeFilter.system);
-        }).toList();
-
-        final visiblePromos = promos.where((_) {
-          return _filter == _NoticeFilter.all ||
-              _filter == _NoticeFilter.promos;
-        }).toList();
-
-        final unreadCount =
-            updates.where((item) => item.unread).length +
-            promos.where((item) => item.unread).length;
-        final totalCount = updates.length + promos.length;
-
-        return Scaffold(
-          body: SafeArea(
-            child: RefreshIndicator(
-              onRefresh: () => _refreshNotifications(forceNetwork: true),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                  AppSpacing.xl,
-                ),
-                children: [
-                  AppTopBar(
-                    title: 'Notifications',
-                    showBack: false,
-                    actions: [
-                      IconButton(
-                        onPressed: _openMessenger,
-                        icon: const Icon(Icons.chat_bubble_outline_rounded),
-                        tooltip: 'Messenger',
-                      ),
-                      TextButton(
-                        onPressed: _markAllAsRead,
-                        child: const Text('Mark all'),
-                      ),
-                      TextButton(
-                        onPressed: () => _confirmClearAllNotifications(context),
-                        child: const Text('Clear all'),
-                      ),
-                    ],
+            final liveUpdates = <_NotificationUpdate>[
+              ..._buildOrderUpdates(orders),
+              ...backendSystemUpdates,
+            ];
+            final updates = liveUpdates
+                .map(
+                  (item) => item.copyWith(
+                    unread: !_readUpdateKeys.contains(item.key),
                   ),
-                  const SizedBox(height: 12),
-                  _HeroCard(unreadCount: unreadCount, totalCount: totalCount),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    height: 40,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _FilterChip(
-                          label: 'All',
-                          selected: _filter == _NoticeFilter.all,
-                          onTap: () =>
-                              setState(() => _filter = _NoticeFilter.all),
-                        ),
-                        _FilterChip(
-                          label: 'Orders',
-                          selected: _filter == _NoticeFilter.orders,
-                          onTap: () =>
-                              setState(() => _filter = _NoticeFilter.orders),
-                        ),
-                        _FilterChip(
-                          label: 'System',
-                          selected: _filter == _NoticeFilter.system,
-                          onTap: () =>
-                              setState(() => _filter = _NoticeFilter.system),
-                        ),
-                        _FilterChip(
-                          label: 'Promotions',
-                          selected: _filter == _NoticeFilter.promos,
-                          onTap: () =>
-                              setState(() => _filter = _NoticeFilter.promos),
-                        ),
-                      ],
-                    ),
+                )
+                .where((item) => !_clearedUpdateKeys.contains(item.key))
+                .toList();
+            final promos = backendPromos
+                .map(
+                  (item) => item.copyWith(
+                    unread: !_readPromoTitles.contains(item.id),
                   ),
-                  const SizedBox(height: 16),
-                  if (visibleUpdates.isNotEmpty) ...[
-                    Text(
-                      'Recent Updates',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
+                )
+                .where((item) => !_clearedPromoTitles.contains(item.id))
+                .toList();
+
+            final visibleUpdates = updates.where((item) {
+              return _filter == _NoticeFilter.all ||
+                  (_filter == _NoticeFilter.orders &&
+                      item.kind == _NoticeFilter.orders) ||
+                  (_filter == _NoticeFilter.system &&
+                      item.kind == _NoticeFilter.system);
+            }).toList();
+
+            final visiblePromos = promos.where((_) {
+              return _filter == _NoticeFilter.all ||
+                  _filter == _NoticeFilter.promos;
+            }).toList();
+
+            final unreadCount =
+                updates.where((item) => item.unread).length +
+                promos.where((item) => item.unread).length;
+            final totalCount = updates.length + promos.length;
+
+            return Scaffold(
+              body: SafeArea(
+                child: RefreshIndicator(
+                  onRefresh: _refreshFeed,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.lg,
+                      AppSpacing.lg,
+                      AppSpacing.xl,
                     ),
-                    const SizedBox(height: 10),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Column(
-                        children: List.generate(visibleUpdates.length, (index) {
-                          final item = visibleUpdates[index];
-                          return _UpdateTile(
-                            item: item,
-                            isLast: index == visibleUpdates.length - 1,
-                            onTap: () => _markUpdateAsRead(item.key),
-                          );
-                        }),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  if (visiblePromos.isNotEmpty) ...[
-                    Text(
-                      'Promotions',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Column(
-                        children: List.generate(visiblePromos.length, (index) {
-                          final item = visiblePromos[index];
-                          return _PromoTile(
-                            item: item,
-                            isLast: index == visiblePromos.length - 1,
-                            onTap: () => _markPromoAsRead(item.title),
-                          );
-                        }),
-                      ),
-                    ),
-                  ],
-                  if (visibleUpdates.isEmpty && visiblePromos.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 34,
-                        horizontal: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Column(
-                        children: [
-                          const Icon(
-                            Icons.notifications_none_rounded,
-                            size: 36,
-                            color: AppColors.textSecondary,
+                    children: [
+                      AppTopBar(
+                        title: 'Notifications',
+                        showBack: false,
+                        actions: [
+                          IconButton(
+                            onPressed: _openMessenger,
+                            icon: const Icon(Icons.chat_bubble_outline_rounded),
+                            tooltip: 'Messenger',
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'No notifications yet',
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(color: AppColors.textPrimary),
+                          TextButton(
+                            onPressed: () => _markAllAsRead(updates, promos),
+                            child: const Text('Mark all'),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                _confirmClearAllNotifications(context),
+                            child: const Text('Clear all'),
                           ),
                         ],
                       ),
-                    ),
-                ],
+                      const SizedBox(height: 12),
+                      _HeroCard(
+                        unreadCount: unreadCount,
+                        totalCount: totalCount,
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        height: 40,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            _FilterChip(
+                              label: 'All',
+                              selected: _filter == _NoticeFilter.all,
+                              onTap: () =>
+                                  setState(() => _filter = _NoticeFilter.all),
+                            ),
+                            _FilterChip(
+                              label: 'Orders',
+                              selected: _filter == _NoticeFilter.orders,
+                              onTap: () => setState(
+                                () => _filter = _NoticeFilter.orders,
+                              ),
+                            ),
+                            _FilterChip(
+                              label: 'System',
+                              selected: _filter == _NoticeFilter.system,
+                              onTap: () => setState(
+                                () => _filter = _NoticeFilter.system,
+                              ),
+                            ),
+                            _FilterChip(
+                              label: 'Promotions',
+                              selected: _filter == _NoticeFilter.promos,
+                              onTap: () => setState(
+                                () => _filter = _NoticeFilter.promos,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (visibleUpdates.isNotEmpty) ...[
+                        Text(
+                          'Recent Updates',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(color: AppColors.textPrimary),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Column(
+                            children: List.generate(visibleUpdates.length, (
+                              index,
+                            ) {
+                              final item = visibleUpdates[index];
+                              return _UpdateTile(
+                                item: item,
+                                isLast: index == visibleUpdates.length - 1,
+                                onTap: () => _markUpdateAsRead(item.key),
+                              );
+                            }),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (visiblePromos.isNotEmpty) ...[
+                        Text(
+                          'Promotions',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(color: AppColors.textPrimary),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Column(
+                            children: List.generate(visiblePromos.length, (
+                              index,
+                            ) {
+                              final item = visiblePromos[index];
+                              return _PromoTile(
+                                item: item,
+                                isLast: index == visiblePromos.length - 1,
+                                onTap: () => _markPromoAsRead(item.id),
+                              );
+                            }),
+                          ),
+                        ),
+                      ],
+                      if (visibleUpdates.isEmpty && visiblePromos.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 34,
+                            horizontal: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.notifications_none_rounded,
+                                size: 36,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No notifications yet',
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(color: AppColors.textPrimary),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-          bottomNavigationBar: const AppBottomNav(
-            current: AppBottomTab.notification,
-          ),
+              bottomNavigationBar: const AppBottomNav(
+                current: AppBottomTab.notification,
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  void _markAllAsRead() {
+  void _markAllAsRead(
+    List<_NotificationUpdate> updates,
+    List<_PromoNotice> promos,
+  ) {
     setState(() {
-      _readUpdateKeys.addAll(
-        _buildLiveUpdates(OrderState.finderOrders.value).map((e) => e.key),
-      );
-      _readPromoTitles.addAll(_promos.map((e) => e.title));
+      _readUpdateKeys.addAll(updates.map((e) => e.key));
+      _readPromoTitles.addAll(promos.map((e) => e.id));
     });
   }
 
   void _clearAllNotifications() {
-    final orderUpdateKeys = _buildLiveUpdates(OrderState.finderOrders.value)
+    final orderUpdateKeys = _buildOrderUpdates(OrderState.finderOrders.value)
         .where((item) => item.kind == _NoticeFilter.orders)
         .map((item) => item.key);
     setState(() {
@@ -305,9 +310,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
     });
   }
 
-  void _markPromoAsRead(String title) {
+  void _markPromoAsRead(String id) {
     setState(() {
-      _readPromoTitles.add(title);
+      _readPromoTitles.add(id);
     });
   }
 
@@ -321,7 +326,14 @@ class _NotificationsPageState extends State<NotificationsPage> {
     );
   }
 
-  List<_NotificationUpdate> _buildLiveUpdates(List<OrderItem> orders) {
+  Future<void> _refreshFeed() async {
+    await Future.wait<void>([
+      _refreshNotifications(forceNetwork: true),
+      UserNotificationState.refresh(),
+    ]);
+  }
+
+  List<_NotificationUpdate> _buildOrderUpdates(List<OrderItem> orders) {
     final sortedOrders = List<OrderItem>.from(orders)
       ..sort(
         (a, b) =>
@@ -370,20 +382,85 @@ class _NotificationsPageState extends State<NotificationsPage> {
         ),
       );
     }
-
-    updates.add(
-      const _NotificationUpdate(
-        key: 'system:maintenance',
-        title: 'System Status',
-        description: 'All booking and payment services are running normally.',
-        timeLabel: 'Live',
-        icon: Icons.campaign_outlined,
-        iconColor: Color(0xFF4B5563),
-        kind: _NoticeFilter.system,
-        unread: false,
-      ),
-    );
     return updates;
+  }
+
+  List<_NotificationUpdate> _buildSystemUpdates(
+    List<UserNotificationItem> notices,
+  ) {
+    final systems = notices.where((item) => !item.isPromo).toList()
+      ..sort((a, b) {
+        final right = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final left = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return right.compareTo(left);
+      });
+    return systems
+        .map(
+          (item) => _NotificationUpdate(
+            key: 'system:${item.id}',
+            title: item.title,
+            description: item.message,
+            timeLabel: _timeAgo(item.createdAt ?? DateTime.now()),
+            icon: Icons.campaign_outlined,
+            iconColor: const Color(0xFF4B5563),
+            kind: _NoticeFilter.system,
+            unread: false,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  List<_PromoNotice> _buildPromoNotices(List<UserNotificationItem> notices) {
+    final promos = notices.where((item) => item.isPromo).toList()
+      ..sort((a, b) {
+        final right = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final left = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return right.compareTo(left);
+      });
+    return promos
+        .map((item) {
+          final state = item.lifecycle;
+          final isActive = state == 'active';
+          final isScheduled = state == 'scheduled';
+          final trailingLabel = isActive
+              ? 'Active'
+              : isScheduled
+              ? 'Scheduled'
+              : state == 'expired'
+              ? 'Expired'
+              : 'Inactive';
+          final trailingColor = isActive
+              ? AppColors.success
+              : isScheduled
+              ? const Color(0xFFF59E0B)
+              : AppColors.danger;
+          final start = item.startAt;
+          final end = item.endAt;
+          String? dateRange;
+          if (start != null || end != null) {
+            final startLabel = start == null
+                ? 'Now'
+                : MaterialLocalizations.of(context).formatShortDate(start);
+            final endLabel = end == null
+                ? 'No end'
+                : MaterialLocalizations.of(context).formatShortDate(end);
+            dateRange = '$startLabel - $endLabel';
+          }
+          final code = item.promoCode.trim();
+          final description = code.isEmpty
+              ? item.message
+              : '${item.message}\nCode: $code';
+          return _PromoNotice(
+            id: item.id,
+            title: item.title,
+            description: description,
+            trailingLabel: trailingLabel,
+            trailingColor: trailingColor,
+            dateRange: dateRange,
+            unread: false,
+          );
+        })
+        .toList(growable: false);
   }
 
   DateTime _statusEventTime(OrderItem order) {
@@ -788,6 +865,7 @@ class _NotificationUpdate {
 }
 
 class _PromoNotice {
+  final String id;
   final String title;
   final String description;
   final String trailingLabel;
@@ -796,6 +874,7 @@ class _PromoNotice {
   final bool unread;
 
   const _PromoNotice({
+    required this.id,
     required this.title,
     required this.description,
     required this.trailingLabel,
@@ -806,6 +885,7 @@ class _PromoNotice {
 
   _PromoNotice copyWith({bool? unread}) {
     return _PromoNotice(
+      id: id,
       title: title,
       description: description,
       trailingLabel: trailingLabel,

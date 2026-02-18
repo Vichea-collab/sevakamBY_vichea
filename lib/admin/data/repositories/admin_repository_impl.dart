@@ -184,6 +184,31 @@ class AdminRepositoryImpl implements AdminRepository {
   }
 
   @override
+  Future<AdminPage<AdminBroadcastRow>> fetchBroadcasts({
+    int page = 1,
+    int limit = 10,
+    String query = '',
+    String type = '',
+    String status = '',
+    String role = '',
+  }) async {
+    final result = await _remoteDataSource.fetchBroadcasts(
+      page: page,
+      limit: limit,
+      query: query,
+      type: type,
+      status: status,
+      role: role,
+    );
+    return AdminPage(
+      items: result.items
+          .map(AdminBroadcastRow.fromMap)
+          .toList(growable: false),
+      pagination: result.pagination,
+    );
+  }
+
+  @override
   Future<AdminPage<AdminUndoHistoryRow>> fetchUndoHistory({
     int page = 1,
     int limit = 10,
@@ -276,6 +301,52 @@ class AdminRepositoryImpl implements AdminRepository {
       reason: reason,
     );
     return AdminActionResult.fromMap(row);
+  }
+
+  @override
+  Future<AdminBroadcastRow> createBroadcast({
+    required String type,
+    required String title,
+    required String message,
+    required List<String> targetRoles,
+    required bool active,
+    String promoCode = '',
+    String discountType = 'percent',
+    double discountValue = 0,
+    double minSubtotal = 0,
+    double maxDiscount = 0,
+    int usageLimit = 0,
+    String? startAtIso,
+    String? endAtIso,
+  }) async {
+    final row = await _remoteDataSource.createBroadcast(
+      type: type,
+      title: title,
+      message: message,
+      targetRoles: targetRoles,
+      active: active,
+      promoCode: promoCode,
+      discountType: discountType,
+      discountValue: discountValue,
+      minSubtotal: minSubtotal,
+      maxDiscount: maxDiscount,
+      usageLimit: usageLimit,
+      startAtIso: startAtIso,
+      endAtIso: endAtIso,
+    );
+    return AdminBroadcastRow.fromMap(row);
+  }
+
+  @override
+  Future<AdminBroadcastRow> updateBroadcastActive({
+    required String broadcastId,
+    required bool active,
+  }) async {
+    final row = await _remoteDataSource.updateBroadcastActive(
+      broadcastId: broadcastId,
+      active: active,
+    );
+    return AdminBroadcastRow.fromMap(row);
   }
 
   @override

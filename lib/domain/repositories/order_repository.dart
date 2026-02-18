@@ -5,6 +5,7 @@ import '../entities/provider_portal.dart';
 abstract class OrderRepository {
   void setBearerToken(String token);
 
+  Future<BookingPriceQuote> quoteFinderOrder(BookingDraft draft);
   Future<OrderItem> createFinderOrder(BookingDraft draft);
   Future<PaginatedResult<OrderItem>> fetchFinderOrders({
     int page = 1,

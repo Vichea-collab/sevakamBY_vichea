@@ -53,6 +53,14 @@ abstract class AdminRepository {
     String query = '',
     String active = '',
   });
+  Future<AdminPage<AdminBroadcastRow>> fetchBroadcasts({
+    int page = 1,
+    int limit = 10,
+    String query = '',
+    String type = '',
+    String status = '',
+    String role = '',
+  });
   Future<AdminPage<AdminUndoHistoryRow>> fetchUndoHistory({
     int page = 1,
     int limit = 10,
@@ -86,6 +94,25 @@ abstract class AdminRepository {
     required String serviceId,
     required bool active,
     required String reason,
+  });
+  Future<AdminBroadcastRow> createBroadcast({
+    required String type,
+    required String title,
+    required String message,
+    required List<String> targetRoles,
+    required bool active,
+    String promoCode,
+    String discountType,
+    double discountValue,
+    double minSubtotal,
+    double maxDiscount,
+    int usageLimit,
+    String? startAtIso,
+    String? endAtIso,
+  });
+  Future<AdminBroadcastRow> updateBroadcastActive({
+    required String broadcastId,
+    required bool active,
   });
   Future<void> undoAction({required String undoToken});
 }

@@ -19,6 +19,33 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
+  Future<BookingPriceQuote> quoteFinderOrder(BookingDraft draft) async {
+    final payload = <String, dynamic>{
+      'providerUid': draft.provider.uid.trim(),
+      'providerType': draft.provider.providerType,
+      'providerCompanyName': draft.provider.companyName,
+      'providerMaxWorkers': draft.provider.safeMaxWorkers,
+      'categoryName': draft.categoryName,
+      'serviceName': draft.serviceName,
+      'hours': draft.hours,
+      'workers': draft.workers,
+      'promoCode': draft.promoCode.trim(),
+      'unitPricePerHour': draft.unitPricePerHour,
+    };
+    final row = await _remoteDataSource.quoteFinderOrder(payload);
+    final promo = _safeMap(row['promo']);
+    return BookingPriceQuote(
+      promoCode: (promo['code'] ?? draft.promoCode).toString().trim(),
+      promoApplied: promo['applied'] == true,
+      promoMessage: (promo['message'] ?? '').toString(),
+      subtotal: _toDouble(row['subtotal']),
+      processingFee: _toDouble(row['processingFee']),
+      discount: _toDouble(row['discount']),
+      total: _toDouble(row['total']),
+    );
+  }
+
+  @override
   Future<OrderItem> createFinderOrder(BookingDraft draft) async {
     final payload = <String, dynamic>{
       'providerUid': draft.provider.uid.trim(),
@@ -44,6 +71,7 @@ class OrderRepositoryImpl implements OrderRepository {
       'additionalService': draft.additionalService,
       'finderNote': draft.additionalService,
       'promoCode': draft.promoCode,
+      'unitPricePerHour': draft.unitPricePerHour,
       'serviceFields': draft.serviceFields,
       'subtotal': draft.subtotal,
       'processingFee': draft.processingFee,
