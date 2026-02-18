@@ -29,7 +29,6 @@ import 'pages/provider_portal/provider_orders_page.dart';
 import 'pages/provider_portal/provider_profile_page.dart';
 import 'pages/provider_portal/provider_profession_page.dart';
 import 'pages/provider_portal/provider_verification_page.dart';
-import 'pages/provider_portal/provider_upgrade_page.dart';
 import 'state/booking_catalog_state.dart';
 
 class ServiceFinderApp extends StatelessWidget {
@@ -84,7 +83,6 @@ class ServiceFinderApp extends StatelessWidget {
         ProviderProfessionPage.routeName: (_) => const ProviderProfessionPage(),
         ProviderVerificationPage.routeName: (_) =>
             const ProviderVerificationPage(),
-        ProviderUpgradePage.routeName: (_) => const ProviderUpgradePage(),
       },
     );
   }

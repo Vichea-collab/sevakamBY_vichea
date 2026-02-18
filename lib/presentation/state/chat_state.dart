@@ -29,8 +29,6 @@ class ChatState {
   );
   static final ValueNotifier<bool> loading = ValueNotifier(false);
   static final ValueNotifier<bool> realtimeActive = ValueNotifier(false);
-  static final Map<String, ValueNotifier<PaginationMeta>> _messagePagination =
-      <String, ValueNotifier<PaginationMeta>>{};
 
   static bool _initialized = false;
 
@@ -155,58 +153,6 @@ class ChatState {
     return thread;
   }
 
-  static Stream<List<ChatMessage>> messageStream(String threadId) {
-    final uid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
-    final id = threadId.trim();
-    if (uid.isEmpty || id.isEmpty || _apiClient.bearerToken.isEmpty) {
-      return Stream<List<ChatMessage>>.value(const <ChatMessage>[]);
-    }
-
-    final controller = StreamController<List<ChatMessage>>();
-    Timer? pollTimer;
-    var emitted = false;
-
-    Future<void> poll() async {
-      try {
-        final result = await _loadMessagesFromApi(
-          id,
-          uid,
-          page: 1,
-          limit: _pageSize,
-        );
-        if (controller.isClosed) return;
-        emitted = true;
-        _paginationForThread(id).value = result.pagination;
-        controller.add(result.items);
-      } catch (_) {
-        if (!emitted && !controller.isClosed) {
-          controller.add(const <ChatMessage>[]);
-        }
-      }
-    }
-
-    controller.onListen = () {
-      unawaited(poll());
-      pollTimer = Timer.periodic(
-        const Duration(seconds: 12),
-        (_) => unawaited(poll()),
-      );
-    };
-    controller.onCancel = () async {
-      pollTimer?.cancel();
-      pollTimer = null;
-      await controller.close();
-    };
-
-    return controller.stream;
-  }
-
-  static ValueListenable<PaginationMeta> messagePaginationListenable(
-    String threadId,
-  ) {
-    return _paginationForThread(threadId.trim());
-  }
-
   static Future<PaginatedResult<ChatMessage>> fetchMessagesPage(
     String threadId, {
     int page = 1,
@@ -224,7 +170,6 @@ class ChatState {
       page: _normalizedPage(page),
       limit: limit,
     );
-    _paginationForThread(id).value = result.pagination;
     return result;
   }
 
@@ -529,13 +474,6 @@ class ChatState {
   }
 
   static String _safeAvatarPath() => 'assets/images/profile.jpg';
-
-  static ValueNotifier<PaginationMeta> _paginationForThread(String threadId) {
-    return _messagePagination.putIfAbsent(
-      threadId,
-      () => ValueNotifier(const PaginationMeta.initial(limit: _pageSize)),
-    );
-  }
 
   static int _normalizedPage(int page) {
     if (page < 1) return 1;
