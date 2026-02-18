@@ -27,7 +27,6 @@ class AdminDashboardState {
   static final ValueNotifier<bool> loadingServices = ValueNotifier(false);
   static final ValueNotifier<bool> loadingBroadcasts = ValueNotifier(false);
   static final ValueNotifier<bool> loadingReadBudget = ValueNotifier(false);
-  static final ValueNotifier<bool> loadingAnalytics = ValueNotifier(false);
   static final ValueNotifier<bool> loadingGlobalSearch = ValueNotifier(false);
   static final ValueNotifier<bool> loadingUndoHistory = ValueNotifier(false);
   static final ValueNotifier<bool> loadingTicketMessages = ValueNotifier(false);
@@ -37,9 +36,6 @@ class AdminDashboardState {
   );
   static final ValueNotifier<AdminReadBudget> readBudget = ValueNotifier(
     const AdminReadBudget.empty(),
-  );
-  static final ValueNotifier<AdminAnalytics> analytics = ValueNotifier(
-    const AdminAnalytics.empty(),
   );
   static final ValueNotifier<AdminGlobalSearchResult> globalSearch =
       ValueNotifier(const AdminGlobalSearchResult.empty());
@@ -97,7 +93,6 @@ class AdminDashboardState {
   static void clear() {
     overview.value = const AdminOverview.empty();
     readBudget.value = const AdminReadBudget.empty();
-    analytics.value = const AdminAnalytics.empty();
     globalSearch.value = const AdminGlobalSearchResult.empty();
 
     users.value = const <AdminUserRow>[];
@@ -143,27 +138,12 @@ class AdminDashboardState {
     }
   }
 
-  static Future<void> refreshAnalytics({
-    int days = 14,
-    int compareDays = 14,
-  }) async {
-    loadingAnalytics.value = true;
-    try {
-      analytics.value = await _repository.fetchAnalytics(
-        days: days,
-        compareDays: compareDays,
-      );
-    } finally {
-      loadingAnalytics.value = false;
-    }
-  }
-
   static Future<void> runGlobalSearch({
     required String query,
     int limit = 5,
   }) async {
     final safeQuery = query.trim();
-    if (safeQuery.length < 2) {
+    if (safeQuery.length < 3) {
       globalSearch.value = const AdminGlobalSearchResult.empty();
       return;
     }

@@ -23,30 +23,32 @@ class NotificationsPage extends StatefulWidget {
   State<NotificationsPage> createState() => _NotificationsPageState();
 }
 
-class _NotificationsPageState extends State<NotificationsPage> {
+class _NotificationsPageState extends State<NotificationsPage>
+    with WidgetsBindingObserver {
   _NoticeFilter _filter = _NoticeFilter.all;
   final Set<String> _readUpdateKeys = <String>{};
   final Set<String> _readPromoTitles = <String>{};
   final Set<String> _clearedUpdateKeys = <String>{};
   final Set<String> _clearedPromoTitles = <String>{};
-  Timer? _ticker;
-
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_refreshNotifications(forceNetwork: true));
     unawaited(UserNotificationState.refresh());
-    _ticker = Timer.periodic(const Duration(minutes: 2), (_) {
-      if (!mounted) return;
-      unawaited(_refreshNotifications());
-      unawaited(UserNotificationState.refresh());
-    });
   }
 
   @override
   void dispose() {
-    _ticker?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    unawaited(_refreshNotifications());
+    unawaited(UserNotificationState.refresh());
   }
 
   @override

@@ -8,6 +8,7 @@ import '../../domain/entities/service.dart';
 
 class CatalogState {
   static const int _pageSize = 10;
+  static const Duration _cacheTtl = Duration(hours: 6);
 
   static final BackendApiClient _apiClient = BackendApiClient(
     baseUrl: AppEnv.apiBaseUrl(),
@@ -23,6 +24,7 @@ class CatalogState {
   static final ValueNotifier<bool> loading = ValueNotifier(false);
 
   static bool _initialized = false;
+  static DateTime? _lastHydratedAt;
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -30,7 +32,16 @@ class CatalogState {
     await refresh();
   }
 
-  static Future<void> refresh() async {
+  static Future<void> refresh({bool force = false}) async {
+    final isFresh =
+        !force &&
+        _lastHydratedAt != null &&
+        DateTime.now().difference(_lastHydratedAt!) < _cacheTtl &&
+        categories.value.isNotEmpty &&
+        services.value.isNotEmpty;
+    if (isFresh) {
+      return;
+    }
     loading.value = true;
     try {
       final loadedCategories = await _loadCategories();
@@ -42,9 +53,11 @@ class CatalogState {
       services.value = loadedServices.isEmpty
           ? _fallbackServices
           : loadedServices;
+      _lastHydratedAt = DateTime.now();
     } catch (_) {
       categories.value = _fallbackCategories;
       services.value = _fallbackServices;
+      _lastHydratedAt = DateTime.now();
     } finally {
       loading.value = false;
     }

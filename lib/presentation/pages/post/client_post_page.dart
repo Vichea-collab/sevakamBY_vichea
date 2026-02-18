@@ -29,6 +29,25 @@ class _ClientPostPageState extends State<ClientPostPage> {
   DateTime _preferredDate = DateTime.now().add(const Duration(days: 1));
   bool _submitting = false;
 
+  InputDecoration _fieldDecoration({required String hintText}) {
+    return InputDecoration(
+      hintText: hintText,
+      filled: true,
+      fillColor: const Color(0xFFF8FAFF),
+      alignLabelWithHint: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFD3DDEF)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.2),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -160,9 +179,8 @@ class _ClientPostPageState extends State<ClientPostPage> {
                         controller: _locationController,
                         minLines: 1,
                         maxLines: 2,
-                        decoration: const InputDecoration(
+                        decoration: _fieldDecoration(
                           hintText: 'Enter your area',
-                          alignLabelWithHint: true,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -177,9 +195,8 @@ class _ClientPostPageState extends State<ClientPostPage> {
                         controller: _detailsController,
                         minLines: 4,
                         maxLines: 6,
-                        decoration: const InputDecoration(
+                        decoration: _fieldDecoration(
                           hintText: 'Example: Pipe leaking under kitchen sink.',
-                          alignLabelWithHint: true,
                         ),
                       ),
                       const Spacer(),

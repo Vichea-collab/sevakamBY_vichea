@@ -110,6 +110,7 @@ class OrderState {
   static Future<void> refreshFinderOrders({
     int? page,
     int limit = _pageSize,
+    bool allowRoleFallback = true,
   }) async {
     final targetPage = page ?? _normalizedPage(finderPagination.value.page);
     loading.value = true;
@@ -124,6 +125,21 @@ class OrderState {
       );
       finderOrders.value = result.items;
       finderPagination.value = result.pagination;
+      if (AppRoleState.isProvider) {
+        AppRoleState.setProvider(false);
+      }
+    } on BackendApiException catch (error) {
+      if (_isRoleForbidden(error) && allowRoleFallback) {
+        AppRoleState.setProvider(true);
+        await refreshProviderOrders(
+          page: _normalizedPage(providerPagination.value.page),
+          limit: limit,
+          allowRoleFallback: false,
+        );
+        return;
+      }
+      debugPrint('OrderState.refreshFinderOrders failed: $error');
+      _resetFinderOrders(targetPage, limit);
     } catch (error) {
       debugPrint('OrderState.refreshFinderOrders failed: $error');
       _resetFinderOrders(targetPage, limit);
@@ -135,6 +151,7 @@ class OrderState {
   static Future<void> refreshProviderOrders({
     int? page,
     int limit = _pageSize,
+    bool allowRoleFallback = true,
   }) async {
     final targetPage = page ?? _normalizedPage(providerPagination.value.page);
     loading.value = true;
@@ -149,6 +166,21 @@ class OrderState {
       );
       providerOrders.value = result.items;
       providerPagination.value = result.pagination;
+      if (!AppRoleState.isProvider) {
+        AppRoleState.setProvider(true);
+      }
+    } on BackendApiException catch (error) {
+      if (_isRoleForbidden(error) && allowRoleFallback) {
+        AppRoleState.setProvider(false);
+        await refreshFinderOrders(
+          page: _normalizedPage(finderPagination.value.page),
+          limit: limit,
+          allowRoleFallback: false,
+        );
+        return;
+      }
+      debugPrint('OrderState.refreshProviderOrders failed: $error');
+      _resetProviderOrders(targetPage, limit);
     } catch (error) {
       debugPrint('OrderState.refreshProviderOrders failed: $error');
       _resetProviderOrders(targetPage, limit);
@@ -229,6 +261,11 @@ class OrderState {
       if (!refreshed) rethrow;
       return task();
     }
+  }
+
+  static bool _isRoleForbidden(BackendApiException error) {
+    if (error.statusCode != 403) return false;
+    return error.message.trim().toLowerCase().contains('forbidden (role)');
   }
 
   static Future<OrderItem> createFinderOrder(BookingDraft draft) async {

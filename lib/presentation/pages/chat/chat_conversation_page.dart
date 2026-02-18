@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
@@ -29,22 +31,25 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   List<ChatMessage> _olderMessages = const <ChatMessage>[];
   PaginationMeta _pagination = const PaginationMeta.initial(limit: 10);
   int _loadedPages = 1;
-  Timer? _pollTimer;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _messagesSubscription;
+  bool _realtimeActive = false;
 
   @override
   void initState() {
     super.initState();
     unawaited(ChatState.markThreadAsRead(widget.thread.id));
     unawaited(_loadInitial());
-    _pollTimer = Timer.periodic(
-      const Duration(seconds: 12),
-      (_) => unawaited(_refreshLatest()),
-    );
+    unawaited(_bindRealtimeMessages());
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    final subscription = _messagesSubscription;
+    _messagesSubscription = null;
+    if (subscription != null) {
+      unawaited(subscription.cancel());
+    }
     _inputController.dispose();
     super.dispose();
   }
@@ -144,6 +149,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   }
 
   Future<void> _refreshLatest() async {
+    if (_realtimeActive) return;
     if (!mounted) return;
     try {
       final result = await ChatState.fetchMessagesPage(
@@ -156,6 +162,75 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         _pagination = result.pagination;
       });
     } catch (_) {}
+  }
+
+  Future<void> _bindRealtimeMessages() async {
+    final threadId = widget.thread.id.trim();
+    if (threadId.isEmpty) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
+    if (uid.isEmpty) return;
+    final pageLimit = _pagination.limit <= 0 ? 10 : _pagination.limit;
+    final stream = FirebaseFirestore.instance
+        .collection('chats')
+        .doc(threadId)
+        .collection('messages')
+        .orderBy('sentAt', descending: true)
+        .limit(pageLimit)
+        .snapshots();
+    await _messagesSubscription?.cancel();
+    _messagesSubscription = stream.listen(
+      (snapshot) {
+        if (!mounted) return;
+        final mapped = snapshot.docs
+            .map((doc) => _toRealtimeMessage(doc.data(), uid))
+            .toList(growable: false);
+        setState(() {
+          _latestMessages = mapped;
+          _realtimeActive = true;
+          if (_loading) {
+            _loading = false;
+          }
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _realtimeActive = false;
+        });
+      },
+    );
+  }
+
+  ChatMessage _toRealtimeMessage(Map<String, dynamic> row, String currentUid) {
+    final senderUid = (row['senderUid'] ?? '').toString().trim();
+    final imageUrl = (row['imageUrl'] ?? '').toString().trim();
+    final rawType = (row['type'] ?? '').toString().trim().toLowerCase();
+    final type = rawType == 'image' || imageUrl.isNotEmpty
+        ? ChatMessageType.image
+        : ChatMessageType.text;
+    return ChatMessage(
+      text: (row['text'] ?? '').toString(),
+      type: type,
+      imageUrl: imageUrl,
+      fromMe: senderUid == currentUid,
+      sentAt: _toRealtimeDateTime(row['sentAt'] ?? row['createdAt']),
+    );
+  }
+
+  DateTime _toRealtimeDateTime(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed;
+    }
+    if (value is Map<String, dynamic>) {
+      final seconds = value['_seconds'];
+      if (seconds is int) {
+        return DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+      }
+    }
+    return DateTime.now();
   }
 
   Future<void> _loadOlder() async {
@@ -225,7 +300,9 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     try {
       await ChatState.sendMessage(threadId: widget.thread.id, text: text);
       _inputController.clear();
-      await _refreshLatest();
+      if (!_realtimeActive) {
+        await _refreshLatest();
+      }
     } catch (_) {
       if (mounted) {
         AppToast.error(context, 'Unable to send message right now.');
@@ -258,7 +335,9 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         bytes: bytes,
         fileName: picked.name,
       );
-      await _refreshLatest();
+      if (!_realtimeActive) {
+        await _refreshLatest();
+      }
     } catch (error) {
       if (mounted) {
         final reason = error is BackendApiException

@@ -5,6 +5,7 @@ class AdminPagination {
   final int totalPages;
   final bool hasPrevPage;
   final bool hasNextPage;
+  final String nextCursor;
 
   const AdminPagination({
     required this.page,
@@ -13,6 +14,7 @@ class AdminPagination {
     required this.totalPages,
     required this.hasPrevPage,
     required this.hasNextPage,
+    this.nextCursor = '',
   });
 
   const AdminPagination.initial({this.limit = 10})
@@ -20,7 +22,8 @@ class AdminPagination {
       totalItems = 0,
       totalPages = 0,
       hasPrevPage = false,
-      hasNextPage = false;
+      hasNextPage = false,
+      nextCursor = '';
 
   factory AdminPagination.fromMap(
     Map<String, dynamic> row, {
@@ -58,6 +61,7 @@ class AdminPagination {
         row['hasNextPage'],
         totalPages > 0 && page < totalPages,
       ),
+      nextCursor: _AdminParser.text(row['nextCursor']),
     );
   }
 }
@@ -428,175 +432,6 @@ class AdminSearchItem {
   }
 }
 
-class AdminAnalytics {
-  final int currentDays;
-  final int compareDays;
-  final AdminAnalyticsTotals current;
-  final AdminAnalyticsTotals previous;
-  final Map<String, double> deltaPercent;
-  final AdminAnalyticsFunnel funnel;
-  final List<AdminAnalyticsSeriesPoint> currentSeries;
-  final List<AdminAnalyticsSeriesPoint> previousSeries;
-  final List<AdminTopService> topServices;
-
-  const AdminAnalytics({
-    required this.currentDays,
-    required this.compareDays,
-    required this.current,
-    required this.previous,
-    required this.deltaPercent,
-    required this.funnel,
-    required this.currentSeries,
-    required this.previousSeries,
-    required this.topServices,
-  });
-
-  const AdminAnalytics.empty()
-    : currentDays = 14,
-      compareDays = 14,
-      current = const AdminAnalyticsTotals.empty(),
-      previous = const AdminAnalyticsTotals.empty(),
-      deltaPercent = const <String, double>{},
-      funnel = const AdminAnalyticsFunnel.empty(),
-      currentSeries = const <AdminAnalyticsSeriesPoint>[],
-      previousSeries = const <AdminAnalyticsSeriesPoint>[],
-      topServices = const <AdminTopService>[];
-
-  factory AdminAnalytics.fromMap(Map<String, dynamic> row) {
-    final range = _AdminParser.safeMap(row['range']);
-    final totals = _AdminParser.safeMap(row['totals']);
-    final trend = _AdminParser.safeMap(row['trend']);
-    final deltaRaw = totals['deltaPercent'];
-    final deltaPercent = <String, double>{};
-    if (deltaRaw is Map) {
-      for (final entry in deltaRaw.entries) {
-        deltaPercent[entry.key.toString()] = _AdminParser.parseDouble(
-          entry.value,
-        );
-      }
-    }
-    return AdminAnalytics(
-      currentDays: _AdminParser.parseInt(range['currentDays'], 14),
-      compareDays: _AdminParser.parseInt(range['compareDays'], 14),
-      current: AdminAnalyticsTotals.fromMap(
-        _AdminParser.safeMap(totals['current']),
-      ),
-      previous: AdminAnalyticsTotals.fromMap(
-        _AdminParser.safeMap(totals['previous']),
-      ),
-      deltaPercent: deltaPercent,
-      funnel: AdminAnalyticsFunnel.fromMap(_AdminParser.safeMap(row['funnel'])),
-      currentSeries: _AdminParser.parseMapList(
-        trend['currentSeries'],
-      ).map(AdminAnalyticsSeriesPoint.fromMap).toList(growable: false),
-      previousSeries: _AdminParser.parseMapList(
-        trend['previousSeries'],
-      ).map(AdminAnalyticsSeriesPoint.fromMap).toList(growable: false),
-      topServices: _AdminParser.parseMapList(
-        row['topServices'],
-      ).map(AdminTopService.fromMap).toList(growable: false),
-    );
-  }
-}
-
-class AdminAnalyticsTotals {
-  final int orders;
-  final int completedOrders;
-  final int cancelledOrders;
-  final double revenue;
-
-  const AdminAnalyticsTotals({
-    required this.orders,
-    required this.completedOrders,
-    required this.cancelledOrders,
-    required this.revenue,
-  });
-
-  const AdminAnalyticsTotals.empty()
-    : orders = 0,
-      completedOrders = 0,
-      cancelledOrders = 0,
-      revenue = 0;
-
-  factory AdminAnalyticsTotals.fromMap(Map<String, dynamic> row) {
-    return AdminAnalyticsTotals(
-      orders: _AdminParser.parseInt(row['orders'], 0),
-      completedOrders: _AdminParser.parseInt(row['completedOrders'], 0),
-      cancelledOrders: _AdminParser.parseInt(row['cancelledOrders'], 0),
-      revenue: _AdminParser.parseDouble(row['revenue']),
-    );
-  }
-}
-
-class AdminAnalyticsFunnel {
-  final int postIntents;
-  final int activeChats;
-  final int bookedOrders;
-  final int completedOrders;
-
-  const AdminAnalyticsFunnel({
-    required this.postIntents,
-    required this.activeChats,
-    required this.bookedOrders,
-    required this.completedOrders,
-  });
-
-  const AdminAnalyticsFunnel.empty()
-    : postIntents = 0,
-      activeChats = 0,
-      bookedOrders = 0,
-      completedOrders = 0;
-
-  factory AdminAnalyticsFunnel.fromMap(Map<String, dynamic> row) {
-    return AdminAnalyticsFunnel(
-      postIntents: _AdminParser.parseInt(row['postIntents'], 0),
-      activeChats: _AdminParser.parseInt(row['activeChats'], 0),
-      bookedOrders: _AdminParser.parseInt(row['bookedOrders'], 0),
-      completedOrders: _AdminParser.parseInt(row['completedOrders'], 0),
-    );
-  }
-}
-
-class AdminAnalyticsSeriesPoint {
-  final String date;
-  final int orders;
-  final double revenue;
-
-  const AdminAnalyticsSeriesPoint({
-    required this.date,
-    required this.orders,
-    required this.revenue,
-  });
-
-  factory AdminAnalyticsSeriesPoint.fromMap(Map<String, dynamic> row) {
-    return AdminAnalyticsSeriesPoint(
-      date: _AdminParser.text(row['date']),
-      orders: _AdminParser.parseInt(row['orders'], 0),
-      revenue: _AdminParser.parseDouble(row['revenue']),
-    );
-  }
-}
-
-class AdminTopService {
-  final String serviceName;
-  final int completedOrders;
-  final double revenue;
-
-  const AdminTopService({
-    required this.serviceName,
-    required this.completedOrders,
-    required this.revenue,
-  });
-
-  factory AdminTopService.fromMap(Map<String, dynamic> row) {
-    return AdminTopService(
-      serviceName: _AdminParser.text(row['serviceName'], fallback: 'Service'),
-      completedOrders: _AdminParser.parseInt(row['completedOrders'], 0),
-      revenue: _AdminParser.parseDouble(row['revenue']),
-    );
-  }
-}
-
 class AdminActionResult {
   final String id;
   final String reason;
@@ -895,12 +730,6 @@ class _AdminParser {
         .map((entry) => text(entry))
         .where((entry) => entry.isNotEmpty)
         .toList(growable: false);
-  }
-
-  static Map<String, dynamic> safeMap(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) return _safeMap(value);
-    return const <String, dynamic>{};
   }
 
   static Map<String, dynamic> _safeMap(Map value) {

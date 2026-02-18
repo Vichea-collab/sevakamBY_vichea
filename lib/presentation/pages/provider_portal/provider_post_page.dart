@@ -26,6 +26,24 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
   bool _availableNow = true;
   bool _posting = false;
 
+  InputDecoration _fieldDecoration({String? hintText}) {
+    return InputDecoration(
+      hintText: hintText,
+      filled: true,
+      fillColor: const Color(0xFFF8FAFF),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFD3DDEF)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.2),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -140,7 +158,7 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
                             child: TextField(
                               controller: _priceController,
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
+                              decoration: _fieldDecoration(
                                 hintText: 'Enter your hourly rate',
                               ),
                             ),
@@ -167,7 +185,7 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
                       _FieldLabel(label: 'Service area*'),
                       TextField(
                         controller: _areaController,
-                        decoration: const InputDecoration(
+                        decoration: _fieldDecoration(
                           hintText: 'Example: Toul Kork, Phnom Penh',
                         ),
                       ),
@@ -185,7 +203,7 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
                         controller: _detailsController,
                         minLines: 4,
                         maxLines: 6,
-                        decoration: const InputDecoration(
+                        decoration: _fieldDecoration(
                           hintText:
                               'Example: Professional team, tools included, same-day support.',
                         ),

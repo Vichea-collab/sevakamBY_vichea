@@ -5,6 +5,7 @@ class PaginationMeta {
   final int totalPages;
   final bool hasPrevPage;
   final bool hasNextPage;
+  final String nextCursor;
 
   const PaginationMeta({
     required this.page,
@@ -13,6 +14,7 @@ class PaginationMeta {
     required this.totalPages,
     required this.hasPrevPage,
     required this.hasNextPage,
+    this.nextCursor = '',
   });
 
   const PaginationMeta.initial({this.limit = 10})
@@ -20,7 +22,8 @@ class PaginationMeta {
       totalItems = 0,
       totalPages = 0,
       hasPrevPage = false,
-      hasNextPage = false;
+      hasNextPage = false,
+      nextCursor = '';
 
   factory PaginationMeta.fromMap(
     Map<String, dynamic> row, {
@@ -64,6 +67,7 @@ class PaginationMeta {
         row['hasNextPage'],
         totalPages > 0 && page < totalPages,
       ),
+      nextCursor: (row['nextCursor'] ?? '').toString().trim(),
     );
   }
 }

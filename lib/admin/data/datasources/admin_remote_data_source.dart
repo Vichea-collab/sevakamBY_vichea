@@ -43,18 +43,6 @@ class AdminRemoteDataSource {
     return _safeMap(response['data']);
   }
 
-  Future<Map<String, dynamic>> fetchAnalytics({
-    int days = 14,
-    int compareDays = 14,
-  }) async {
-    final path = _buildPath('/api/admin/analytics', {
-      'days': '$days',
-      'compareDays': '$compareDays',
-    });
-    final response = await _apiClient.getJson(path);
-    return _safeMap(response['data']);
-  }
-
   Future<AdminPage<Map<String, dynamic>>> fetchUsers({
     int page = 1,
     int limit = defaultPageSize,

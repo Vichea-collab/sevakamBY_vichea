@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "seed:admin": "node scripts_ensure_admin_account.mjs"
+    "seed:admin": "node scripts_ensure_admin_account.mjs",
+    "seed:demo": "node scripts_seed_demo_data.mjs --project sevekamvichea --execute"
   },
   "type": "module",
   "keywords": [],

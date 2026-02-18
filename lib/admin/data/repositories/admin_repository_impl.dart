@@ -42,18 +42,6 @@ class AdminRepositoryImpl implements AdminRepository {
   }
 
   @override
-  Future<AdminAnalytics> fetchAnalytics({
-    int days = 14,
-    int compareDays = 14,
-  }) async {
-    final row = await _remoteDataSource.fetchAnalytics(
-      days: days,
-      compareDays: compareDays,
-    );
-    return AdminAnalytics.fromMap(row);
-  }
-
-  @override
   Future<AdminPage<AdminUserRow>> fetchUsers({
     int page = 1,
     int limit = 10,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/profile_settings.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -27,6 +28,25 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
   String _providerType = 'individual';
   bool _loading = true;
   bool _saving = false;
+
+  InputDecoration _fieldDecoration({required String label, String? hintText}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hintText,
+      filled: true,
+      fillColor: const Color(0xFFF8FAFF),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFD3DDEF)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.2),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -64,12 +84,12 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
               const SizedBox(height: 12),
               TextField(
                 controller: _serviceName,
-                decoration: const InputDecoration(labelText: 'Service name'),
+                decoration: _fieldDecoration(label: 'Service name'),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: _expertIn,
-                decoration: const InputDecoration(labelText: 'Expert in'),
+                decoration: _fieldDecoration(label: 'Expert in'),
               ),
               const SizedBox(height: 10),
               Row(
@@ -77,14 +97,14 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
                   Expanded(
                     child: TextField(
                       controller: _from,
-                      decoration: const InputDecoration(labelText: 'From'),
+                      decoration: _fieldDecoration(label: 'From'),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextField(
                       controller: _to,
-                      decoration: const InputDecoration(labelText: 'To'),
+                      decoration: _fieldDecoration(label: 'To'),
                     ),
                   ),
                 ],
@@ -96,8 +116,8 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
                     child: TextField(
                       controller: _years,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Experience in years',
+                      decoration: _fieldDecoration(
+                        label: 'Experience in years',
                       ),
                     ),
                   ),
@@ -108,12 +128,16 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
               const SizedBox(height: 10),
               TextField(
                 controller: _area,
-                decoration: const InputDecoration(labelText: 'Service area'),
+                decoration: _fieldDecoration(label: 'Service area'),
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 initialValue: _providerType,
-                decoration: const InputDecoration(labelText: 'Provider type'),
+                isExpanded: true,
+                dropdownColor: const Color(0xFFF8FAFF),
+                borderRadius: BorderRadius.circular(12),
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                decoration: _fieldDecoration(label: 'Provider type'),
                 items: const [
                   DropdownMenuItem(
                     value: 'individual',
@@ -136,14 +160,14 @@ class _ProviderProfessionPageState extends State<ProviderProfessionPage> {
                 const SizedBox(height: 10),
                 TextField(
                   controller: _companyName,
-                  decoration: const InputDecoration(labelText: 'Company name'),
+                  decoration: _fieldDecoration(label: 'Company name'),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: _maxWorkers,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Maximum workers per booking',
+                  decoration: _fieldDecoration(
+                    label: 'Maximum workers per booking',
                   ),
                 ),
               ],

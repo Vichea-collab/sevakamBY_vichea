@@ -10,7 +10,6 @@ abstract class AdminRepository {
     required String query,
     int limit = 5,
   });
-  Future<AdminAnalytics> fetchAnalytics({int days = 14, int compareDays = 14});
 
   Future<AdminPage<AdminUserRow>> fetchUsers({
     int page = 1,
