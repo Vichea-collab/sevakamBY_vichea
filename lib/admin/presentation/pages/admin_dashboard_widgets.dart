@@ -192,6 +192,8 @@ class _DashboardToolbar extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final Future<void> Function() onSubmitSearch;
   final Future<void> Function() onClearSearch;
+  final List<String> activeFilters;
+  final VoidCallback? onClearFilters;
 
   const _DashboardToolbar({
     required this.section,
@@ -199,6 +201,8 @@ class _DashboardToolbar extends StatelessWidget {
     required this.onRefresh,
     required this.onSubmitSearch,
     required this.onClearSearch,
+    required this.activeFilters,
+    this.onClearFilters,
   });
 
   @override
@@ -298,6 +302,56 @@ class _DashboardToolbar extends StatelessWidget {
                 ),
               ),
             ),
+            if (activeFilters.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: activeFilters
+                          .map(
+                            (value) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.12,
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: AppColors.primary.withValues(
+                                    alpha: 0.35,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                value,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: AppColors.primaryDark,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  ),
+                  if (onClearFilters != null) ...[
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: onClearFilters,
+                      icon: const Icon(Icons.clear_all_rounded),
+                      label: const Text('Clear all'),
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -1947,6 +2001,23 @@ String _prettyPostType(String value) {
     'provider_offer' => 'Provider Offer',
     'finder_request' => 'Finder Request',
     _ => 'Post',
+  };
+}
+
+String _prettyRole(String value) {
+  return switch (value.trim().toLowerCase()) {
+    'finder' => 'Finder',
+    'provider' => 'Provider',
+    'admin' => 'Admin',
+    _ => _prettyStatus(value),
+  };
+}
+
+String _prettyBroadcastType(String value) {
+  return switch (value.trim().toLowerCase()) {
+    'system' => 'System',
+    'promotion' => 'Promotion',
+    _ => _prettyStatus(value),
   };
 }
 

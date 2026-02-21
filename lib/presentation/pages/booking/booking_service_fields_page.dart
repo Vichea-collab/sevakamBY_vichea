@@ -1,11 +1,17 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/order.dart';
 import '../../state/booking_catalog_state.dart';
+import '../../widgets/app_state_panel.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
 import 'booking_payment_page.dart';
 
@@ -20,6 +26,9 @@ class BookingServiceFieldsPage extends StatefulWidget {
 }
 
 class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
+  static const int _maxPhotoBytes = 350 * 1024;
+
+  final ImagePicker _imagePicker = ImagePicker();
   late Map<String, dynamic> _serviceFields;
   Map<String, String> _fieldErrors = const {};
 
@@ -49,6 +58,10 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
             children: [
               AppTopBar(title: '${widget.draft.categoryName} Details'),
               const SizedBox(height: 8),
+              const BookingStepProgress(
+                currentStep: BookingFlowStep.serviceFields,
+              ),
+              const SizedBox(height: 12),
               Text(
                 widget.draft.serviceName,
                 style: Theme.of(
@@ -56,7 +69,13 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
                 ).textTheme.titleLarge?.copyWith(color: AppColors.primary),
               ),
               const SizedBox(height: 14),
-              ...fieldDefs.map((field) => _buildDynamicField(field)),
+              if (fieldDefs.isEmpty)
+                const AppStatePanel.empty(
+                  title: 'No additional fields',
+                  message: 'You can continue to payment.',
+                )
+              else
+                ...fieldDefs.map((field) => _buildDynamicField(field)),
             ],
           ),
         ),
@@ -197,20 +216,16 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
           ),
         );
       case BookingFieldType.photo:
-        final uploaded = value == true;
+        final uploaded = _hasPhotoValue(value);
+        final imageDataUrl = _asImageDataUrl(value);
+        final previewBytes = _decodeDataUrlImage(imageDataUrl);
         return Padding(
           padding: const EdgeInsets.only(bottom: 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               InkWell(
-                onTap: () => setState(() {
-                  _serviceFields[field.key] = !uploaded;
-                  if (_fieldErrors.containsKey(field.key)) {
-                    _fieldErrors = Map<String, String>.from(_fieldErrors)
-                      ..remove(field.key);
-                  }
-                }),
+                onTap: () => _pickPhoto(field, uploaded: uploaded),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   padding: const EdgeInsets.all(12),
@@ -237,7 +252,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
                         ),
                       ),
                       Text(
-                        uploaded ? 'Change' : 'Upload',
+                        uploaded ? 'Replace' : 'Upload',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppColors.primary,
                         ),
@@ -246,6 +261,27 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
                   ),
                 ),
               ),
+              if (uploaded && previewBytes != null) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.memory(
+                    previewBytes,
+                    height: 140,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ],
+              if (!uploaded) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'JPG/PNG/WEBP up to 350 KB',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
               if (errorText != null) ...[
                 const SizedBox(height: 6),
                 Text(
@@ -314,7 +350,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
     if (field.required) {
       switch (field.type) {
         case BookingFieldType.photo:
-          if (value != true) return '${field.label} is required';
+          if (!_hasPhotoValue(value)) return '${field.label} is required';
           break;
         case BookingFieldType.toggle:
           if (value != true) return '${field.label} is required';
@@ -335,6 +371,146 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
       }
     }
     return null;
+  }
+
+  Future<void> _pickPhoto(
+    BookingFieldDef field, {
+    required bool uploaded,
+  }) async {
+    final action = await showModalBottomSheet<_PhotoAction>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Choose from gallery'),
+                  onTap: () =>
+                      Navigator.pop(context, _PhotoAction.pickFromGallery),
+                ),
+                if (uploaded)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: AppColors.danger,
+                    ),
+                    title: const Text('Remove photo'),
+                    onTap: () => Navigator.pop(context, _PhotoAction.remove),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (action == null) return;
+    if (action == _PhotoAction.remove) {
+      setState(() {
+        _serviceFields[field.key] = false;
+        if (_fieldErrors.containsKey(field.key)) {
+          _fieldErrors = Map<String, String>.from(_fieldErrors)
+            ..remove(field.key);
+        }
+      });
+      return;
+    }
+
+    final file = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+      maxWidth: 1440,
+    );
+    if (file == null) return;
+
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) {
+      if (!mounted) return;
+      AppToast.warning(context, 'Selected image is empty.');
+      return;
+    }
+    if (bytes.lengthInBytes > _maxPhotoBytes) {
+      if (!mounted) return;
+      AppToast.warning(
+        context,
+        'Image is too large. Please select an image under 350 KB.',
+      );
+      return;
+    }
+
+    final extension = _extensionFromName(file.name);
+    final mimeType = _mimeTypeFromExtension(extension);
+    final encoded = base64Encode(bytes);
+    final dataUrl = 'data:$mimeType;base64,$encoded';
+
+    setState(() {
+      _serviceFields[field.key] = dataUrl;
+      if (_fieldErrors.containsKey(field.key)) {
+        _fieldErrors = Map<String, String>.from(_fieldErrors)
+          ..remove(field.key);
+      }
+    });
+  }
+
+  bool _hasPhotoValue(dynamic value) {
+    if (value is bool) return value;
+    final text = (value ?? '').toString().trim();
+    if (text.isEmpty) return false;
+    final normalized = text.toLowerCase();
+    if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+      return false;
+    }
+    return true;
+  }
+
+  String _asImageDataUrl(dynamic value) {
+    final text = (value ?? '').toString().trim();
+    if (text.startsWith('data:image/')) return text;
+    return '';
+  }
+
+  Uint8List? _decodeDataUrlImage(String dataUrl) {
+    if (dataUrl.isEmpty) return null;
+    final commaIndex = dataUrl.indexOf(',');
+    if (commaIndex <= 0 || commaIndex >= dataUrl.length - 1) return null;
+    try {
+      final base64Body = dataUrl.substring(commaIndex + 1);
+      return base64Decode(base64Body);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _extensionFromName(String fileName) {
+    final trimmed = fileName.trim();
+    final dot = trimmed.lastIndexOf('.');
+    if (dot <= 0 || dot >= trimmed.length - 1) return '.jpg';
+    return '.${trimmed.substring(dot + 1).toLowerCase()}';
+  }
+
+  String _mimeTypeFromExtension(String extension) {
+    switch (extension.toLowerCase()) {
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      case '.gif':
+        return 'image/gif';
+      case '.heic':
+        return 'image/heic';
+      case '.jpg':
+      case '.jpeg':
+      default:
+        return 'image/jpeg';
+    }
   }
 
   Future<T?> _showOptionSheet<T>({
@@ -448,6 +624,8 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
     );
   }
 }
+
+enum _PhotoAction { pickFromGallery, remove }
 
 class _PickerField extends StatelessWidget {
   final String label;

@@ -505,6 +505,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     setState(() {
       _section = section;
     });
+    if (section == _AdminSection.overview) {
+      unawaited(_refreshAllData());
+      return;
+    }
     unawaited(_reloadCurrentSection(page: 1));
   }
 
@@ -552,6 +556,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _searchController.selection = TextSelection.fromPosition(
       TextPosition(offset: _searchController.text.length),
     );
+    if (target == _AdminSection.overview) {
+      await _refreshAllData();
+      return;
+    }
     await _reloadCurrentSection(page: 1);
   }
 
@@ -559,35 +567,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     required String title,
     required String actionLabel,
   }) async {
-    final controller = TextEditingController();
-    try {
-      return await showDialog<String>(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: Text(title),
-            content: TextField(
-              controller: controller,
-              minLines: 2,
-              maxLines: 4,
-              decoration: _adminFieldDecoration(hintText: 'Reason (required)'),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, controller.text.trim()),
-                child: Text(actionLabel),
-              ),
-            ],
-          );
-        },
-      );
-    } finally {
-      controller.dispose();
-    }
+    return showDialog<String>(
+      context: context,
+      builder: (context) =>
+          _ActionReasonDialog(title: title, actionLabel: actionLabel),
+    );
   }
 
   Future<void> _runSafeAction({
@@ -1017,6 +1001,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Widget _buildMainContent({required bool desktop}) {
+    final activeFilters = _activeFilterLabels();
     return Column(
       children: [
         _DashboardToolbar(
@@ -1025,6 +1010,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           onRefresh: _refreshAll,
           onSubmitSearch: _submitSearch,
           onClearSearch: _clearSearch,
+          activeFilters: activeFilters,
+          onClearFilters: activeFilters.isEmpty ? null : _clearActiveFilters,
         ),
         ValueListenableBuilder<AdminGlobalSearchResult>(
           valueListenable: AdminDashboardState.globalSearch,
@@ -1049,12 +1036,105 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 desktop ? 22 : 14,
                 22,
               ),
-              children: [_buildActiveSection()],
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 240),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) {
+                    final slide = Tween<Offset>(
+                      begin: const Offset(0, 0.02),
+                      end: Offset.zero,
+                    ).animate(animation);
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(position: slide, child: child),
+                    );
+                  },
+                  child: KeyedSubtree(
+                    key: ValueKey<String>(
+                      '${_section.name}_${_searchQuery.trim()}-$_userRoleFilter-$_orderStatusFilter-$_postTypeFilter-$_ticketStatusFilter-$_serviceStateFilter-$_broadcastTypeFilter-$_broadcastStatusFilter-$_broadcastRoleFilter-$_undoHistoryStateFilter',
+                    ),
+                    child: _buildActiveSection(),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ],
     );
+  }
+
+  List<String> _activeFilterLabels() {
+    final values = <String>[];
+    final search = _searchQuery.trim();
+    if (search.isNotEmpty) values.add('Search: "$search"');
+    switch (_section) {
+      case _AdminSection.overview:
+        if (_undoHistoryStateFilter != 'all') {
+          values.add('History: ${_prettyStatus(_undoHistoryStateFilter)}');
+        }
+        break;
+      case _AdminSection.users:
+        if (_userRoleFilter != 'all') {
+          values.add('Role: ${_prettyRole(_userRoleFilter)}');
+        }
+        break;
+      case _AdminSection.orders:
+        if (_orderStatusFilter != 'all') {
+          values.add('Status: ${_prettyStatus(_orderStatusFilter)}');
+        }
+        break;
+      case _AdminSection.posts:
+        if (_postTypeFilter != 'all') {
+          values.add('Type: ${_prettyPostType(_postTypeFilter)}');
+        }
+        break;
+      case _AdminSection.tickets:
+        if (_ticketStatusFilter != 'all') {
+          values.add('Status: ${_prettyStatus(_ticketStatusFilter)}');
+        }
+        break;
+      case _AdminSection.services:
+        if (_serviceStateFilter != 'all') {
+          values.add(
+            'State: ${_serviceStateFilter == 'active' ? 'Active' : 'Inactive'}',
+          );
+        }
+        break;
+      case _AdminSection.broadcasts:
+        if (_broadcastTypeFilter != 'all') {
+          values.add('Type: ${_prettyBroadcastType(_broadcastTypeFilter)}');
+        }
+        if (_broadcastStatusFilter != 'all') {
+          values.add('Status: ${_prettyStatus(_broadcastStatusFilter)}');
+        }
+        if (_broadcastRoleFilter != 'all') {
+          values.add('Audience: ${_prettyRole(_broadcastRoleFilter)}');
+        }
+        break;
+    }
+    return values;
+  }
+
+  void _clearActiveFilters() {
+    _searchController.clear();
+    AdminDashboardState.globalSearch.value =
+        const AdminGlobalSearchResult.empty();
+    setState(() {
+      _searchQuery = '';
+      _userRoleFilter = 'all';
+      _orderStatusFilter = 'all';
+      _postTypeFilter = 'all';
+      _ticketStatusFilter = 'all';
+      _serviceStateFilter = 'all';
+      _broadcastTypeFilter = 'all';
+      _broadcastStatusFilter = 'all';
+      _broadcastRoleFilter = 'all';
+      _undoHistoryStateFilter = 'all';
+    });
+    unawaited(_reloadCurrentSection(page: 1));
   }
 
   Widget _buildActiveSection() {
@@ -2272,6 +2352,55 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           return PopupMenuItem<int>(value: index, child: Text(action.label));
         });
       },
+    );
+  }
+}
+
+class _ActionReasonDialog extends StatefulWidget {
+  final String title;
+  final String actionLabel;
+
+  const _ActionReasonDialog({required this.title, required this.actionLabel});
+
+  @override
+  State<_ActionReasonDialog> createState() => _ActionReasonDialogState();
+}
+
+class _ActionReasonDialogState extends State<_ActionReasonDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        minLines: 2,
+        maxLines: 4,
+        decoration: _adminFieldDecoration(hintText: 'Reason (required)'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: Text(widget.actionLabel),
+        ),
+      ],
     );
   }
 }

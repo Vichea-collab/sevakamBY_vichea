@@ -5,6 +5,7 @@ import '../../../domain/entities/chat.dart';
 import '../../../domain/entities/pagination.dart';
 import '../../state/chat_state.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_state_panel.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pagination_bar.dart';
 import '../../widgets/pressable_scale.dart';
@@ -41,96 +42,109 @@ class _ChatListPageState extends State<ChatListPage> {
     return ValueListenableBuilder<List<ChatThread>>(
       valueListenable: ChatState.threads,
       builder: (context, threads, _) {
-        return ValueListenableBuilder<PaginationMeta>(
-          valueListenable: ChatState.threadPagination,
-          builder: (context, pagination, _) {
-            final query = _query.trim().toLowerCase();
-            final filtered = query.isEmpty
-                ? threads
-                : threads
-                      .where(
-                        (chat) =>
-                            chat.title.toLowerCase().contains(query) ||
-                            chat.subtitle.toLowerCase().contains(query),
-                      )
-                      .toList();
-            final resultCount = query.isEmpty
-                ? pagination.totalItems
-                : filtered.length;
-            final currentPage = _normalizedPage(pagination.page);
+        return ValueListenableBuilder<bool>(
+          valueListenable: ChatState.loading,
+          builder: (context, isLoading, _) {
+            return ValueListenableBuilder<PaginationMeta>(
+              valueListenable: ChatState.threadPagination,
+              builder: (context, pagination, _) {
+                final query = _query.trim().toLowerCase();
+                final filtered = query.isEmpty
+                    ? threads
+                    : threads
+                          .where(
+                            (chat) =>
+                                chat.title.toLowerCase().contains(query) ||
+                                chat.subtitle.toLowerCase().contains(query),
+                          )
+                          .toList();
+                final resultCount = query.isEmpty
+                    ? pagination.totalItems
+                    : filtered.length;
+                final currentPage = _normalizedPage(pagination.page);
 
-            return Scaffold(
-              body: SafeArea(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-                      child: AppTopBar(
-                        title: 'Chats',
-                        actions: [
-                          IconButton(
-                            onPressed: () => ChatState.refresh(page: 1),
-                            icon: const Icon(Icons.refresh_rounded),
+                final Widget body;
+                if (isLoading && threads.isEmpty) {
+                  body = const AppStatePanel.loading(
+                    title: 'Loading conversations',
+                  );
+                } else if (filtered.isEmpty) {
+                  body = AppStatePanel.empty(
+                    title: 'No conversation yet',
+                    message: query.isEmpty
+                        ? 'Start chatting with a provider or customer.'
+                        : 'No messages matched your search.',
+                  );
+                } else {
+                  body = ListView.separated(
+                    key: ValueKey<String>(
+                      'chat_list_${filtered.length}_${currentPage}_$query',
+                    ),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final thread = filtered[index];
+                      return _ChatThreadTile(thread: thread);
+                    },
+                  );
+                }
+
+                return Scaffold(
+                  body: SafeArea(
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                          child: AppTopBar(
+                            title: 'Chats',
+                            actions: [
+                              IconButton(
+                                onPressed: () => ChatState.refresh(page: 1),
+                                icon: const Icon(Icons.refresh_rounded),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (value) => setState(() => _query = value),
-                        decoration: InputDecoration(
-                          hintText: 'Search for messages or users',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixText: '$resultCount',
-                          isDense: true,
                         ),
-                      ),
-                    ),
-                    Expanded(
-                      child: filtered.isEmpty
-                          ? ListView(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              children: [
-                                const SizedBox(height: 120),
-                                Center(
-                                  child: Text(
-                                    'No conversation yet',
-                                    style: Theme.of(context).textTheme.bodyLarge
-                                        ?.copyWith(
-                                          color: AppColors.textSecondary,
-                                        ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : ListView.separated(
-                              itemCount: filtered.length,
-                              separatorBuilder: (_, _) =>
-                                  const Divider(height: 1),
-                              itemBuilder: (context, index) {
-                                final thread = filtered[index];
-                                return _ChatThreadTile(thread: thread);
-                              },
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (value) =>
+                                setState(() => _query = value),
+                            decoration: InputDecoration(
+                              hintText: 'Search for messages or users',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixText: '$resultCount',
+                              isDense: true,
                             ),
-                    ),
-                    if (pagination.totalPages > 1 && query.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-                        child: PaginationBar(
-                          currentPage: currentPage,
-                          totalPages: pagination.totalPages,
-                          loading: _isPaging,
-                          onPageSelected: _goToPage,
+                          ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-              bottomNavigationBar: const AppBottomNav(
-                current: AppBottomTab.home,
-              ),
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            child: body,
+                          ),
+                        ),
+                        if (pagination.totalPages > 1 && query.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                            child: PaginationBar(
+                              currentPage: currentPage,
+                              totalPages: pagination.totalPages,
+                              loading: _isPaging,
+                              onPageSelected: _goToPage,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  bottomNavigationBar: const AppBottomNav(
+                    current: AppBottomTab.home,
+                  ),
+                );
+              },
             );
           },
         );

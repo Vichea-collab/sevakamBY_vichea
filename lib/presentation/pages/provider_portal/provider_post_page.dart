@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
@@ -96,12 +97,26 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
     if (_selectedCategory == nextCategory && sameSelection) {
       return;
     }
-    setState(() {
+    _safeSetState(() {
       _selectedCategory = nextCategory;
       _selectedServices
         ..clear()
         ..addAll(selected);
     });
+  }
+
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(fn);
+      });
+      return;
+    }
+    setState(fn);
   }
 
   @override

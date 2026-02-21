@@ -10,6 +10,8 @@ import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../state/chat_state.dart';
 import '../../state/finder_post_state.dart';
+import '../../widgets/app_state_panel.dart';
+import '../../widgets/app_top_bar.dart';
 import '../../widgets/pagination_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../chat/chat_conversation_page.dart';
@@ -57,81 +59,138 @@ class _ProviderFinderSearchPageState extends State<ProviderFinderSearchPage> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                  Expanded(
-                    child: _SearchField(
-                      controller: _searchController,
-                      onChanged: (value) => setState(() => _query = value),
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+              child: AppTopBar(
+                title: 'Finder Requests',
+                onBack: () => Navigator.maybePop(context),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+              child: _SearchField(
+                controller: _searchController,
+                onChanged: (value) => setState(() => _query = value),
               ),
             ),
             Expanded(
-              child: ValueListenableBuilder<List<FinderPostItem>>(
-                valueListenable: FinderPostState.allPosts,
-                builder: (context, allPosts, _) {
+              child: ValueListenableBuilder<bool>(
+                valueListenable: FinderPostState.loading,
+                builder: (context, isLoading, _) {
                   return ValueListenableBuilder<List<FinderPostItem>>(
-                    valueListenable: FinderPostState.posts,
-                    builder: (context, pagedPosts, _) {
-                      return ValueListenableBuilder<PaginationMeta>(
-                        valueListenable: FinderPostState.pagination,
-                        builder: (context, pagination, _) {
-                          final normalized = _query.trim().toLowerCase();
-                          final lookupPosts = allPosts.isNotEmpty
-                              ? allPosts
-                              : pagedPosts;
-                          final source = normalized.isEmpty
-                              ? pagedPosts
-                              : lookupPosts;
-                          final posts = normalized.isEmpty
-                              ? source
-                              : source.where((post) {
-                                  return post.clientName.toLowerCase().contains(
-                                        normalized,
-                                      ) ||
-                                      post.service.toLowerCase().contains(
-                                        normalized,
-                                      ) ||
-                                      post.location.toLowerCase().contains(
-                                        normalized,
-                                      ) ||
-                                      post.category.toLowerCase().contains(
-                                        normalized,
-                                      ) ||
-                                      post.message.toLowerCase().contains(
-                                        normalized,
-                                      );
-                                }).toList();
-                          final currentPage = _normalizedPage(pagination.page);
-                          final resultCount = normalized.isEmpty
-                              ? pagination.totalItems
-                              : posts.length;
+                    valueListenable: FinderPostState.allPosts,
+                    builder: (context, allPosts, _) {
+                      return ValueListenableBuilder<List<FinderPostItem>>(
+                        valueListenable: FinderPostState.posts,
+                        builder: (context, pagedPosts, _) {
+                          return ValueListenableBuilder<PaginationMeta>(
+                            valueListenable: FinderPostState.pagination,
+                            builder: (context, pagination, _) {
+                              final normalized = _query.trim().toLowerCase();
+                              final lookupPosts = allPosts.isNotEmpty
+                                  ? allPosts
+                                  : pagedPosts;
+                              final source = normalized.isEmpty
+                                  ? pagedPosts
+                                  : lookupPosts;
+                              final posts = normalized.isEmpty
+                                  ? source
+                                  : source.where((post) {
+                                      return post.clientName
+                                              .toLowerCase()
+                                              .contains(normalized) ||
+                                          post.service.toLowerCase().contains(
+                                            normalized,
+                                          ) ||
+                                          post.location.toLowerCase().contains(
+                                            normalized,
+                                          ) ||
+                                          post.category.toLowerCase().contains(
+                                            normalized,
+                                          ) ||
+                                          post.message.toLowerCase().contains(
+                                            normalized,
+                                          );
+                                    }).toList();
+                              final currentPage = _normalizedPage(
+                                pagination.page,
+                              );
+                              final resultCount = normalized.isEmpty
+                                  ? pagination.totalItems
+                                  : posts.length;
 
-                          return ListView(
-                            padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'Finder Requests',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w700,
-                                        ),
+                              final Widget body;
+                              if (isLoading && pagedPosts.isEmpty) {
+                                body = const AppStatePanel.loading(
+                                  title: 'Loading finder requests',
+                                );
+                              } else if (posts.isEmpty) {
+                                body = AppStatePanel.empty(
+                                  title: 'No finder requests found',
+                                  message: _query.trim().isEmpty
+                                      ? 'New requests will appear here.'
+                                      : 'Try another keyword.',
+                                );
+                              } else {
+                                body = Column(
+                                  key: ValueKey<String>(
+                                    'finder_posts_${posts.length}_${currentPage}_$normalized',
                                   ),
-                                  const Spacer(),
+                                  children: posts
+                                      .map(
+                                        (post) => _FinderPostTile(post: post),
+                                      )
+                                      .toList(growable: false),
+                                );
+                              }
+
+                              return ListView(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  6,
+                                  20,
+                                  20,
+                                ),
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'Finder Requests',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                              color: AppColors.primary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEAF1FF),
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '$resultCount',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: AppColors.primary,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
                                   Text(
-                                    '$resultCount results',
+                                    'Search by client name, service, or location',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodyMedium
@@ -139,33 +198,25 @@ class _ProviderFinderSearchPageState extends State<ProviderFinderSearchPage> {
                                           color: AppColors.textSecondary,
                                         ),
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Search by client name, service, or location',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(color: AppColors.textSecondary),
-                              ),
-                              const SizedBox(height: 12),
-                              if (posts.isEmpty)
-                                _EmptySearch(query: _query.trim())
-                              else
-                                ...posts.map(
-                                  (post) => _FinderPostTile(post: post),
-                                ),
-                              if (pagination.totalPages > 1 &&
-                                  normalized.isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: PaginationBar(
-                                    currentPage: currentPage,
-                                    totalPages: pagination.totalPages,
-                                    loading: _isPaging,
-                                    onPageSelected: _goToPage,
+                                  const SizedBox(height: 12),
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 220),
+                                    child: body,
                                   ),
-                                ),
-                            ],
+                                  if (pagination.totalPages > 1 &&
+                                      normalized.isEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 12),
+                                      child: PaginationBar(
+                                        currentPage: currentPage,
+                                        totalPages: pagination.totalPages,
+                                        loading: _isPaging,
+                                        onPageSelected: _goToPage,
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
                           );
                         },
                       );
@@ -274,6 +325,19 @@ class _SearchFieldState extends State<_SearchField> {
               ),
             ),
           ),
+          if (widget.controller.text.trim().isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                widget.controller.clear();
+                widget.onChanged('');
+                setState(() {});
+              },
+              child: const Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: AppColors.textSecondary,
+              ),
+            ),
         ],
       ),
     );
@@ -477,53 +541,6 @@ class _MetaPill extends StatelessWidget {
           color: AppColors.primary,
           fontWeight: FontWeight.w700,
         ),
-      ),
-    );
-  }
-}
-
-class _EmptySearch extends StatelessWidget {
-  final String query;
-
-  const _EmptySearch({required this.query});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasQuery = query.trim().isNotEmpty;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.search_off_rounded,
-            size: 34,
-            color: AppColors.textSecondary,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            hasQuery
-                ? 'No request found for "$query"'
-                : 'No request found yet.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            hasQuery
-                ? 'Try searching by client name, service, or location.'
-                : 'Finder posts will appear here when clients publish requests.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ],
       ),
     );
   }

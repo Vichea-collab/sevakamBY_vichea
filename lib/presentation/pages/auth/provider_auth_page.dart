@@ -124,7 +124,7 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Enter your detail below',
+                        'Enter your details below',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -282,7 +282,7 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
                           Expanded(child: Divider()),
                           Padding(
                             padding: EdgeInsets.symmetric(horizontal: 8),
-                            child: Text('Or Sign in With'),
+                            child: Text('Or Continue With'),
                           ),
                           Expanded(child: Divider()),
                         ],

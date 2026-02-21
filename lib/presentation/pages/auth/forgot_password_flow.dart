@@ -189,6 +189,11 @@ class _ResetRequestStep extends StatelessWidget {
             "We'll email you a secure link to reset your password.",
             style: Theme.of(context).textTheme.bodyMedium,
           ),
+          const SizedBox(height: 6),
+          Text(
+            'Use this only for email/password accounts. If you registered with Google, sign in with Google.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: AppSpacing.lg),
           AppTextField(
             hint: 'Email Address',

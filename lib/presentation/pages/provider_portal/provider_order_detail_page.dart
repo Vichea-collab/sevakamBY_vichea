@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
@@ -30,7 +33,10 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
     super.initState();
     _order = widget.order;
     OrderState.providerOrders.addListener(_syncOrderFromState);
-    unawaited(OrderState.refreshCurrentRole(forceNetwork: true));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(OrderState.refreshCurrentRole(forceNetwork: true));
+    });
   }
 
   @override
@@ -50,7 +56,21 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
     final latest = updated;
     if (latest == null) return;
     if (!mounted || identical(latest, _order)) return;
-    setState(() => _order = latest);
+    _safeSetState(() => _order = latest);
+  }
+
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(fn);
+      });
+      return;
+    }
+    setState(fn);
   }
 
   @override
@@ -172,11 +192,11 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
                     if (_order.paymentMethod.trim().isNotEmpty)
                       _InfoRow(
                         label: 'Payment method',
-                        value: _order.paymentMethod,
+                        value: _paymentMethodLabel(_order.paymentMethod),
                       ),
                     if (_order.finderNote.trim().isNotEmpty)
                       _InfoRow(label: 'Finder note', value: _order.finderNote),
-                    if (_order.serviceInputs.isNotEmpty) ...[
+                    if (_hasVisibleServiceInputs(_order.serviceInputs)) ...[
                       const Divider(height: 22),
                       Text(
                         'Service inputs from finder',
@@ -186,10 +206,7 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      ..._order.serviceInputs.entries.map(
-                        (entry) =>
-                            _InfoRow(label: entry.key, value: entry.value),
-                      ),
+                      ..._buildServiceInputWidgets(_order.serviceInputs),
                     ],
                     const Divider(height: 22),
                     _AmountRow(label: 'Sub Total', amount: _order.subtotal),
@@ -277,6 +294,96 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
     if (direct.isNotEmpty) return direct;
     final query = Uri.encodeComponent(order.address);
     return 'https://maps.google.com/?q=$query';
+  }
+
+  String _paymentMethodLabel(String raw) {
+    final value = raw.trim().toLowerCase();
+    switch (value) {
+      case 'bank_account':
+      case 'bank account':
+        return 'Credit Card';
+      case 'credit_card':
+      case 'credit card':
+        return 'Credit Card';
+      case 'cash':
+        return 'Cash';
+      case 'khqr':
+      case 'bakong khqr':
+        return 'Bakong KHQR';
+      default:
+        return raw.trim();
+    }
+  }
+
+  bool _hasVisibleServiceInputs(Map<String, String> inputs) {
+    for (final entry in inputs.entries) {
+      final value = entry.value.trim();
+      if (value.isEmpty) continue;
+      final normalized = value.toLowerCase();
+      if (normalized == 'false' || normalized == '0') continue;
+      return true;
+    }
+    return false;
+  }
+
+  List<Widget> _buildServiceInputWidgets(Map<String, String> inputs) {
+    final widgets = <Widget>[];
+    for (final entry in inputs.entries) {
+      final label = _serviceInputDisplayLabel(entry.key);
+      final raw = entry.value.trim();
+      if (raw.isEmpty) continue;
+      final normalized = raw.toLowerCase();
+      if (normalized == 'false' || normalized == '0') continue;
+      if (_isImageDataUrl(raw)) {
+        final bytes = _decodeDataUrlImage(raw);
+        widgets.add(
+          _ServiceInputImageRow(
+            label: label,
+            imageBytes: bytes,
+            fallbackText: bytes == null ? 'Image attached' : null,
+          ),
+        );
+        continue;
+      }
+      widgets.add(
+        _InfoRow(label: label, value: normalized == 'true' ? 'Yes' : raw),
+      );
+    }
+    if (widgets.isEmpty) {
+      widgets.add(
+        const _InfoRow(label: 'Details', value: 'No extra details provided.'),
+      );
+    }
+    return widgets;
+  }
+
+  String _serviceInputDisplayLabel(String key) {
+    final normalized = key.trim();
+    if (normalized.isEmpty) return 'Detail';
+    final withSpaces = normalized
+        .replaceAllMapped(
+          RegExp(r'([a-z0-9])([A-Z])'),
+          (match) => '${match.group(1)} ${match.group(2)}',
+        )
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ');
+    final compact = withSpaces.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (compact.isEmpty) return 'Detail';
+    return compact[0].toUpperCase() + compact.substring(1);
+  }
+
+  bool _isImageDataUrl(String value) {
+    return value.startsWith('data:image/');
+  }
+
+  Uint8List? _decodeDataUrlImage(String dataUrl) {
+    final comma = dataUrl.indexOf(',');
+    if (comma <= 0 || comma >= dataUrl.length - 1) return null;
+    try {
+      return base64Decode(dataUrl.substring(comma + 1));
+    } catch (_) {
+      return null;
+    }
   }
 
   List<StatusTimelineEntry> _timelineEntries(ProviderOrderItem order) {
@@ -679,6 +786,58 @@ class _InfoRow extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ServiceInputImageRow extends StatelessWidget {
+  final String label;
+  final Uint8List? imageBytes;
+  final String? fallbackText;
+
+  const _ServiceInputImageRow({
+    required this.label,
+    required this.imageBytes,
+    this.fallbackText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          if (imageBytes != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(
+                imageBytes!,
+                width: double.infinity,
+                height: 170,
+                fit: BoxFit.cover,
+              ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Text(
+                fallbackText ?? 'Image attached',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
         ],
       ),
     );

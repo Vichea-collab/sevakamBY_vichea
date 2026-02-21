@@ -8,6 +8,7 @@ import '../../../domain/entities/provider.dart';
 import '../../state/booking_catalog_state.dart';
 import '../../state/catalog_state.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
 import '../providers/provider_detail_page.dart';
 import 'booking_service_fields_page.dart';
@@ -73,6 +74,8 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
           child: ListView(
             children: [
               AppTopBar(title: draft.categoryName),
+              const SizedBox(height: 12),
+              const BookingStepProgress(currentStep: BookingFlowStep.details),
               const SizedBox(height: 12),
               _ProviderCard(draft: draft),
               const SizedBox(height: 16),

@@ -118,7 +118,7 @@ class ProfilePage extends StatelessWidget {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Change Profile to selling mode',
+                              'Switch profile to provider mode',
                               style: Theme.of(context).textTheme.bodyLarge,
                             ),
                           ),

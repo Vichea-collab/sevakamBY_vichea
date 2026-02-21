@@ -95,9 +95,11 @@ class AuthState {
       final UserCredential result;
       if (kIsWeb) {
         final provider = GoogleAuthProvider()..addScope('email');
+        provider.setCustomParameters({'prompt': 'select_account'});
         result = await FirebaseAuth.instance.signInWithPopup(provider);
       } else {
         await _ensureGoogleInitialized();
+        await _resetGoogleSessionForAccountChooser();
         final account = await GoogleSignIn.instance.authenticate();
         final authentication = account.authentication;
         final credential = GoogleAuthProvider.credential(
@@ -304,6 +306,15 @@ class AuthState {
       serverClientId: webClientId.isEmpty ? null : webClientId,
     );
     _googleInitialized = true;
+  }
+
+  static Future<void> _resetGoogleSessionForAccountChooser() async {
+    try {
+      await GoogleSignIn.instance.signOut();
+    } catch (_) {}
+    try {
+      await GoogleSignIn.instance.disconnect();
+    } catch (_) {}
   }
 
   static Future<String?> _applyAuthenticatedSession(

@@ -14,6 +14,7 @@ import '../../state/finder_post_state.dart';
 import '../../state/profile_image_state.dart';
 import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_state_panel.dart';
 import '../../widgets/pagination_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../chat/chat_conversation_page.dart';
@@ -43,78 +44,109 @@ class _ProviderPortalHomePageState extends State<ProviderPortalHomePage> {
     return ValueListenableBuilder<List<FinderPostItem>>(
       valueListenable: FinderPostState.posts,
       builder: (context, posts, _) {
-        return ValueListenableBuilder<PaginationMeta>(
-          valueListenable: FinderPostState.pagination,
-          builder: (context, pagination, _) {
-            final currentPage = _normalizedPage(pagination.page);
+        return ValueListenableBuilder<bool>(
+          valueListenable: FinderPostState.loading,
+          builder: (context, isLoading, _) {
+            return ValueListenableBuilder<PaginationMeta>(
+              valueListenable: FinderPostState.pagination,
+              builder: (context, pagination, _) {
+                final currentPage = _normalizedPage(pagination.page);
+                final listBody = isLoading && posts.isEmpty
+                    ? const AppStatePanel.loading(
+                        title: 'Loading finder requests',
+                      )
+                    : posts.isEmpty
+                    ? const AppStatePanel.empty(
+                        title: 'No finder requests yet',
+                        message: 'New requests will appear here.',
+                      )
+                    : Column(
+                        key: ValueKey<String>(
+                          'provider_home_posts_${posts.length}_${pagination.page}',
+                        ),
+                        children: posts
+                            .map((post) => _FinderPostTile(post: post))
+                            .toList(growable: false),
+                      );
 
-            return Scaffold(
-              body: SafeArea(
-                child: CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(child: const _ProviderTopHeader()),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.lg,
-                        AppSpacing.lg,
-                        AppSpacing.lg,
-                        AppSpacing.xl,
-                      ),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate([
-                          _ProviderSearchBar(
-                            onTap: () => Navigator.push(
-                              context,
-                              slideFadeRoute(const ProviderFinderSearchPage()),
-                            ),
+                return Scaffold(
+                  body: SafeArea(
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverToBoxAdapter(child: const _ProviderTopHeader()),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.lg,
+                            AppSpacing.lg,
+                            AppSpacing.lg,
+                            AppSpacing.xl,
                           ),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              Text(
-                                'Finder Requests',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate([
+                              _ProviderSearchBar(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  slideFadeRoute(
+                                    const ProviderFinderSearchPage(),
+                                  ),
+                                ),
                               ),
-                              const Spacer(),
+                              const SizedBox(height: 18),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Finder Requests',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    '${pagination.totalItems} results',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
                               Text(
-                                '${pagination.totalItems} results',
+                                'Search by client name, service, or location',
                                 style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(color: AppColors.textSecondary),
                               ),
-                            ],
+                              const SizedBox(height: 12),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 220),
+                                child: listBody,
+                              ),
+                              if (pagination.totalPages > 1) ...[
+                                const SizedBox(height: 12),
+                                PaginationBar(
+                                  currentPage: currentPage,
+                                  totalPages: pagination.totalPages,
+                                  loading: _isPaging,
+                                  onPageSelected: _goToPage,
+                                ),
+                              ],
+                            ]),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Search by client name, service, or location',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: AppColors.textSecondary),
-                          ),
-                          const SizedBox(height: 12),
-                          if (posts.isEmpty) const _EmptySearch(query: ''),
-                          if (posts.isNotEmpty)
-                            ...posts.map((post) => _FinderPostTile(post: post)),
-                          if (pagination.totalPages > 1) ...[
-                            const SizedBox(height: 12),
-                            PaginationBar(
-                              currentPage: currentPage,
-                              totalPages: pagination.totalPages,
-                              loading: _isPaging,
-                              onPageSelected: _goToPage,
-                            ),
-                          ],
-                        ]),
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              bottomNavigationBar: const AppBottomNav(
-                current: AppBottomTab.home,
-              ),
+                  ),
+                  bottomNavigationBar: const AppBottomNav(
+                    current: AppBottomTab.home,
+                  ),
+                );
+              },
             );
           },
         );
@@ -546,53 +578,6 @@ class _MetaPill extends StatelessWidget {
           color: AppColors.primary,
           fontWeight: FontWeight.w700,
         ),
-      ),
-    );
-  }
-}
-
-class _EmptySearch extends StatelessWidget {
-  final String query;
-
-  const _EmptySearch({required this.query});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasQuery = query.trim().isNotEmpty;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.search_off_rounded,
-            size: 34,
-            color: AppColors.textSecondary,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            hasQuery
-                ? 'No request found for "$query"'
-                : 'No request found yet.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            hasQuery
-                ? 'Try searching by client name, service, or location.'
-                : 'Finder posts will appear here when clients publish requests.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ],
       ),
     );
   }

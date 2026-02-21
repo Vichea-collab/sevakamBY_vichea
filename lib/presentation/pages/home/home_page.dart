@@ -1,12 +1,10 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../domain/entities/provider.dart';
 import '../../../domain/entities/profile_settings.dart';
 import '../../../domain/entities/provider_portal.dart';
-import '../../state/chat_state.dart';
 import '../../state/catalog_state.dart';
 import '../../state/profile_image_state.dart';
 import '../../state/profile_settings_state.dart';
@@ -16,9 +14,9 @@ import '../../widgets/category_chip.dart';
 import '../../widgets/pressable_scale.dart';
 import '../../widgets/section_title.dart';
 import '../../widgets/service_card.dart';
-import '../chat/chat_conversation_page.dart';
 import '../chat/chat_list_page.dart';
 import '../providers/provider_home_page.dart';
+import '../providers/provider_detail_page.dart';
 import '../providers/provider_posts_page.dart';
 import '../search/search_page.dart';
 
@@ -500,9 +498,9 @@ class _ProviderPostTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PressableScale(
-      onTap: () => _openChat(context),
+      onTap: () => _openProfile(context),
       child: InkWell(
-        onTap: () => _openChat(context),
+        onTap: () => _openProfile(context),
         borderRadius: BorderRadius.circular(14),
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),
@@ -572,33 +570,73 @@ class _ProviderPostTile extends StatelessWidget {
     );
   }
 
-  Future<void> _openChat(BuildContext context) async {
-    if (post.providerUid.trim().isEmpty) {
-      AppToast.warning(context, 'Provider account unavailable for chat.');
-      return;
+  void _openProfile(BuildContext context) {
+    Navigator.push(
+      context,
+      slideFadeRoute(ProviderDetailPage(provider: _providerFromPost(post))),
+    );
+  }
+
+  ProviderItem _providerFromPost(ProviderPostItem seed) {
+    final role = seed.category.trim().isEmpty ? 'Cleaner' : seed.category;
+    final imagePath = seed.avatarPath.startsWith('assets/')
+        ? seed.avatarPath
+        : 'assets/images/profile.jpg';
+    final services = _servicesForProvider(seed);
+    return ProviderItem(
+      uid: seed.providerUid.trim(),
+      name: seed.providerName.trim().isEmpty
+          ? 'Service Provider'
+          : seed.providerName.trim(),
+      role: role,
+      rating: 4.8,
+      imagePath: imagePath,
+      accentColor: _accentFromCategory(role),
+      services: services,
+      providerType: seed.providerType,
+      companyName: seed.providerCompanyName.trim(),
+      maxWorkers: seed.providerMaxWorkers < 1 ? 1 : seed.providerMaxWorkers,
+    );
+  }
+
+  List<String> _servicesForProvider(ProviderPostItem seed) {
+    final allPosts = ProviderPostState.allPosts.value;
+    final lookupPosts = allPosts.isNotEmpty
+        ? allPosts
+        : ProviderPostState.posts.value;
+    final seedUid = seed.providerUid.trim().toLowerCase();
+    final seedName = seed.providerName.trim().toLowerCase();
+
+    final values = <String>{};
+    for (final item in lookupPosts) {
+      final sameProvider = seedUid.isNotEmpty
+          ? item.providerUid.trim().toLowerCase() == seedUid
+          : item.providerName.trim().toLowerCase() == seedName;
+      if (!sameProvider) continue;
+      final service = item.service.trim();
+      if (service.isNotEmpty) values.add(service);
     }
-    final currentUid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
-    if (currentUid.isNotEmpty && currentUid == post.providerUid.trim()) {
-      AppToast.info(
-        context,
-        'Switch to a finder account to chat with this provider post.',
-      );
-      return;
+
+    if (values.isEmpty && seed.service.trim().isNotEmpty) {
+      values.add(seed.service.trim());
     }
-    try {
-      final thread = await ChatState.openDirectThread(
-        peerUid: post.providerUid,
-        peerName: post.providerName,
-        peerIsProvider: true,
-      );
-      if (!context.mounted) return;
-      Navigator.push(
-        context,
-        slideFadeRoute(ChatConversationPage(thread: thread)),
-      );
-    } catch (_) {
-      if (!context.mounted) return;
-      AppToast.error(context, 'Unable to open live chat.');
+    final services = values.toList(growable: false)..sort();
+    return services;
+  }
+
+  Color _accentFromCategory(String category) {
+    switch (category.trim().toLowerCase()) {
+      case 'plumber':
+        return const Color(0xFF0E8AD6);
+      case 'electrician':
+        return const Color(0xFFF59E0B);
+      case 'cleaner':
+        return const Color(0xFF10B981);
+      case 'home appliance':
+      case 'appliance':
+        return const Color(0xFF6366F1);
+      default:
+        return AppColors.primary;
     }
   }
 }

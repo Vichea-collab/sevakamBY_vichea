@@ -8,6 +8,8 @@ import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/profile_settings.dart';
 import 'help_support_chat_page.dart';
 import '../../state/profile_settings_state.dart';
+import '../../widgets/app_state_panel.dart';
+import '../../widgets/app_text_field.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pagination_bar.dart';
 import '../../widgets/primary_button.dart';
@@ -90,7 +92,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 6),
-                    TextFormField(
+                    AppTextField(
+                      hint: 'Enter the title of your issue',
                       controller: _titleController,
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
@@ -98,9 +101,6 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                         }
                         return null;
                       },
-                      decoration: const InputDecoration(
-                        hintText: 'Enter the title of your issue',
-                      ),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -108,7 +108,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 6),
-                    TextFormField(
+                    AppTextField(
+                      hint: 'Write here..',
                       controller: _messageController,
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
@@ -116,10 +117,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                         }
                         return null;
                       },
+                      minLines: 4,
                       maxLines: 4,
-                      decoration: const InputDecoration(
-                        hintText: 'Write here..',
-                      ),
                     ),
                   ],
                 ),
@@ -160,37 +159,52 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                         ? ProfileSettingsState.providerHelpTicketsPagination
                         : ProfileSettingsState.finderHelpTicketsPagination,
                     builder: (context, pagination, _) {
-                      if (tickets.isEmpty) return const SizedBox.shrink();
-                      return Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.divider),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Support tickets (${pagination.totalItems})',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(height: 8),
-                            ...tickets.map(_buildTicketCard),
-                            if (pagination.totalPages > 1)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: PaginationBar(
-                                  currentPage: _normalizedPage(pagination.page),
-                                  totalPages: pagination.totalPages,
-                                  loading: _paging,
-                                  onPageSelected: _goToPage,
-                                ),
+                      final Widget ticketBody = tickets.isEmpty
+                          ? const AppStatePanel.empty(
+                              title: 'No support tickets yet',
+                              message:
+                                  'Your submitted support requests will appear here.',
+                            )
+                          : Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.divider),
                               ),
-                          ],
-                        ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Support tickets (${pagination.totalItems})',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ...tickets.map(_buildTicketCard),
+                                  if (pagination.totalPages > 1)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: PaginationBar(
+                                        currentPage: _normalizedPage(
+                                          pagination.page,
+                                        ),
+                                        totalPages: pagination.totalPages,
+                                        loading: _paging,
+                                        onPageSelected: _goToPage,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                      return AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        child: ticketBody,
                       );
                     },
                   );

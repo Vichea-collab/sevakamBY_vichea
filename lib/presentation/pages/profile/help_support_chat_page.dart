@@ -8,6 +8,8 @@ import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/profile_settings.dart';
 import '../../state/profile_settings_state.dart';
+import '../../widgets/app_state_panel.dart';
+import '../../widgets/app_text_field.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pagination_bar.dart';
 import '../../widgets/primary_button.dart';
@@ -111,104 +113,115 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                       valueListenable: paginationListenable,
                       builder: (context, pagination, _) {
                         if (widget.ticket.id.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              'Ticket is being synced. Please re-open in a moment.',
-                            ),
+                          return const AppStatePanel.empty(
+                            title: 'Ticket is syncing',
+                            message: 'Please reopen this chat in a moment.',
                           );
                         }
                         if (messages.isEmpty) {
-                          return const Center(
-                            child: Text('No messages yet. Start chatting.'),
+                          return const AppStatePanel.empty(
+                            title: 'No messages yet',
+                            message: 'Start chatting with support.',
                           );
                         }
-                        return Column(
-                          children: [
-                            Expanded(
-                              child: ListView.separated(
-                                itemCount: messages.length,
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, index) {
-                                  final item = messages[index];
-                                  final fromAdmin =
-                                      item.senderRole.toLowerCase() == 'admin';
-                                  return Align(
-                                    alignment: fromAdmin
-                                        ? Alignment.centerLeft
-                                        : Alignment.centerRight,
-                                    child: Container(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 320,
-                                      ),
-                                      padding: const EdgeInsets.fromLTRB(
-                                        10,
-                                        8,
-                                        10,
-                                        8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: fromAdmin
-                                            ? const Color(0xFFF3F6FC)
-                                            : AppColors.primary.withValues(
-                                                alpha: 0.12,
-                                              ),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
+                        return AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          child: Column(
+                            key: ValueKey<String>(
+                              'support_messages_${messages.length}_${pagination.page}',
+                            ),
+                            children: [
+                              Expanded(
+                                child: ListView.separated(
+                                  itemCount: messages.length,
+                                  separatorBuilder: (_, _) =>
+                                      const SizedBox(height: 8),
+                                  itemBuilder: (context, index) {
+                                    final item = messages[index];
+                                    final fromAdmin =
+                                        item.senderRole.toLowerCase() ==
+                                        'admin';
+                                    return Align(
+                                      alignment: fromAdmin
+                                          ? Alignment.centerLeft
+                                          : Alignment.centerRight,
+                                      child: Container(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 320,
+                                        ),
+                                        padding: const EdgeInsets.fromLTRB(
+                                          10,
+                                          8,
+                                          10,
+                                          8,
+                                        ),
+                                        decoration: BoxDecoration(
                                           color: fromAdmin
-                                              ? const Color(0xFFD8E2F3)
+                                              ? const Color(0xFFF3F6FC)
                                               : AppColors.primary.withValues(
-                                                  alpha: 0.30,
+                                                  alpha: 0.12,
                                                 ),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: fromAdmin
+                                                ? const Color(0xFFD8E2F3)
+                                                : AppColors.primary.withValues(
+                                                    alpha: 0.30,
+                                                  ),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item.senderName,
+                                              style: TextStyle(
+                                                color: fromAdmin
+                                                    ? AppColors.textSecondary
+                                                    : AppColors.primaryDark,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              item.text,
+                                              style: const TextStyle(
+                                                color: AppColors.textPrimary,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              _formatDate(item.createdAt),
+                                              style: const TextStyle(
+                                                color: AppColors.textSecondary,
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            item.senderName,
-                                            style: TextStyle(
-                                              color: fromAdmin
-                                                  ? AppColors.textSecondary
-                                                  : AppColors.primaryDark,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            item.text,
-                                            style: const TextStyle(
-                                              color: AppColors.textPrimary,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            _formatDate(item.createdAt),
-                                            style: const TextStyle(
-                                              color: AppColors.textSecondary,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            if (pagination.totalPages > 1)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: PaginationBar(
-                                  currentPage: _normalizedPage(pagination.page),
-                                  totalPages: pagination.totalPages,
-                                  loading: _paging,
-                                  onPageSelected: _goToPage,
+                                    );
+                                  },
                                 ),
                               ),
-                          ],
+                              if (pagination.totalPages > 1)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: PaginationBar(
+                                    currentPage: _normalizedPage(
+                                      pagination.page,
+                                    ),
+                                    totalPages: pagination.totalPages,
+                                    loading: _paging,
+                                    onPageSelected: _goToPage,
+                                  ),
+                                ),
+                            ],
+                          ),
                         );
                       },
                     );
@@ -225,13 +238,11 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
               ),
               child: Column(
                 children: [
-                  TextField(
+                  AppTextField(
+                    hint: 'Type your message to support...',
                     controller: _composerController,
                     minLines: 1,
                     maxLines: 4,
-                    decoration: const InputDecoration(
-                      hintText: 'Type your message to support...',
-                    ),
                   ),
                   const SizedBox(height: 10),
                   PrimaryButton(

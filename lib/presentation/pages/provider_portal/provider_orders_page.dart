@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -6,6 +8,7 @@ import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../state/order_state.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_state_panel.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pagination_bar.dart';
 import '../../widgets/primary_button.dart';
@@ -36,7 +39,10 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _tab = widget.initialTab;
-    _loadOrders(forceNetwork: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_loadOrders(forceNetwork: true));
+    });
   }
 
   @override
@@ -57,120 +63,156 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
     return ValueListenableBuilder<List<ProviderOrderItem>>(
       valueListenable: OrderState.providerOrders,
       builder: (context, allOrders, _) {
-        return ValueListenableBuilder<PaginationMeta>(
-          valueListenable: OrderState.providerPagination,
-          builder: (context, pagination, _) {
-            final visible = allOrders.where((item) {
-              switch (_tab) {
-                case ProviderOrderTab.incoming:
-                  return item.state == ProviderOrderState.incoming;
-                case ProviderOrderTab.active:
-                  return item.state == ProviderOrderState.onTheWay ||
-                      item.state == ProviderOrderState.started;
-                case ProviderOrderTab.completed:
-                  return item.state == ProviderOrderState.completed ||
-                      item.state == ProviderOrderState.declined;
-              }
-            }).toList();
+        return ValueListenableBuilder<bool>(
+          valueListenable: OrderState.loading,
+          builder: (context, isLoading, _) {
+            return ValueListenableBuilder<PaginationMeta>(
+              valueListenable: OrderState.providerPagination,
+              builder: (context, pagination, _) {
+                final visible = allOrders.where((item) {
+                  switch (_tab) {
+                    case ProviderOrderTab.incoming:
+                      return item.state == ProviderOrderState.incoming;
+                    case ProviderOrderTab.active:
+                      return item.state == ProviderOrderState.onTheWay ||
+                          item.state == ProviderOrderState.started;
+                    case ProviderOrderTab.completed:
+                      return item.state == ProviderOrderState.completed ||
+                          item.state == ProviderOrderState.declined;
+                  }
+                }).toList();
 
-            return Scaffold(
-              body: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    children: [
-                      const AppTopBar(
-                        title: 'Provider Orders',
-                        showBack: false,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
+                return Scaffold(
+                  body: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
                         children: [
-                          _TabChip(
-                            label: 'Incoming',
-                            active: _tab == ProviderOrderTab.incoming,
-                            onTap: () => setState(
-                              () => _tab = ProviderOrderTab.incoming,
+                          const AppTopBar(
+                            title: 'Provider Orders',
+                            showBack: false,
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              _TabChip(
+                                label: 'Incoming',
+                                active: _tab == ProviderOrderTab.incoming,
+                                onTap: () => setState(
+                                  () => _tab = ProviderOrderTab.incoming,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _TabChip(
+                                label: 'In Progress',
+                                active: _tab == ProviderOrderTab.active,
+                                onTap: () => setState(
+                                  () => _tab = ProviderOrderTab.active,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _TabChip(
+                                label: 'History',
+                                active: _tab == ProviderOrderTab.completed,
+                                onTap: () => setState(
+                                  () => _tab = ProviderOrderTab.completed,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Expanded(
+                            child: isLoading && allOrders.isEmpty
+                                ? ListView(
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    children: const [
+                                      SizedBox(height: 80),
+                                      AppStatePanel.loading(
+                                        title: 'Loading provider orders',
+                                      ),
+                                    ],
+                                  )
+                                : RefreshIndicator(
+                                    onRefresh: () => _loadOrders(
+                                      forceNetwork: true,
+                                      page: _normalizedPage(pagination.page),
+                                    ),
+                                    child: AnimatedSwitcher(
+                                      duration: const Duration(
+                                        milliseconds: 220,
+                                      ),
+                                      child: visible.isEmpty
+                                          ? ListView(
+                                              key: ValueKey<String>(
+                                                'empty_provider_orders_${_tab.name}',
+                                              ),
+                                              physics:
+                                                  const AlwaysScrollableScrollPhysics(),
+                                              children: [
+                                                const SizedBox(height: 80),
+                                                AppStatePanel.empty(
+                                                  title: _emptyTitle(_tab),
+                                                  message: _emptyMessage(_tab),
+                                                ),
+                                              ],
+                                            )
+                                          : ListView.separated(
+                                              key: ValueKey<String>(
+                                                'provider_orders_${visible.length}_${pagination.page}_${_tab.name}',
+                                              ),
+                                              physics:
+                                                  const AlwaysScrollableScrollPhysics(),
+                                              itemBuilder: (context, index) {
+                                                final item = visible[index];
+                                                return _ProviderOrderCard(
+                                                  item: item,
+                                                  onTap: () => _openOrder(item),
+                                                  onAccept:
+                                                      item.state ==
+                                                          ProviderOrderState
+                                                              .incoming
+                                                      ? () => _move(
+                                                          item,
+                                                          ProviderOrderState
+                                                              .onTheWay,
+                                                        )
+                                                      : null,
+                                                  onDecline:
+                                                      item.state ==
+                                                          ProviderOrderState
+                                                              .incoming
+                                                      ? () => _decline(item)
+                                                      : null,
+                                                );
+                                              },
+                                              separatorBuilder: (_, _) =>
+                                                  const SizedBox(
+                                                    height: AppSpacing.md,
+                                                  ),
+                                              itemCount: visible.length,
+                                            ),
+                                    ),
+                                  ),
+                          ),
+                          if (pagination.totalPages > 1) ...[
+                            const SizedBox(height: 12),
+                            PaginationBar(
+                              currentPage: _normalizedPage(pagination.page),
+                              totalPages: pagination.totalPages,
+                              loading: _isPaging,
+                              onPageSelected: _goToPage,
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          _TabChip(
-                            label: 'In Progress',
-                            active: _tab == ProviderOrderTab.active,
-                            onTap: () =>
-                                setState(() => _tab = ProviderOrderTab.active),
-                          ),
-                          const SizedBox(width: 8),
-                          _TabChip(
-                            label: 'History',
-                            active: _tab == ProviderOrderTab.completed,
-                            onTap: () => setState(
-                              () => _tab = ProviderOrderTab.completed,
-                            ),
-                          ),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 14),
-                      Expanded(
-                        child: RefreshIndicator(
-                          onRefresh: () => _loadOrders(
-                            forceNetwork: true,
-                            page: _normalizedPage(pagination.page),
-                          ),
-                          child: visible.isEmpty
-                              ? ListView(
-                                  physics:
-                                      const AlwaysScrollableScrollPhysics(),
-                                  children: [
-                                    const SizedBox(height: 80),
-                                    _EmptyState(tab: _tab),
-                                  ],
-                                )
-                              : ListView.separated(
-                                  physics:
-                                      const AlwaysScrollableScrollPhysics(),
-                                  itemBuilder: (context, index) {
-                                    final item = visible[index];
-                                    return _ProviderOrderCard(
-                                      item: item,
-                                      onTap: () => _openOrder(item),
-                                      onAccept:
-                                          item.state ==
-                                              ProviderOrderState.incoming
-                                          ? () => _move(
-                                              item,
-                                              ProviderOrderState.onTheWay,
-                                            )
-                                          : null,
-                                      onDecline:
-                                          item.state ==
-                                              ProviderOrderState.incoming
-                                          ? () => _decline(item)
-                                          : null,
-                                    );
-                                  },
-                                  separatorBuilder: (_, _) =>
-                                      const SizedBox(height: AppSpacing.md),
-                                  itemCount: visible.length,
-                                ),
-                        ),
-                      ),
-                      if (pagination.totalPages > 1) ...[
-                        const SizedBox(height: 12),
-                        PaginationBar(
-                          currentPage: _normalizedPage(pagination.page),
-                          totalPages: pagination.totalPages,
-                          loading: _isPaging,
-                          onPageSelected: _goToPage,
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              bottomNavigationBar: const AppBottomNav(
-                current: AppBottomTab.order,
-              ),
+                  bottomNavigationBar: const AppBottomNav(
+                    current: AppBottomTab.order,
+                  ),
+                );
+              },
             );
           },
         );
@@ -243,6 +285,28 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
   int _normalizedPage(int page) {
     if (page < 1) return 1;
     return page;
+  }
+
+  String _emptyTitle(ProviderOrderTab tab) {
+    switch (tab) {
+      case ProviderOrderTab.incoming:
+        return 'No incoming orders';
+      case ProviderOrderTab.active:
+        return 'No active jobs';
+      case ProviderOrderTab.completed:
+        return 'No order history yet';
+    }
+  }
+
+  String _emptyMessage(ProviderOrderTab tab) {
+    switch (tab) {
+      case ProviderOrderTab.incoming:
+        return 'New client bookings will appear here.';
+      case ProviderOrderTab.active:
+        return 'Accepted and in-progress orders appear here.';
+      case ProviderOrderTab.completed:
+        return 'Completed and declined orders appear here.';
+    }
   }
 }
 
@@ -420,29 +484,6 @@ class _StatusPill extends StatelessWidget {
           color: Colors.white,
           fontWeight: FontWeight.w700,
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final ProviderOrderTab tab;
-
-  const _EmptyState({required this.tab});
-
-  @override
-  Widget build(BuildContext context) {
-    final label = switch (tab) {
-      ProviderOrderTab.incoming => 'No incoming orders now',
-      ProviderOrderTab.active => 'No active jobs now',
-      ProviderOrderTab.completed => 'No order history yet',
-    };
-    return Center(
-      child: Text(
-        label,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
       ),
     );
   }

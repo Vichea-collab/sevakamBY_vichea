@@ -78,8 +78,9 @@ class ProfileSettingsState {
   static ProfileFormData get currentProfile =>
       isProvider ? providerProfile.value : finderProfile.value;
 
-  static PaymentMethod get currentPaymentMethod =>
-      isProvider ? providerPaymentMethod.value : finderPaymentMethod.value;
+  static PaymentMethod get currentPaymentMethod => _normalizePaymentMethod(
+    isProvider ? providerPaymentMethod.value : finderPaymentMethod.value,
+  );
 
   static NotificationPreference get currentNotification =>
       isProvider ? providerNotification.value : finderNotification.value;
@@ -90,12 +91,27 @@ class ProfileSettingsState {
 
     finderProfile.value = await _repository.loadProfile(isProvider: false);
     providerProfile.value = await _repository.loadProfile(isProvider: true);
-    finderPaymentMethod.value = await _repository.loadPaymentMethod(
-      isProvider: false,
-    );
-    providerPaymentMethod.value = await _repository.loadPaymentMethod(
+    final finderLoaded = await _repository.loadPaymentMethod(isProvider: false);
+    final finderNormalized = _normalizePaymentMethod(finderLoaded);
+    finderPaymentMethod.value = finderNormalized;
+    if (finderLoaded != finderNormalized) {
+      await _repository.savePaymentMethod(
+        isProvider: false,
+        method: finderNormalized,
+      );
+    }
+
+    final providerLoaded = await _repository.loadPaymentMethod(
       isProvider: true,
     );
+    final providerNormalized = _normalizePaymentMethod(providerLoaded);
+    providerPaymentMethod.value = providerNormalized;
+    if (providerLoaded != providerNormalized) {
+      await _repository.savePaymentMethod(
+        isProvider: true,
+        method: providerNormalized,
+      );
+    }
     finderNotification.value = await _repository.loadNotifications(
       isProvider: false,
     );
@@ -196,12 +212,21 @@ class ProfileSettingsState {
   }
 
   static Future<void> saveCurrentPaymentMethod(PaymentMethod method) async {
-    await _repository.savePaymentMethod(isProvider: isProvider, method: method);
+    final normalized = _normalizePaymentMethod(method);
+    await _repository.savePaymentMethod(
+      isProvider: isProvider,
+      method: normalized,
+    );
     if (isProvider) {
-      providerPaymentMethod.value = method;
+      providerPaymentMethod.value = normalized;
     } else {
-      finderPaymentMethod.value = method;
+      finderPaymentMethod.value = normalized;
     }
+  }
+
+  static PaymentMethod _normalizePaymentMethod(PaymentMethod method) {
+    if (method == PaymentMethod.bankAccount) return PaymentMethod.creditCard;
+    return method;
   }
 
   static Future<void> saveCurrentNotifications(

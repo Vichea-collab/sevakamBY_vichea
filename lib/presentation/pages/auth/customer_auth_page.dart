@@ -77,14 +77,12 @@ class _CustomerAuthPageState extends State<CustomerAuthPage> {
                   child: Column(
                     children: [
                       Text(
-                        _isSignUp ? 'Get Start With Us' : 'Welcome Back',
+                        _isSignUp ? 'Get Started With Us' : 'Welcome Back',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _isSignUp
-                            ? 'Enter your detail below'
-                            : 'Enter your detail below',
+                        'Enter your details below',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: AppSpacing.md),

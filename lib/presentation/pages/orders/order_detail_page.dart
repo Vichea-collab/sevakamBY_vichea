@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
@@ -35,11 +36,14 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     super.initState();
     _order = widget.order;
     OrderState.finderOrders.addListener(_syncOrderFromState);
-    unawaited(
-      OrderState.refreshCurrentRole(
-        forceNetwork: !OrderState.realtimeActive.value,
-      ),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        OrderState.refreshCurrentRole(
+          forceNetwork: !OrderState.realtimeActive.value,
+        ),
+      );
+    });
   }
 
   @override
@@ -59,7 +63,21 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     final latest = updated;
     if (latest == null) return;
     if (!mounted || identical(latest, _order)) return;
-    setState(() => _order = latest);
+    _safeSetState(() => _order = latest);
+  }
+
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(fn);
+      });
+      return;
+    }
+    setState(fn);
   }
 
   @override
@@ -500,7 +518,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       case PaymentMethod.creditCard:
         return 'Credit Card';
       case PaymentMethod.bankAccount:
-        return 'Bank account';
+        return 'Credit Card';
       case PaymentMethod.cash:
         return 'Cash';
       case PaymentMethod.khqr:

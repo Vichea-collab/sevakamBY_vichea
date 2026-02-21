@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/order.dart';
+import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
 import '../orders/orders_page.dart';
 
@@ -96,6 +97,10 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                           ),
                           const SizedBox(height: 10),
                           const Divider(height: 1),
+                          const SizedBox(height: 24),
+                          const BookingStepProgress(
+                            currentStep: BookingFlowStep.confirmation,
+                          ),
                           const SizedBox(height: 24),
                           Center(
                             child: Container(
@@ -372,7 +377,7 @@ class _ServiceDetailCard extends StatelessWidget {
       case PaymentMethod.creditCard:
         return 'Credit Card';
       case PaymentMethod.bankAccount:
-        return 'Bank account';
+        return 'Credit Card';
       case PaymentMethod.cash:
         return 'Cash';
       case PaymentMethod.khqr:

@@ -9,6 +9,7 @@ import '../../../data/network/backend_api_client.dart';
 import '../../../domain/entities/order.dart';
 import '../../state/order_state.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
 import 'booking_confirmation_page.dart';
 
@@ -32,7 +33,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
   @override
   void initState() {
     super.initState();
-    _selectedMethod = widget.draft.paymentMethod;
+    _selectedMethod = _sanitizeMethod(widget.draft.paymentMethod);
     _promoController = TextEditingController(text: widget.draft.promoCode);
     unawaited(_refreshQuote());
   }
@@ -64,6 +65,8 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
           child: ListView(
             children: [
               const AppTopBar(title: 'Payment'),
+              const SizedBox(height: 10),
+              const BookingStepProgress(currentStep: BookingFlowStep.payment),
               const SizedBox(height: 14),
               Text(
                 'Select Payment method',
@@ -77,14 +80,6 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                 selected: _selectedMethod == PaymentMethod.creditCard,
                 onTap: () =>
                     setState(() => _selectedMethod = PaymentMethod.creditCard),
-              ),
-              _PaymentTile(
-                label: 'Bank account',
-                icon: Icons.account_balance,
-                subtitle: 'ABA, Acleda, Wing',
-                selected: _selectedMethod == PaymentMethod.bankAccount,
-                onTap: () =>
-                    setState(() => _selectedMethod = PaymentMethod.bankAccount),
               ),
               _PaymentTile(
                 label: 'Cash',
@@ -344,12 +339,17 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
       case PaymentMethod.creditCard:
         return 'Credit Card';
       case PaymentMethod.bankAccount:
-        return 'Bank account';
+        return 'Credit Card';
       case PaymentMethod.cash:
         return 'Cash';
       case PaymentMethod.khqr:
         return 'Bakong KHQR';
     }
+  }
+
+  PaymentMethod _sanitizeMethod(PaymentMethod method) {
+    if (method == PaymentMethod.bankAccount) return PaymentMethod.creditCard;
+    return method;
   }
 
   String _homeTypeLabel(HomeType value) {

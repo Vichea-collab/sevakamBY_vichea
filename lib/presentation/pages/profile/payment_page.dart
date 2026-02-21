@@ -23,7 +23,7 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   void initState() {
     super.initState();
-    _selected = ProfileSettingsState.currentPaymentMethod;
+    _selected = _sanitizeMethod(ProfileSettingsState.currentPaymentMethod);
   }
 
   @override
@@ -55,13 +55,6 @@ class _PaymentPageState extends State<PaymentPage> {
                 selected: _selected == PaymentMethod.creditCard,
                 onTap: () =>
                     setState(() => _selected = PaymentMethod.creditCard),
-              ),
-              _PaymentTile(
-                label: 'Bank account',
-                icon: Icons.account_balance,
-                selected: _selected == PaymentMethod.bankAccount,
-                onTap: () =>
-                    setState(() => _selected = PaymentMethod.bankAccount),
               ),
               _PaymentTile(
                 label: 'Cash Out',
@@ -103,10 +96,17 @@ class _PaymentPageState extends State<PaymentPage> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    await ProfileSettingsState.saveCurrentPaymentMethod(_selected);
+    await ProfileSettingsState.saveCurrentPaymentMethod(
+      _sanitizeMethod(_selected),
+    );
     if (!mounted) return;
     setState(() => _saving = false);
     AppToast.success(context, 'Payment preference saved.');
+  }
+
+  PaymentMethod _sanitizeMethod(PaymentMethod method) {
+    if (method == PaymentMethod.bankAccount) return PaymentMethod.creditCard;
+    return method;
   }
 }
 

@@ -11,6 +11,8 @@ import '../../../domain/entities/provider.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../state/chat_state.dart';
 import '../../state/provider_post_state.dart';
+import '../../widgets/app_state_panel.dart';
+import '../../widgets/app_top_bar.dart';
 import '../../widgets/pagination_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../chat/chat_conversation_page.dart';
@@ -64,20 +66,17 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                  Expanded(
-                    child: _PostSearchBar(
-                      controller: _controller,
-                      onChanged: (value) => setState(() => _query = value),
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+              child: AppTopBar(
+                title: 'Provider Posts',
+                onBack: () => Navigator.maybePop(context),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+              child: _PostSearchBar(
+                controller: _controller,
+                onChanged: (value) => setState(() => _query = value),
               ),
             ),
             if (_selectedCategory != null)
@@ -128,104 +127,148 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
                 ),
               ),
             Expanded(
-              child: ValueListenableBuilder<List<ProviderPostItem>>(
-                valueListenable: ProviderPostState.allPosts,
-                builder: (context, allPosts, _) {
+              child: ValueListenableBuilder<bool>(
+                valueListenable: ProviderPostState.loading,
+                builder: (context, isLoading, _) {
                   return ValueListenableBuilder<List<ProviderPostItem>>(
-                    valueListenable: ProviderPostState.posts,
-                    builder: (context, pagedPosts, _) {
-                      return ValueListenableBuilder<PaginationMeta>(
-                        valueListenable: ProviderPostState.pagination,
-                        builder: (context, pagination, _) {
-                          final lookupPosts = allPosts.isNotEmpty
-                              ? allPosts
-                              : pagedPosts;
-                          final source =
-                              query.isEmpty && _selectedCategory == null
-                              ? pagedPosts
-                              : lookupPosts;
-                          final filtered = source.where((post) {
-                            final matchesQuery =
-                                query.isEmpty ||
-                                post.providerName.toLowerCase().contains(
-                                  query,
-                                ) ||
-                                post.service.toLowerCase().contains(query) ||
-                                post.category.toLowerCase().contains(query) ||
-                                post.area.toLowerCase().contains(query) ||
-                                post.details.toLowerCase().contains(query);
-                            final matchesCategory =
-                                _selectedCategory == null ||
-                                post.category == _selectedCategory;
-                            return matchesQuery && matchesCategory;
-                          }).toList();
-                          final currentPage = _normalizedPage(pagination.page);
-                          final resultCount =
-                              query.isEmpty && _selectedCategory == null
-                              ? pagination.totalItems
-                              : filtered.length;
+                    valueListenable: ProviderPostState.allPosts,
+                    builder: (context, allPosts, _) {
+                      return ValueListenableBuilder<List<ProviderPostItem>>(
+                        valueListenable: ProviderPostState.posts,
+                        builder: (context, pagedPosts, _) {
+                          return ValueListenableBuilder<PaginationMeta>(
+                            valueListenable: ProviderPostState.pagination,
+                            builder: (context, pagination, _) {
+                              final lookupPosts = allPosts.isNotEmpty
+                                  ? allPosts
+                                  : pagedPosts;
+                              final source =
+                                  query.isEmpty && _selectedCategory == null
+                                  ? pagedPosts
+                                  : lookupPosts;
+                              final filtered = source.where((post) {
+                                final matchesQuery =
+                                    query.isEmpty ||
+                                    post.providerName.toLowerCase().contains(
+                                      query,
+                                    ) ||
+                                    post.service.toLowerCase().contains(
+                                      query,
+                                    ) ||
+                                    post.category.toLowerCase().contains(
+                                      query,
+                                    ) ||
+                                    post.area.toLowerCase().contains(query) ||
+                                    post.details.toLowerCase().contains(query);
+                                final matchesCategory =
+                                    _selectedCategory == null ||
+                                    post.category == _selectedCategory;
+                                return matchesQuery && matchesCategory;
+                              }).toList();
+                              final currentPage = _normalizedPage(
+                                pagination.page,
+                              );
+                              final resultCount =
+                                  query.isEmpty && _selectedCategory == null
+                                  ? pagination.totalItems
+                                  : filtered.length;
 
-                          return ListView(
-                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                            children: [
-                              Row(
+                              final Widget body;
+                              if (isLoading && pagedPosts.isEmpty) {
+                                body = const AppStatePanel.loading(
+                                  title: 'Loading provider posts',
+                                );
+                              } else if (filtered.isEmpty) {
+                                body = AppStatePanel.empty(
+                                  title: _query.trim().isEmpty
+                                      ? 'No provider posts available yet'
+                                      : 'No matches found',
+                                  message: _query.trim().isEmpty
+                                      ? 'Create a provider post to appear in this list.'
+                                      : 'Try a different keyword or clear filters.',
+                                );
+                              } else {
+                                body = Column(
+                                  key: ValueKey<String>(
+                                    'provider_posts_${filtered.length}_${currentPage}_${query}_${_selectedCategory ?? ''}',
+                                  ),
+                                  children: filtered
+                                      .map(
+                                        (post) => _ProviderPostCard(
+                                          post: post,
+                                          onTap: () =>
+                                              _openProviderPostProfile(post),
+                                          onChatTap: () =>
+                                              _openProviderPostChat(post),
+                                        ),
+                                      )
+                                      .toList(growable: false),
+                                );
+                              }
+
+                              return ListView(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  8,
+                                  20,
+                                  24,
+                                ),
                                 children: [
-                                  Text(
-                                    'All provider posts',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleLarge,
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'All provider posts',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleLarge,
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEAF1FF),
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '$resultCount',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: AppColors.primary,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const Spacer(),
-                                  Text(
-                                    '$resultCount',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(color: AppColors.primary),
+                                  const SizedBox(height: 12),
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 220),
+                                    switchInCurve: Curves.easeOutCubic,
+                                    switchOutCurve: Curves.easeInCubic,
+                                    child: body,
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (filtered.isEmpty)
-                                Container(
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: AppColors.divider,
+                                  if (pagination.totalPages > 1 &&
+                                      query.isEmpty &&
+                                      _selectedCategory == null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 12),
+                                      child: PaginationBar(
+                                        currentPage: currentPage,
+                                        totalPages: pagination.totalPages,
+                                        loading: _isPaging,
+                                        onPageSelected: _goToPage,
+                                      ),
                                     ),
-                                  ),
-                                  child: Text(
-                                    _query.trim().isEmpty
-                                        ? 'No provider posts available yet.'
-                                        : 'No provider posts match "${_query.trim()}".',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ...filtered.map(
-                                (post) => _ProviderPostCard(
-                                  post: post,
-                                  onTap: () => _openProviderPostProfile(post),
-                                  onChatTap: () => _openProviderPostChat(post),
-                                ),
-                              ),
-                              if (pagination.totalPages > 1 &&
-                                  query.isEmpty &&
-                                  _selectedCategory == null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: PaginationBar(
-                                    currentPage: currentPage,
-                                    totalPages: pagination.totalPages,
-                                    loading: _isPaging,
-                                    onPageSelected: _goToPage,
-                                  ),
-                                ),
-                            ],
+                                ],
+                              );
+                            },
                           );
                         },
                       );

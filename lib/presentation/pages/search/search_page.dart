@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
@@ -69,7 +70,7 @@ class _SearchPageState extends State<SearchPage> {
 
   void _onLiveDataChanged() {
     if (!mounted) return;
-    setState(() {});
+    _safeSetState(() {});
   }
 
   Future<void> _primeData() async {
@@ -86,9 +87,23 @@ class _SearchPageState extends State<SearchPage> {
       // Keep page usable with partial data on transient failures.
     } finally {
       if (mounted) {
-        setState(() => _bootstrapping = false);
+        _safeSetState(() => _bootstrapping = false);
       }
     }
+  }
+
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(fn);
+      });
+      return;
+    }
+    setState(fn);
   }
 
   List<ProviderPostItem> get _providerPostsForLookup {

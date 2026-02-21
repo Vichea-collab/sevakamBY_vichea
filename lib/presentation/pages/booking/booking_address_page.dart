@@ -7,7 +7,9 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/order.dart';
 import '../../state/order_state.dart';
+import '../../widgets/app_state_panel.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
 import 'address_map_picker_page.dart';
 import 'booking_details_page.dart';
@@ -53,75 +55,91 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                 ],
               ),
               const SizedBox(height: 10),
+              const BookingStepProgress(currentStep: BookingFlowStep.address),
+              const SizedBox(height: 10),
               Expanded(
-                child: _loadingAddresses && _addresses.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    : _addresses.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No saved address yet. Add one to continue.',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      )
-                    : ListView.separated(
-                        itemCount: _addresses.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final address = _addresses[index];
-                          return InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () =>
-                                setState(() => _selectedId = address.id),
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.divider),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.home_outlined, size: 18),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          address.label,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodyLarge,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          address.street,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium,
-                                        ),
-                                        Text(
-                                          address.city,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodyMedium,
-                                        ),
-                                      ],
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: _loadingAddresses && _addresses.isEmpty
+                      ? const AppStatePanel.loading(
+                          title: 'Loading saved addresses',
+                        )
+                      : _addresses.isEmpty
+                      ? const AppStatePanel.empty(
+                          title: 'No saved address yet',
+                          message: 'Tap Add to save your first address.',
+                        )
+                      : ListView.separated(
+                          key: ValueKey<String>(
+                            'address_list_${_addresses.length}_${_selectedId ?? ''}',
+                          ),
+                          itemCount: _addresses.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final address = _addresses[index];
+                            final selected = _selectedId == address.id;
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () =>
+                                  setState(() => _selectedId = address.id),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? const Color(0xFFEFF4FF)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: selected
+                                        ? AppColors.primary
+                                        : AppColors.divider,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.home_outlined, size: 18),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            address.label,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodyLarge,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            address.street,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodyMedium,
+                                          ),
+                                          Text(
+                                            address.city,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodyMedium,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  Icon(
-                                    _selectedId == address.id
-                                        ? Icons.radio_button_checked
-                                        : Icons.radio_button_off,
-                                    color: AppColors.primary,
-                                  ),
-                                ],
+                                    Icon(
+                                      selected
+                                          ? Icons.radio_button_checked
+                                          : Icons.radio_button_off,
+                                      color: AppColors.primary,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
+                            );
+                          },
+                        ),
+                ),
               ),
               PrimaryButton(
                 label: 'Select Address',
