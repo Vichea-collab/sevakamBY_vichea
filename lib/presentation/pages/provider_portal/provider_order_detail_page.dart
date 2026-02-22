@@ -813,13 +813,21 @@ class _ServiceInputImageRow extends StatelessWidget {
           Text(label, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 8),
           if (imageBytes != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.memory(
-                imageBytes!,
-                width: double.infinity,
-                height: 170,
-                fit: BoxFit.cover,
+            Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxHeight: 400),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  imageBytes!,
+                  width: double.infinity,
+                  fit: BoxFit.contain,
+                ),
               ),
             )
           else

@@ -263,13 +263,21 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
               ),
               if (uploaded && previewBytes != null) ...[
                 const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.memory(
-                    previewBytes,
-                    height: 140,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+                Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxHeight: 400),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(
+                      previewBytes,
+                      width: double.infinity,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               ],
