@@ -1,5 +1,6 @@
 import '../entities/order.dart';
 import '../entities/pagination.dart';
+import '../entities/provider_profile.dart';
 import '../entities/provider_portal.dart';
 
 abstract class OrderRepository {
@@ -27,6 +28,15 @@ abstract class OrderRepository {
   Future<OrderItem> updateFinderOrderStatus({
     required String orderId,
     required OrderStatus status,
+  });
+  Future<OrderItem> submitFinderOrderReview({
+    required String orderId,
+    required double rating,
+    String comment,
+  });
+  Future<ProviderReviewSummary> fetchProviderReviewSummary({
+    required String providerUid,
+    int limit,
   });
   Future<ProviderOrderItem> updateProviderOrderStatus({
     required String orderId,

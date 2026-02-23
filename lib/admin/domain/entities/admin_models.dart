@@ -285,6 +285,8 @@ class AdminPostRow {
   final String ownerName;
   final String category;
   final String service;
+  final List<String> services;
+  final String details;
   final String location;
   final String status;
   final DateTime? createdAt;
@@ -296,6 +298,8 @@ class AdminPostRow {
     required this.ownerName,
     required this.category,
     required this.service,
+    this.services = const <String>[],
+    this.details = '',
     required this.location,
     required this.status,
     required this.createdAt,
@@ -313,10 +317,36 @@ class AdminPostRow {
       ownerName: _AdminParser.text(row['ownerName'], fallback: 'User'),
       category: _AdminParser.text(row['category']),
       service: _AdminParser.text(row['service']),
+      services: _AdminParser.parseStringList(row['services']),
+      details: _AdminParser.text(row['details']),
       location: _AdminParser.text(row['location']),
       status: _AdminParser.text(row['status'], fallback: 'open'),
       createdAt: _AdminParser.parseDate(row['createdAt']),
     );
+  }
+
+  List<String> get serviceList {
+    final values = <String>{};
+    final primary = service.trim();
+    if (primary.isNotEmpty) values.add(primary);
+    for (final entry in services) {
+      final text = entry.trim();
+      if (text.isNotEmpty) values.add(text);
+    }
+    final ordered = values.toList(growable: false)..sort();
+    return ordered;
+  }
+
+  String get serviceSummary {
+    final list = serviceList;
+    if (list.isEmpty) return 'Service';
+    if (list.length == 1) return list.first;
+    return '${list.first} +${list.length - 1} more';
+  }
+
+  String get categoryServiceLabel {
+    final categoryLabel = category.trim().isEmpty ? 'General' : category.trim();
+    return '$categoryLabel / $serviceSummary';
   }
 }
 

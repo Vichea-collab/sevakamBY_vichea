@@ -82,6 +82,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final hasReview = _order.hasReview;
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -136,14 +137,18 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                         Expanded(
                           child: PrimaryButton(
                             label: _order.status == OrderStatus.completed
-                                ? 'Rate service'
+                                ? (hasReview
+                                      ? 'Review submitted'
+                                      : 'Rate service')
                                 : 'Manage order',
                             icon: _order.status == OrderStatus.completed
-                                ? Icons.star_rate_rounded
+                                ? (hasReview
+                                      ? Icons.check_circle_rounded
+                                      : Icons.star_rate_rounded)
                                 : Icons.tune_rounded,
                             isOutlined: true,
                             onPressed: _order.status == OrderStatus.completed
-                                ? () => _openRating()
+                                ? (hasReview ? null : () => _openRating())
                                 : () => _openManage(),
                           ),
                         ),
@@ -370,7 +375,21 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       slideFadeRoute(OrderFeedbackPage(order: _order)),
     );
     if (result == null) return;
-    setState(() => _order = result);
+    final rating = result.rating;
+    if (rating == null || rating <= 0) return;
+    try {
+      final synced = await OrderState.submitFinderOrderReview(
+        orderId: result.id,
+        rating: rating,
+        comment: result.reviewComment,
+      );
+      if (!mounted) return;
+      setState(() => _order = synced);
+      AppToast.success(context, 'Thanks for your feedback.');
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.error(context, 'Failed to submit review.');
+    }
   }
 
   void _reorder() {

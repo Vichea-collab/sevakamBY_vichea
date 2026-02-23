@@ -540,7 +540,7 @@ class _ProviderPostTile extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${post.service} • ${post.timeLabel}',
+                '${post.serviceLabel} • ${post.timeLabel}',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -613,12 +613,14 @@ class _ProviderPostTile extends StatelessWidget {
           ? item.providerUid.trim().toLowerCase() == seedUid
           : item.providerName.trim().toLowerCase() == seedName;
       if (!sameProvider) continue;
-      final service = item.service.trim();
-      if (service.isNotEmpty) values.add(service);
+      for (final service in item.serviceList) {
+        final normalized = service.trim();
+        if (normalized.isNotEmpty) values.add(normalized);
+      }
     }
 
-    if (values.isEmpty && seed.service.trim().isNotEmpty) {
-      values.add(seed.service.trim());
+    if (values.isEmpty) {
+      values.addAll(seed.serviceList);
     }
     final services = values.toList(growable: false)..sort();
     return services;

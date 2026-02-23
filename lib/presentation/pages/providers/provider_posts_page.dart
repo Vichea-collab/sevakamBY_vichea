@@ -152,8 +152,9 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
                                     post.providerName.toLowerCase().contains(
                                       query,
                                     ) ||
-                                    post.service.toLowerCase().contains(
-                                      query,
+                                    post.serviceList.any(
+                                      (service) =>
+                                          service.toLowerCase().contains(query),
                                     ) ||
                                     post.category.toLowerCase().contains(
                                       query,
@@ -370,12 +371,14 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
           post.category.trim().toLowerCase() != seedCategory) {
         continue;
       }
-      final service = post.service.trim();
-      if (service.isNotEmpty) values.add(service);
+      for (final service in post.serviceList) {
+        final normalized = service.trim();
+        if (normalized.isNotEmpty) values.add(normalized);
+      }
     }
 
-    if (values.isEmpty && seed.service.trim().isNotEmpty) {
-      values.add(seed.service.trim());
+    if (values.isEmpty) {
+      values.addAll(seed.serviceList);
     }
 
     final services = values.toList(growable: false)..sort();
@@ -555,7 +558,7 @@ class _ProviderPostCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${post.service} • ${post.timeLabel}',
+                '${post.serviceLabel} • ${post.timeLabel}',
                 style: Theme.of(
                   context,
                 ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),

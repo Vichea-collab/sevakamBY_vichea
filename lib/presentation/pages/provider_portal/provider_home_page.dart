@@ -509,7 +509,7 @@ class _FinderPostTile extends StatelessWidget {
                       runSpacing: 6,
                       children: [
                         _MetaPill(text: post.category),
-                        _MetaPill(text: post.service),
+                        _MetaPill(text: post.serviceLabel),
                         _MetaPill(text: post.location),
                         if (post.preferredDate != null)
                           _PreferredDatePill(

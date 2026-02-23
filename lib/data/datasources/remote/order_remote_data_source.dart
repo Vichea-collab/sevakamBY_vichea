@@ -108,6 +108,28 @@ class OrderRemoteDataSource {
     return _safeMap(response['data']);
   }
 
+  Future<Map<String, dynamic>> submitFinderOrderReview({
+    required String orderId,
+    required double rating,
+    String comment = '',
+  }) async {
+    final response = await _apiClient.postJson('/api/orders/$orderId/review', {
+      'rating': rating,
+      'comment': comment,
+    });
+    return _safeMap(response['data']);
+  }
+
+  Future<Map<String, dynamic>> fetchProviderReviewSummary({
+    required String providerUid,
+    int limit = 20,
+  }) async {
+    final response = await _apiClient.getJson(
+      '/api/orders/provider/$providerUid/reviews?limit=$limit',
+    );
+    return _safeMap(response['data']);
+  }
+
   Map<String, dynamic> _safeMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
     if (value is Map) {

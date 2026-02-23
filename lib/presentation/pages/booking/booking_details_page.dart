@@ -6,7 +6,6 @@ import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/order.dart';
 import '../../../domain/entities/provider.dart';
 import '../../state/booking_catalog_state.dart';
-import '../../state/catalog_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
@@ -57,10 +56,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
         _selectedService,
       ),
     );
-    final categoryServices = _servicesForProvider(
-      provider: draft.provider,
-      categoryName: draft.categoryName,
-    );
+    final categoryServices = _servicesForProvider(provider: draft.provider);
 
     return Scaffold(
       body: SafeArea(
@@ -87,9 +83,13 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
               ),
               const SizedBox(height: 6),
               _PickerField(
-                label: _selectedService,
+                label: _selectedService.isEmpty
+                    ? 'No available services'
+                    : _selectedService,
                 icon: Icons.build_circle_outlined,
-                onTap: () => _pickService(categoryServices),
+                onTap: categoryServices.isEmpty
+                    ? () {}
+                    : () => _pickService(categoryServices),
               ),
               if (_serviceError != null) ...[
                 const SizedBox(height: 8),
@@ -221,32 +221,29 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   }
 
   void _validateService() {
-    final providerCategory = CatalogState.categoryForProviderRole(
-      widget.draft.provider.role,
-    );
     final supportedServices = _servicesForProvider(
       provider: widget.draft.provider,
-      categoryName: providerCategory,
     );
-    final supported =
-        supportedServices.isEmpty ||
-        supportedServices.contains(_selectedService);
-    _serviceError = supported
-        ? null
-        : '${widget.draft.provider.name} does not offer this service. Please choose another.';
+    if (supportedServices.isEmpty) {
+      _serviceError =
+          '${widget.draft.provider.name} has no active service posts yet.';
+      return;
+    }
+    if (supportedServices.contains(_selectedService)) {
+      _serviceError = null;
+      return;
+    }
+    _serviceError =
+        '${widget.draft.provider.name} does not offer this service. Please choose another.';
   }
 
-  List<String> _servicesForProvider({
-    required ProviderItem provider,
-    required String categoryName,
-  }) {
+  List<String> _servicesForProvider({required ProviderItem provider}) {
     final direct = provider.services
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
-        .toSet()
-        .toList(growable: false);
-    if (direct.isNotEmpty) return direct;
-    return CatalogState.servicesForCategory(categoryName);
+        .toSet();
+    final values = direct.toList(growable: false)..sort();
+    return values;
   }
 
   bool get _isCleaningService {

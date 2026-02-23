@@ -26,7 +26,7 @@ class ProviderPostRepositoryImpl implements ProviderPostRepository {
   @override
   Future<ProviderPostItem> createProviderPost({
     required String category,
-    required String service,
+    required List<String> services,
     required String area,
     required String details,
     required double ratePerHour,
@@ -34,7 +34,7 @@ class ProviderPostRepositoryImpl implements ProviderPostRepository {
   }) async {
     return _remoteDataSource.createProviderPost(
       category: category,
-      service: service,
+      services: services,
       area: area,
       details: details,
       ratePerHour: ratePerHour,

@@ -98,8 +98,10 @@ class _ProviderFinderSearchPageState extends State<ProviderFinderSearchPage> {
                                       return post.clientName
                                               .toLowerCase()
                                               .contains(normalized) ||
-                                          post.service.toLowerCase().contains(
-                                            normalized,
+                                          post.serviceList.any(
+                                            (service) => service
+                                                .toLowerCase()
+                                                .contains(normalized),
                                           ) ||
                                           post.location.toLowerCase().contains(
                                             normalized,
@@ -434,7 +436,7 @@ class _FinderPostTile extends StatelessWidget {
                       runSpacing: 6,
                       children: [
                         _MetaPill(text: post.category),
-                        _MetaPill(text: post.service),
+                        _MetaPill(text: post.serviceLabel),
                         _MetaPill(text: post.location),
                         if (post.preferredDate != null)
                           _PreferredDatePill(

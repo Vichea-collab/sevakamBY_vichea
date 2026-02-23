@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/entities/pagination.dart';
 import '../../domain/entities/provider.dart';
+import '../../domain/entities/provider_profile.dart';
 import '../../domain/entities/provider_portal.dart';
 import '../../domain/repositories/order_repository.dart';
 import '../datasources/remote/order_remote_data_source.dart';
@@ -182,6 +183,56 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
+  Future<OrderItem> submitFinderOrderReview({
+    required String orderId,
+    required double rating,
+    String comment = '',
+  }) async {
+    final row = await _remoteDataSource.submitFinderOrderReview(
+      orderId: orderId,
+      rating: rating,
+      comment: comment,
+    );
+    return _toFinderOrder(row);
+  }
+
+  @override
+  Future<ProviderReviewSummary> fetchProviderReviewSummary({
+    required String providerUid,
+    int limit = 20,
+  }) async {
+    final row = await _remoteDataSource.fetchProviderReviewSummary(
+      providerUid: providerUid,
+      limit: limit,
+    );
+    final reviews = _safeList(row['reviews'])
+        .map((item) {
+          final reviewerName = (item['reviewerName'] ?? 'Customer').toString();
+          final reviewedAt = _toDateTimeOrNull(item['reviewedAt']);
+          return ProviderReview(
+            reviewerName: reviewerName,
+            reviewerInitials:
+                (item['reviewerInitials'] ?? '').toString().trim().isNotEmpty
+                ? (item['reviewerInitials'] ?? '').toString().trim()
+                : _initialsFromName(reviewerName),
+            rating: _toDouble(item['rating'], fallback: 0),
+            daysAgo: _daysAgoFromDate(reviewedAt),
+            reviewedAt: reviewedAt,
+            comment: (item['comment'] ?? '').toString(),
+          );
+        })
+        .toList(growable: false);
+
+    return ProviderReviewSummary(
+      providerUid: (row['providerUid'] ?? providerUid).toString(),
+      averageRating: _toDouble(row['averageRating'], fallback: 0),
+      totalReviews: _toInt(row['totalReviews'], fallback: reviews.length),
+      completedJobs: _toInt(row['completedJobs'], fallback: 0),
+      reviews: reviews,
+    );
+  }
+
+  @override
   Future<ProviderOrderItem> updateProviderOrderStatus({
     required String orderId,
     required ProviderOrderState state,
@@ -242,6 +293,9 @@ class OrderRepositoryImpl implements OrderRepository {
       processingFee: _toDouble(row['processingFee']),
       discount: _toDouble(row['discount']),
       status: _orderStatusFromStorage((row['status'] ?? '').toString()),
+      rating: _ratingOrNull(row['finderRating'] ?? row['rating']),
+      reviewComment: (row['finderComment'] ?? '').toString(),
+      reviewedAt: _toDateTimeOrNull(row['reviewedAt']),
       timeline: timeline,
     );
   }
@@ -367,6 +421,32 @@ class OrderRepositoryImpl implements OrderRepository {
     if (value is num) return value.toDouble();
     final parsed = double.tryParse((value ?? '').toString());
     return parsed ?? fallback;
+  }
+
+  double? _ratingOrNull(dynamic value) {
+    final rating = _toDouble(value);
+    if (rating <= 0) return null;
+    return rating;
+  }
+
+  int _daysAgoFromDate(DateTime? value) {
+    if (value == null) return 0;
+    final diff = DateTime.now().difference(value).inDays;
+    if (diff < 0) return 0;
+    return diff;
+  }
+
+  String _initialsFromName(String name) {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) return 'U';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    final first = parts.first.substring(0, 1);
+    final last = parts.last.substring(0, 1);
+    return '$first$last'.toUpperCase();
   }
 
   String _providerType(String value) {
@@ -510,6 +590,11 @@ class OrderRepositoryImpl implements OrderRepository {
       return value.map((key, item) => MapEntry(key.toString(), item));
     }
     return const <String, dynamic>{};
+  }
+
+  List<Map<String, dynamic>> _safeList(dynamic value) {
+    if (value is! List) return const <Map<String, dynamic>>[];
+    return value.whereType<Map>().map(_safeMap).toList(growable: false);
   }
 
   String _homeTypeToStorage(HomeType value) {

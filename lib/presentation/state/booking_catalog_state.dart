@@ -37,15 +37,11 @@ class BookingCatalogState {
         .where((item) => item.isNotEmpty)
         .toSet()
         .toList(growable: false);
-    final available = providerServices.isNotEmpty
-        ? providerServices
-        : CatalogState.servicesForCategory(categoryName);
+    final available = providerServices;
     final preferred = serviceName?.trim() ?? '';
     final resolvedService = available.contains(preferred)
         ? preferred
-        : (available.isNotEmpty
-              ? available.first
-              : _defaultServiceFor(categoryName));
+        : (available.isNotEmpty ? available.first : '');
 
     return BookingDraft(
       provider: provider,
@@ -92,15 +88,6 @@ class BookingCatalogState {
       }
     }
     return values;
-  }
-
-  static String _defaultServiceFor(String categoryName) {
-    final value = categoryName.trim().toLowerCase();
-    if (value.contains('plumb')) return 'Pipe Leak Repair';
-    if (value.contains('electric')) return 'Wiring Repair';
-    if (value.contains('clean')) return 'House Cleaning';
-    if (value.contains('appliance')) return 'Air Conditioner Repair';
-    return 'Door & Window Repair';
   }
 
   static String _canonicalServiceName(String serviceName) {

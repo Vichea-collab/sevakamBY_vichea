@@ -11,7 +11,7 @@ abstract class FinderPostRepository {
 
   Future<FinderPostItem> createFinderRequest({
     required String category,
-    required String service,
+    required List<String> services,
     required String location,
     required String message,
     required DateTime preferredDate,

@@ -35,14 +35,19 @@ class FinderPostRemoteDataSource {
 
   Future<FinderPostItem> createFinderRequest({
     required String category,
-    required String service,
+    required List<String> services,
     required String location,
     required String message,
     required DateTime preferredDate,
   }) async {
+    final safeServices = services
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
     final response = await _apiClient.postJson('/api/posts/finder-requests', {
       'category': category,
-      'service': service,
+      'service': safeServices.isNotEmpty ? safeServices.first : '',
+      'services': safeServices,
       'location': location,
       'message': message,
       'preferredDate': preferredDate.toIso8601String(),
@@ -53,6 +58,8 @@ class FinderPostRemoteDataSource {
   FinderPostItem _mapToFinderPost(Map<dynamic, dynamic> row) {
     final id = (row['id'] ?? '').toString();
     final createdAt = _parseDate(row['createdAt']);
+    final services = _parseServices(row['services']);
+    final primaryService = (row['service'] ?? '').toString().trim();
     return FinderPostItem(
       id: id.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : id,
       finderUid: (row['finderUid'] ?? '').toString(),
@@ -60,7 +67,10 @@ class FinderPostRemoteDataSource {
       message: (row['message'] ?? '').toString(),
       timeLabel: _timeLabel(createdAt),
       category: (row['category'] ?? '').toString(),
-      service: (row['service'] ?? '').toString(),
+      service: primaryService.isNotEmpty
+          ? primaryService
+          : (services.isNotEmpty ? services.first : ''),
+      services: services,
       location: (row['location'] ?? '').toString(),
       avatarPath: 'assets/images/profile.jpg',
       preferredDate: _parseDate(row['preferredDate']),
@@ -95,5 +105,16 @@ class FinderPostRemoteDataSource {
     if (delta.inHours < 1) return '${delta.inMinutes} mins ago';
     if (delta.inDays < 1) return '${delta.inHours} hrs ago';
     return '${delta.inDays} days ago';
+  }
+
+  List<String> _parseServices(dynamic value) {
+    if (value is! List) return const <String>[];
+    final parsed = value
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    parsed.sort();
+    return parsed;
   }
 }

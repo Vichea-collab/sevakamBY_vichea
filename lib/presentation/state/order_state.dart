@@ -13,6 +13,7 @@ import '../../data/repositories/order_repository_impl.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/entities/pagination.dart';
 import '../../domain/entities/provider.dart';
+import '../../domain/entities/provider_profile.dart';
 import '../../domain/entities/provider_portal.dart';
 import '../../domain/repositories/order_repository.dart';
 import 'app_role_state.dart' show AppRole, AppRoleState;
@@ -331,6 +332,52 @@ class OrderState {
     return updated;
   }
 
+  static Future<OrderItem> submitFinderOrderReview({
+    required String orderId,
+    required double rating,
+    String comment = '',
+  }) async {
+    final updated = await _repository.submitFinderOrderReview(
+      orderId: orderId,
+      rating: rating,
+      comment: comment,
+    );
+    finderOrders.value = _replaceFinder(updated);
+    return updated;
+  }
+
+  static Future<ProviderReviewSummary> fetchProviderReviewSummary({
+    required String providerUid,
+    int limit = 20,
+  }) async {
+    final ready = await _ensureBackendToken();
+    if (!ready) {
+      return ProviderReviewSummary(
+        providerUid: providerUid,
+        averageRating: 0,
+        totalReviews: 0,
+        completedJobs: 0,
+        reviews: const <ProviderReview>[],
+      );
+    }
+    try {
+      return await _runWithAuthRetry(
+        () => _repository.fetchProviderReviewSummary(
+          providerUid: providerUid,
+          limit: limit,
+        ),
+      );
+    } catch (_) {
+      return ProviderReviewSummary(
+        providerUid: providerUid,
+        averageRating: 0,
+        totalReviews: 0,
+        completedJobs: 0,
+        reviews: const <ProviderReview>[],
+      );
+    }
+  }
+
   static void replaceFinderOrderLocal(OrderItem item) {
     finderOrders.value = _replaceFinder(item);
   }
@@ -551,6 +598,9 @@ class OrderState {
       processingFee: _toDouble(row['processingFee']),
       discount: _toDouble(row['discount']),
       status: _orderStatusFromStorage((row['status'] ?? '').toString()),
+      rating: _ratingOrNull(row['finderRating'] ?? row['rating']),
+      reviewComment: (row['finderComment'] ?? '').toString(),
+      reviewedAt: _toDateTimeOrNull(row['reviewedAt']),
       timeline: timeline,
     );
   }
@@ -627,6 +677,12 @@ class OrderState {
     if (value is num) return value.toDouble();
     final parsed = double.tryParse((value ?? '').toString());
     return parsed ?? fallback;
+  }
+
+  static double? _ratingOrNull(dynamic value) {
+    final rating = _toDouble(value);
+    if (rating <= 0) return null;
+    return rating;
   }
 
   static String _providerType(String value) {

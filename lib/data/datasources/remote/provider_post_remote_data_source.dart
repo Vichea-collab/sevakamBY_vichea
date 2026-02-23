@@ -35,15 +35,20 @@ class ProviderPostRemoteDataSource {
 
   Future<ProviderPostItem> createProviderPost({
     required String category,
-    required String service,
+    required List<String> services,
     required String area,
     required String details,
     required double ratePerHour,
     required bool availableNow,
   }) async {
+    final safeServices = services
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
     final response = await _apiClient.postJson('/api/posts/provider-offers', {
       'category': category,
-      'service': service,
+      'service': safeServices.isNotEmpty ? safeServices.first : '',
+      'services': safeServices,
       'area': area,
       'details': details,
       'ratePerHour': ratePerHour,
@@ -55,6 +60,8 @@ class ProviderPostRemoteDataSource {
   ProviderPostItem _mapToProviderPost(Map<dynamic, dynamic> row) {
     final id = (row['id'] ?? '').toString();
     final createdAt = _parseDate(row['createdAt']);
+    final services = _parseServices(row['services']);
+    final primaryService = (row['service'] ?? '').toString().trim();
     return ProviderPostItem(
       id: id.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : id,
       providerUid: (row['providerUid'] ?? '').toString(),
@@ -66,7 +73,10 @@ class ProviderPostRemoteDataSource {
         _providerType(row['providerType']),
       ),
       category: (row['category'] ?? '').toString(),
-      service: (row['service'] ?? '').toString(),
+      service: primaryService.isNotEmpty
+          ? primaryService
+          : (services.isNotEmpty ? services.first : ''),
+      services: services,
       area: (row['area'] ?? '').toString(),
       details: (row['details'] ?? '').toString(),
       ratePerHour: _toRate(row['ratePerHour']),
@@ -94,6 +104,17 @@ class ProviderPostRemoteDataSource {
     final normalized = (value ?? '').toString().trim().toLowerCase();
     if (normalized == 'company') return 'company';
     return 'individual';
+  }
+
+  List<String> _parseServices(dynamic value) {
+    if (value is! List) return const <String>[];
+    final parsed = value
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    parsed.sort();
+    return parsed;
   }
 
   int _providerMaxWorkers(dynamic value, String providerType) {

@@ -641,6 +641,61 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
+  Future<void> _showPostDetails(AdminPostRow item) async {
+    final services = item.serviceList;
+    final serviceText = services.isEmpty ? 'Service' : services.join(', ');
+    final details = item.details.trim().isEmpty ? '-' : item.details.trim();
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Post details'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Type: ${_prettyPostType(item.type)}'),
+                  const SizedBox(height: 8),
+                  Text('Owner: ${item.ownerName}'),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Category: ${item.category.trim().isEmpty ? 'General' : item.category}',
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Services: $serviceText'),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Location: ${item.location.trim().isEmpty ? '-' : item.location}',
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Status: ${_prettyStatus(item.status)}'),
+                  const SizedBox(height: 8),
+                  Text('Created: ${_formatDateTime(item.createdAt)}'),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Description',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  SelectableText(details),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _undoFromHistory(AdminUndoHistoryRow row) async {
     if (!row.canUndo) return;
     final confirmed = await showDialog<bool>(
@@ -1703,7 +1758,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               if (!typeMatch) return false;
               if (query.isEmpty) return true;
               final haystack =
-                  '${item.type} ${item.ownerName} ${item.category} ${item.service} ${item.location} ${item.status}'
+                  '${item.type} ${item.ownerName} ${item.category} ${item.serviceSummary} ${item.serviceList.join(' ')} ${item.location} ${item.status} ${item.details}'
                       .toLowerCase();
               return haystack.contains(query);
             })
@@ -1718,12 +1773,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ),
           ),
           DataCell(_cellText(item.ownerName, width: 155)),
-          DataCell(
-            _cellText(
-              '${item.category.isEmpty ? 'General' : item.category} / ${item.service.isEmpty ? 'Service' : item.service}',
-              width: 210,
-            ),
-          ),
+          DataCell(_cellText(item.categoryServiceLabel, width: 210)),
           DataCell(
             _cellText(item.location.isEmpty ? '-' : item.location, width: 170),
           ),
@@ -1737,6 +1787,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           DataCell(
             _actionMenu(
               actions: [
+                _ActionMenuItem(
+                  label: 'View details',
+                  onTap: () => unawaited(_showPostDetails(item)),
+                ),
                 _ActionMenuItem(
                   label: 'Open',
                   onTap: () => _runSafeAction(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -8,6 +10,7 @@ import '../../../domain/entities/provider_portal.dart';
 import '../../../domain/entities/provider_profile.dart';
 import '../../state/chat_state.dart';
 import '../../state/booking_catalog_state.dart';
+import '../../state/order_state.dart';
 import '../../state/provider_post_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
@@ -29,10 +32,27 @@ class ProviderDetailPage extends StatefulWidget {
 class _ProviderDetailPageState extends State<ProviderDetailPage> {
   _ProviderContentTab _contentTab = _ProviderContentTab.companyInfo;
   ReviewRange _reviewRange = ReviewRange.last120;
+  ProviderReviewSummary? _reviewSummary;
+  bool _loadingReviews = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadProviderReviews());
+  }
+
+  @override
+  void didUpdateWidget(covariant ProviderDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.provider.uid.trim() != widget.provider.uid.trim()) {
+      _reviewSummary = null;
+      unawaited(_loadProviderReviews());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final profile = _buildProfile(widget.provider);
+    final profile = _buildProfile(widget.provider, summary: _reviewSummary);
     final reviews = _reviewsByRange(profile.reviews, _reviewRange);
 
     return Scaffold(
@@ -63,7 +83,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
                 children: [
-                  _ProviderSummaryCard(profile: profile),
+                  _ProviderSummaryCard(
+                    profile: profile,
+                    totalReviewCount: _reviewSummary?.totalReviews,
+                  ),
                   const SizedBox(height: 12),
                   _ContactSwitcher(
                     onBookTap: () => Navigator.push(
@@ -96,6 +119,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       reviews: reviews,
                       selectedRange: _reviewRange,
                       onRangeTap: _openReviewFilterSheet,
+                      loading: _loadingReviews,
                     ),
                 ],
               ),
@@ -104,6 +128,29 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _loadProviderReviews() async {
+    final providerUid = widget.provider.uid.trim();
+    if (providerUid.isEmpty) return;
+    if (mounted) {
+      setState(() => _loadingReviews = true);
+    }
+    try {
+      final summary = await OrderState.fetchProviderReviewSummary(
+        providerUid: providerUid,
+        limit: 50,
+      );
+      if (!mounted) return;
+      setState(() => _reviewSummary = summary);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _reviewSummary = null);
+    } finally {
+      if (mounted) {
+        setState(() => _loadingReviews = false);
+      }
+    }
   }
 
   void _openReviewFilterSheet() {
@@ -188,7 +235,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     }
   }
 
-  ProviderProfile _buildProfile(ProviderItem provider) {
+  ProviderProfile _buildProfile(
+    ProviderItem provider, {
+    ProviderReviewSummary? summary,
+  }) {
     final allPosts = ProviderPostState.allPosts.value;
     final posts = allPosts.isNotEmpty
         ? allPosts
@@ -216,14 +266,18 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           .map((item) => item.trim())
           .where((item) => item.isNotEmpty),
       ...matchedPosts
-          .map((item) => item.service.trim())
+          .expand((item) => item.serviceList.map((service) => service.trim()))
           .where((item) => item.isNotEmpty),
     }.toList(growable: false)..sort();
+    final hasProviderUid = provider.uid.trim().isNotEmpty;
+    final averageRating = (summary?.averageRating ?? 0) > 0
+        ? summary!.averageRating
+        : provider.rating;
     final mergedProvider = ProviderItem(
       uid: provider.uid,
       name: provider.name,
       role: provider.role,
-      rating: provider.rating,
+      rating: averageRating,
       imagePath: provider.imagePath,
       accentColor: provider.accentColor,
       services: services,
@@ -238,7 +292,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           ? matched!.area.trim()
           : 'Phnom Penh, Cambodia',
       available: matched?.availableNow ?? true,
-      completedJobs: 42,
+      completedJobs: summary?.completedJobs ?? (hasProviderUid ? 0 : 42),
       about: matched?.details.trim().isNotEmpty == true
           ? matched!.details.trim()
           : 'Trusted service provider ready to help with fast and quality work.',
@@ -247,7 +301,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         'assets/images/plumber_category.jpg',
         'assets/images/plumber_category.jpg',
       ],
-      reviews: _seedReviews(provider),
+      reviews:
+          summary?.reviews ??
+          (hasProviderUid ? const [] : _seedReviews(provider)),
     );
   }
 
@@ -304,8 +360,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
 class _ProviderSummaryCard extends StatelessWidget {
   final ProviderProfile profile;
+  final int? totalReviewCount;
 
-  const _ProviderSummaryCard({required this.profile});
+  const _ProviderSummaryCard({required this.profile, this.totalReviewCount});
 
   @override
   Widget build(BuildContext context) {
@@ -343,7 +400,7 @@ class _ProviderSummaryCard extends StatelessWidget {
               const Icon(Icons.star, size: 14, color: Color(0xFFF59E0B)),
               const SizedBox(width: 4),
               Text(
-                '${profile.averageRating.toStringAsFixed(1)} (${profile.reviews.length} Reviews)',
+                '${profile.averageRating.toStringAsFixed(1)} (${totalReviewCount ?? profile.reviews.length} Reviews)',
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: AppColors.primary),
@@ -545,11 +602,13 @@ class _ReviewsSection extends StatelessWidget {
   final List<ProviderReview> reviews;
   final ReviewRange selectedRange;
   final VoidCallback onRangeTap;
+  final bool loading;
 
   const _ReviewsSection({
     required this.reviews,
     required this.selectedRange,
     required this.onRangeTap,
+    required this.loading,
   });
 
   @override
@@ -600,6 +659,15 @@ class _ReviewsSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
+        if (loading) ...[
+          const Center(child: CircularProgressIndicator()),
+          const SizedBox(height: 12),
+        ],
+        if (!loading && reviews.isEmpty)
+          Text(
+            'No reviews yet.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         ...reviews.map((review) => _ReviewCard(review: review)),
       ],
     );
@@ -655,7 +723,7 @@ class _ReviewCard extends StatelessWidget {
           ),
           const SizedBox(height: 3),
           Text(
-            '${review.daysAgo} days ago',
+            _reviewTimestamp(review),
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 6),
@@ -663,6 +731,36 @@ class _ReviewCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _reviewTimestamp(ProviderReview review) {
+    final reviewedAt = review.reviewedAt;
+    if (reviewedAt != null) {
+      final local = reviewedAt.toLocal();
+      const months = <String>[
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      final month = months[(local.month - 1).clamp(0, 11)];
+      final hour24 = local.hour;
+      final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+      final minute = local.minute.toString().padLeft(2, '0');
+      final meridiem = hour24 >= 12 ? 'PM' : 'AM';
+      return '$month ${local.day}, ${local.year} • $hour12:$minute $meridiem';
+    }
+    if (review.daysAgo <= 0) return 'Today';
+    if (review.daysAgo == 1) return '1 day ago';
+    return '${review.daysAgo} days ago';
   }
 }
 

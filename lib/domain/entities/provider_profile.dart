@@ -17,6 +17,7 @@ class ProviderReview {
   final String reviewerInitials;
   final double rating;
   final int daysAgo;
+  final DateTime? reviewedAt;
   final String comment;
 
   const ProviderReview({
@@ -24,6 +25,7 @@ class ProviderReview {
     required this.reviewerInitials,
     required this.rating,
     required this.daysAgo,
+    this.reviewedAt,
     required this.comment,
   });
 }
@@ -52,4 +54,20 @@ class ProviderProfile {
     final total = reviews.fold<double>(0, (sum, r) => sum + r.rating);
     return total / reviews.length;
   }
+}
+
+class ProviderReviewSummary {
+  final String providerUid;
+  final double averageRating;
+  final int totalReviews;
+  final int completedJobs;
+  final List<ProviderReview> reviews;
+
+  const ProviderReviewSummary({
+    required this.providerUid,
+    required this.averageRating,
+    required this.totalReviews,
+    required this.completedJobs,
+    required this.reviews,
+  });
 }

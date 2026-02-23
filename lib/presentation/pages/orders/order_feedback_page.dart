@@ -15,8 +15,18 @@ class OrderFeedbackPage extends StatefulWidget {
 }
 
 class _OrderFeedbackPageState extends State<OrderFeedbackPage> {
-  int _rating = 4;
-  final TextEditingController _feedbackController = TextEditingController();
+  late int _rating;
+  late final TextEditingController _feedbackController;
+
+  @override
+  void initState() {
+    super.initState();
+    final currentRating = widget.order.rating ?? 4;
+    _rating = currentRating.clamp(1, 5).round();
+    _feedbackController = TextEditingController(
+      text: widget.order.reviewComment,
+    );
+  }
 
   @override
   void dispose() {
@@ -33,9 +43,7 @@ class _OrderFeedbackPageState extends State<OrderFeedbackPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const AppTopBar(
-                title: 'Give your feedback',
-              ),
+              const AppTopBar(title: 'Give your feedback'),
               const SizedBox(height: 18),
               Text(
                 'How was your experience with ${widget.order.provider.name}?',
@@ -64,6 +72,7 @@ class _OrderFeedbackPageState extends State<OrderFeedbackPage> {
               TextField(
                 controller: _feedbackController,
                 maxLines: 5,
+                maxLength: 500,
                 decoration: const InputDecoration(
                   hintText: 'Write here...',
                   alignLabelWithHint: true,
@@ -79,9 +88,11 @@ class _OrderFeedbackPageState extends State<OrderFeedbackPage> {
   }
 
   void _submit() {
+    final comment = _feedbackController.text.trim();
     final updated = widget.order.copyWith(
       status: OrderStatus.completed,
       rating: _rating.toDouble(),
+      reviewComment: comment,
     );
     Navigator.pop(context, updated);
   }

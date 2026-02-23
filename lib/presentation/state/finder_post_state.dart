@@ -87,14 +87,14 @@ class FinderPostState {
 
   static Future<void> createFinderRequest({
     required String category,
-    required String service,
+    required List<String> services,
     required String location,
     required String message,
     required DateTime preferredDate,
   }) async {
     final created = await _repository.createFinderRequest(
       category: category,
-      service: service,
+      services: services,
       location: location,
       message: message,
       preferredDate: preferredDate,

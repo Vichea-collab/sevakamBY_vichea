@@ -11,7 +11,7 @@ abstract class ProviderPostRepository {
 
   Future<ProviderPostItem> createProviderPost({
     required String category,
-    required String service,
+    required List<String> services,
     required String area,
     required String details,
     required double ratePerHour,

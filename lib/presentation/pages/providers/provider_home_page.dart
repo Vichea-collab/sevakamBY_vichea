@@ -389,14 +389,19 @@ class _ProviderAggregate {
       providerMaxWorkers: post.providerMaxWorkers < 1
           ? 1
           : post.providerMaxWorkers,
-      services: <String>{post.service.trim()},
+      services: post.serviceList
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toSet(),
     );
   }
 
   void absorb(ProviderPostItem post) {
-    final service = post.service.trim();
-    if (service.isNotEmpty) {
-      services.add(service);
+    for (final service in post.serviceList) {
+      final normalized = service.trim();
+      if (normalized.isNotEmpty) {
+        services.add(normalized);
+      }
     }
     if (post.providerType.trim().toLowerCase() == 'company') {
       providerType = 'company';

@@ -118,7 +118,7 @@ class ProviderPostState {
 
   static Future<void> createProviderPost({
     required String category,
-    required String service,
+    required List<String> services,
     required String area,
     required String details,
     required double ratePerHour,
@@ -126,7 +126,7 @@ class ProviderPostState {
   }) async {
     final created = await _repository.createProviderPost(
       category: category,
-      service: service,
+      services: services,
       area: area,
       details: details,
       ratePerHour: ratePerHour,

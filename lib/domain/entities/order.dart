@@ -190,6 +190,8 @@ class OrderItem {
   final double discount;
   final OrderStatus status;
   final double? rating;
+  final String reviewComment;
+  final DateTime? reviewedAt;
   final OrderStatusTimeline timeline;
 
   const OrderItem({
@@ -210,6 +212,8 @@ class OrderItem {
     required this.discount,
     required this.status,
     this.rating,
+    this.reviewComment = '',
+    this.reviewedAt,
     this.timeline = const OrderStatusTimeline(),
   });
 
@@ -218,6 +222,8 @@ class OrderItem {
   OrderItem copyWith({
     OrderStatus? status,
     double? rating,
+    String? reviewComment,
+    DateTime? reviewedAt,
     OrderStatusTimeline? timeline,
   }) {
     return OrderItem(
@@ -238,9 +244,13 @@ class OrderItem {
       discount: discount,
       status: status ?? this.status,
       rating: rating ?? this.rating,
+      reviewComment: reviewComment ?? this.reviewComment,
+      reviewedAt: reviewedAt ?? this.reviewedAt,
       timeline: timeline ?? this.timeline,
     );
   }
+
+  bool get hasReview => (rating ?? 0) > 0;
 }
 
 class KhqrPaymentSession {

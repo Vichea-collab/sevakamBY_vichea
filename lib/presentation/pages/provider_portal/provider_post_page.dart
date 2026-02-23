@@ -253,23 +253,21 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
     setState(() => _posting = true);
     try {
       final services = _selectedServices.toList(growable: false)..sort();
-      for (final service in services) {
-        await ProviderPostState.createProviderPost(
-          category: _selectedCategory,
-          service: service,
-          area: _areaController.text.trim(),
-          details: _detailsController.text.trim(),
-          ratePerHour: price,
-          availableNow: _availableNow,
-        );
-      }
+      await ProviderPostState.createProviderPost(
+        category: _selectedCategory,
+        services: services,
+        area: _areaController.text.trim(),
+        details: _detailsController.text.trim(),
+        ratePerHour: price,
+        availableNow: _availableNow,
+      );
       if (!mounted) return;
       _detailsController.clear();
       AppToast.success(
         context,
         services.length == 1
             ? 'Provider post published for ${services.first} (${price.toStringAsFixed(0)}/hour).'
-            : 'Provider posts published for ${services.length} services.',
+            : 'Provider post published for ${services.length} services.',
       );
     } catch (error) {
       if (!mounted) return;
@@ -322,7 +320,7 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
   }
 
   String get _selectedServiceLabel {
-    if (_selectedServices.isEmpty) return '';
+    if (_selectedServices.isEmpty) return 'Select service(s)';
     final values = _selectedServices.toList(growable: false)..sort();
     if (values.length == 1) return values.first;
     if (values.length == 2) return '${values[0]}, ${values[1]}';

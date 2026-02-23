@@ -24,7 +24,7 @@ class _ClientPostPageState extends State<ClientPostPage> {
   static const String _fallbackLocation = 'Phnom Penh, Cambodia';
 
   late String _selectedCategory;
-  late String _selectedService;
+  final Set<String> _selectedServices = <String>{};
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _detailsController = TextEditingController();
   DateTime _preferredDate = DateTime.now().add(const Duration(days: 1));
@@ -53,7 +53,6 @@ class _ClientPostPageState extends State<ClientPostPage> {
   void initState() {
     super.initState();
     _selectedCategory = 'Cleaner';
-    _selectedService = '';
     _locationController.text = _preferredFinderLocation();
     CatalogState.categories.addListener(_syncSelectionFromCatalog);
     CatalogState.services.addListener(_syncSelectionFromCatalog);
@@ -102,20 +101,30 @@ class _ClientPostPageState extends State<ClientPostPage> {
         ? _selectedCategory
         : categories.first.name;
     final services = CatalogState.servicesForCategory(nextCategory);
-    final nextService = services.contains(_selectedService)
-        ? _selectedService
-        : (services.isEmpty ? '' : services.first);
+    final nextSelection = _selectedServices
+        .where((item) => services.contains(item))
+        .toSet();
+    if (nextSelection.isEmpty && services.isNotEmpty) {
+      nextSelection.add(services.first);
+    }
     if (!mounted) {
       _selectedCategory = nextCategory;
-      _selectedService = nextService;
+      _selectedServices
+        ..clear()
+        ..addAll(nextSelection);
       return;
     }
-    if (_selectedCategory == nextCategory && _selectedService == nextService) {
+    final sameSelection =
+        _selectedServices.length == nextSelection.length &&
+        _selectedServices.containsAll(nextSelection);
+    if (_selectedCategory == nextCategory && sameSelection) {
       return;
     }
     _safeSetState(() {
       _selectedCategory = nextCategory;
-      _selectedService = nextService;
+      _selectedServices
+        ..clear()
+        ..addAll(nextSelection);
     });
   }
 
@@ -185,7 +194,7 @@ class _ClientPostPageState extends State<ClientPostPage> {
                       const SizedBox(height: 8),
                       _FieldLabel(label: 'Service*'),
                       _PickerField(
-                        label: _selectedService,
+                        label: _selectedServiceLabel,
                         onTap: _pickService,
                       ),
                       const SizedBox(height: 8),
@@ -238,7 +247,7 @@ class _ClientPostPageState extends State<ClientPostPage> {
         ? _preferredFinderLocation()
         : typedLocation;
     if (_selectedCategory.isEmpty ||
-        _selectedService.isEmpty ||
+        _selectedServices.isEmpty ||
         location.isEmpty ||
         details.isEmpty) {
       AppToast.error(context, 'Please complete all fields.');
@@ -246,9 +255,10 @@ class _ClientPostPageState extends State<ClientPostPage> {
     }
     setState(() => _submitting = true);
     try {
+      final services = _selectedServices.toList(growable: false)..sort();
       await FinderPostState.createFinderRequest(
         category: _selectedCategory,
-        service: _selectedService,
+        services: services,
         location: location,
         message: details,
         preferredDate: _preferredDate,
@@ -257,7 +267,9 @@ class _ClientPostPageState extends State<ClientPostPage> {
       _detailsController.clear();
       AppToast.success(
         context,
-        'Request posted for $_selectedService in $location.',
+        services.length == 1
+            ? 'Request posted for ${services.first} in $location.'
+            : 'Request posted for ${services.length} services in $location.',
       );
     } catch (error) {
       if (!mounted) return;
@@ -287,21 +299,34 @@ class _ClientPostPageState extends State<ClientPostPage> {
     final services = CatalogState.servicesForCategory(picked);
     setState(() {
       _selectedCategory = picked;
-      _selectedService = services.isNotEmpty ? services.first : '';
+      _selectedServices
+        ..clear()
+        ..addAll(services.isNotEmpty ? <String>{services.first} : <String>{});
     });
   }
 
   Future<void> _pickService() async {
     final services = CatalogState.servicesForCategory(_selectedCategory);
     if (services.isEmpty) return;
-    final picked = await _showOptionSheet<String>(
+    final picked = await _showMultiSelectServiceSheet(
       title: 'Choose service',
       options: services,
-      selected: _selectedService,
-      labelBuilder: (item) => item,
+      selected: _selectedServices,
     );
-    if (picked == null) return;
-    setState(() => _selectedService = picked);
+    if (picked == null || picked.isEmpty) return;
+    setState(() {
+      _selectedServices
+        ..clear()
+        ..addAll(picked);
+    });
+  }
+
+  String get _selectedServiceLabel {
+    if (_selectedServices.isEmpty) return 'Select service(s)';
+    final values = _selectedServices.toList(growable: false)..sort();
+    if (values.length == 1) return values.first;
+    if (values.length == 2) return '${values[0]}, ${values[1]}';
+    return '${values.length} services selected';
   }
 
   Future<void> _pickPreferredDate() async {
@@ -416,6 +441,123 @@ class _ClientPostPageState extends State<ClientPostPage> {
                     PrimaryButton(
                       label: 'Apply',
                       onPressed: () => Navigator.pop(context, temp),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<Set<String>?> _showMultiSelectServiceSheet({
+    required String title,
+    required List<String> options,
+    required Set<String> selected,
+  }) {
+    final temp = selected.toSet();
+    return showModalBottomSheet<Set<String>>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final option = options[index];
+                          final active = temp.contains(option);
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => setModalState(() {
+                              if (active) {
+                                temp.remove(option);
+                              } else {
+                                temp.add(option);
+                              }
+                            }),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: active
+                                    ? const Color(0xFFEAF1FF)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: active
+                                      ? AppColors.primary
+                                      : AppColors.divider,
+                                  width: active ? 1.6 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.tune_rounded,
+                                    size: 17,
+                                    color: AppColors.primary,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      option,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            color: AppColors.textPrimary,
+                                          ),
+                                    ),
+                                  ),
+                                  AnimatedOpacity(
+                                    duration: const Duration(milliseconds: 150),
+                                    opacity: active ? 1 : 0,
+                                    child: const Icon(
+                                      Icons.check_circle,
+                                      size: 18,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    PrimaryButton(
+                      label: 'Apply',
+                      onPressed: temp.isEmpty
+                          ? null
+                          : () => Navigator.pop(context, temp),
                     ),
                   ],
                 ),

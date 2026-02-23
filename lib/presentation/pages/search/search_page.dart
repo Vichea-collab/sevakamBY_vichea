@@ -118,12 +118,16 @@ class _SearchPageState extends State<SearchPage> {
     final filteredCategories = CatalogState.categories.value;
     final providerPosts = _providerPostsForLookup;
     final filteredPopular = CatalogState.services.value.where((service) {
+      final serviceKey = _normalizeKey(service.title);
       final matchesProviderName =
           query.isEmpty ||
           providerPosts.any(
             (post) =>
                 post.category.toLowerCase() == service.category.toLowerCase() &&
-                post.providerName.toLowerCase().contains(query),
+                post.providerName.toLowerCase().contains(query) &&
+                post.serviceList.any(
+                  (item) => _normalizeKey(item) == serviceKey,
+                ),
           );
       final matchesQuery =
           query.isEmpty ||
@@ -550,15 +554,7 @@ class _SearchPageState extends State<SearchPage> {
     if (exactSection != null && exactSection.providers.isNotEmpty) {
       return exactSection.providers.first;
     }
-    final fallbackSection = _providerSectionForCategory(
-      category: category,
-      serviceFilter: '',
-      query: query,
-    );
-    if (fallbackSection == null || fallbackSection.providers.isEmpty) {
-      return null;
-    }
-    return fallbackSection.providers.first;
+    return null;
   }
 
   Color _accentFromCategory(String category) {
@@ -699,14 +695,19 @@ class _ProviderAggregate {
       providerMaxWorkers: post.providerMaxWorkers < 1
           ? 1
           : post.providerMaxWorkers,
-      services: <String>{post.service.trim()},
+      services: post.serviceList
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toSet(),
     );
   }
 
   void absorb(ProviderPostItem post) {
-    final service = post.service.trim();
-    if (service.isNotEmpty) {
-      services.add(service);
+    for (final service in post.serviceList) {
+      final normalized = service.trim();
+      if (normalized.isNotEmpty) {
+        services.add(normalized);
+      }
     }
     if (post.providerType.trim().toLowerCase() == 'company') {
       providerType = 'company';

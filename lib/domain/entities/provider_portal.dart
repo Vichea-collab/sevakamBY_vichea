@@ -10,6 +10,7 @@ class FinderPostItem {
   final String timeLabel;
   final String category;
   final String service;
+  final List<String> services;
   final String location;
   final String avatarPath;
   final DateTime? preferredDate;
@@ -22,10 +23,15 @@ class FinderPostItem {
     required this.timeLabel,
     required this.category,
     required this.service,
+    this.services = const <String>[],
     required this.location,
     required this.avatarPath,
     this.preferredDate,
   });
+
+  List<String> get serviceList => _serviceList(service, services);
+
+  String get serviceLabel => _serviceLabel(serviceList);
 }
 
 class ProviderPostItem {
@@ -37,6 +43,7 @@ class ProviderPostItem {
   final int providerMaxWorkers;
   final String category;
   final String service;
+  final List<String> services;
   final String area;
   final String details;
   final double ratePerHour;
@@ -53,6 +60,7 @@ class ProviderPostItem {
     this.providerMaxWorkers = 1,
     required this.category,
     required this.service,
+    this.services = const <String>[],
     required this.area,
     required this.details,
     required this.ratePerHour,
@@ -60,6 +68,10 @@ class ProviderPostItem {
     required this.timeLabel,
     required this.avatarPath,
   });
+
+  List<String> get serviceList => _serviceList(service, services);
+
+  String get serviceLabel => _serviceLabel(serviceList);
 }
 
 class ProviderOrderItem {
@@ -142,4 +154,22 @@ class ProviderOrderItem {
       timeline: timeline ?? this.timeline,
     );
   }
+}
+
+List<String> _serviceList(String primary, List<String> extras) {
+  final values = <String>{};
+  final base = primary.trim();
+  if (base.isNotEmpty) values.add(base);
+  for (final entry in extras) {
+    final value = entry.trim();
+    if (value.isNotEmpty) values.add(value);
+  }
+  return values.toList(growable: false);
+}
+
+String _serviceLabel(List<String> values) {
+  if (values.isEmpty) return '';
+  final sorted = values.toList(growable: false)..sort();
+  if (sorted.length == 1) return sorted.first;
+  return '${sorted.first} +${sorted.length - 1} more';
 }
