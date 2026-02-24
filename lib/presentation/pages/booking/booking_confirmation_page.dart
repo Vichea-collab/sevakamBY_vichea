@@ -142,7 +142,7 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                                         'Please check your email for receipt and booking details\nor visit ',
                                   ),
                                   TextSpan(
-                                    text: 'Projects',
+                                    text: 'Orders',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -155,7 +155,7 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                           ),
                           const SizedBox(height: 28),
                           Text(
-                            'Service Details',
+                            'Order Details',
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
                                   color: AppColors.primary,
@@ -203,7 +203,7 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                     child: PrimaryButton(
-                      label: 'Go to Projects',
+                      label: 'Go to Orders',
                       onPressed: _goProjects,
                     ),
                   ),
@@ -246,6 +246,7 @@ class _ServiceDetailCard extends StatelessWidget {
         border: Border.all(color: AppColors.divider),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
             onTap: onToggle,
@@ -287,7 +288,7 @@ class _ServiceDetailCard extends StatelessWidget {
             const SizedBox(height: 10),
             const Divider(height: 1),
             const SizedBox(height: 10),
-            _InfoSingleRow(label: 'Skillr', value: order.provider.name),
+            _InfoSingleRow(label: 'Provider', value: order.provider.name),
             const SizedBox(height: 10),
             const Divider(height: 1),
             const SizedBox(height: 10),

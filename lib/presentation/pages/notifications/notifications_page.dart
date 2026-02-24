@@ -68,9 +68,10 @@ class _NotificationsPageState extends State<NotificationsPage>
               builder: (context, loading, _) {
                 final backendSystemUpdates = _buildSystemUpdates(notices);
                 final backendPromos = _buildPromoNotices(notices);
+                final orderStatusNotices = _latestOrderStatusNotices(notices);
 
                 final liveUpdates = <_NotificationUpdate>[
-                  ..._buildOrderUpdates(orders),
+                  ..._buildOrderUpdates(orders, orderStatusNotices),
                   ...backendSystemUpdates,
                 ];
                 final updates = liveUpdates
@@ -293,9 +294,13 @@ class _NotificationsPageState extends State<NotificationsPage>
   }
 
   void _clearAllNotifications() {
-    final orderUpdateKeys = _buildOrderUpdates(OrderState.finderOrders.value)
-        .where((item) => item.kind == _NoticeFilter.orders)
-        .map((item) => item.key);
+    final orderUpdateKeys =
+        _buildOrderUpdates(
+              OrderState.finderOrders.value,
+              const <String, UserNotificationItem>{},
+            )
+            .where((item) => item.kind == _NoticeFilter.orders)
+            .map((item) => item.key);
     setState(() {
       _clearedUpdateKeys.addAll(orderUpdateKeys);
       _readUpdateKeys.addAll(orderUpdateKeys);
@@ -346,7 +351,10 @@ class _NotificationsPageState extends State<NotificationsPage>
     ]);
   }
 
-  List<_NotificationUpdate> _buildOrderUpdates(List<OrderItem> orders) {
+  List<_NotificationUpdate> _buildOrderUpdates(
+    List<OrderItem> orders,
+    Map<String, UserNotificationItem> statusNotices,
+  ) {
     final sortedOrders = List<OrderItem>.from(orders)
       ..sort(
         (a, b) =>
@@ -356,6 +364,8 @@ class _NotificationsPageState extends State<NotificationsPage>
     final updates = <_NotificationUpdate>[];
     for (final order in sortedOrders) {
       final status = order.status;
+      final statusNotice =
+          statusNotices['${order.id}:${_orderStatusStorage(status)}'];
       final label = switch (status) {
         OrderStatus.booked => 'Order Booked',
         OrderStatus.onTheWay => 'Provider On The Way',
@@ -384,10 +394,15 @@ class _NotificationsPageState extends State<NotificationsPage>
       updates.add(
         _NotificationUpdate(
           key: '${order.id}:${status.name}',
-          title: label,
-          description:
-              '${order.serviceName} with ${order.provider.name} • ${order.address.city}',
-          timeLabel: _timeAgo(_statusEventTime(order)),
+          title: (statusNotice?.title ?? '').trim().isEmpty
+              ? label
+              : statusNotice!.title,
+          description: (statusNotice?.message ?? '').trim().isEmpty
+              ? '${order.serviceName} with ${order.provider.name} • ${order.address.city}'
+              : statusNotice!.message,
+          timeLabel: _timeAgo(
+            statusNotice?.createdAt ?? _statusEventTime(order),
+          ),
           icon: icon,
           iconColor: color,
           kind: _NoticeFilter.orders,
@@ -398,15 +413,54 @@ class _NotificationsPageState extends State<NotificationsPage>
     return updates;
   }
 
+  Map<String, UserNotificationItem> _latestOrderStatusNotices(
+    List<UserNotificationItem> notices,
+  ) {
+    final indexed = <String, UserNotificationItem>{};
+    final sorted =
+        notices
+            .where(
+              (item) =>
+                  item.source == 'order_status' &&
+                  item.orderId.trim().isNotEmpty &&
+                  item.orderStatus.trim().isNotEmpty,
+            )
+            .toList()
+          ..sort((a, b) {
+            final right = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final left = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return right.compareTo(left);
+          });
+    for (final item in sorted) {
+      final key = '${item.orderId}:${item.orderStatus}';
+      indexed.putIfAbsent(key, () => item);
+    }
+    return indexed;
+  }
+
+  String _orderStatusStorage(OrderStatus status) {
+    return switch (status) {
+      OrderStatus.booked => 'booked',
+      OrderStatus.onTheWay => 'on_the_way',
+      OrderStatus.started => 'started',
+      OrderStatus.completed => 'completed',
+      OrderStatus.cancelled => 'cancelled',
+      OrderStatus.declined => 'declined',
+    };
+  }
+
   List<_NotificationUpdate> _buildSystemUpdates(
     List<UserNotificationItem> notices,
   ) {
-    final systems = notices.where((item) => !item.isPromo).toList()
-      ..sort((a, b) {
-        final right = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final left = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return right.compareTo(left);
-      });
+    final systems =
+        notices
+            .where((item) => !item.isPromo && item.source != 'order_status')
+            .toList()
+          ..sort((a, b) {
+            final right = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final left = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return right.compareTo(left);
+          });
     return systems
         .map(
           (item) => _NotificationUpdate(

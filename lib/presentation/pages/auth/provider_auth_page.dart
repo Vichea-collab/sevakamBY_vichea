@@ -20,6 +20,7 @@ class ProviderAuthPage extends StatefulWidget {
 }
 
 class _ProviderAuthPageState extends State<ProviderAuthPage> {
+  static const String _defaultCity = 'Phnom Penh';
   static const Map<String, List<String>> _cityDistrictOptions = {
     'Phnom Penh': [
       'Chamkar Mon',
@@ -36,15 +37,6 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
       'Chroy Changvar',
       'Boeng Keng Kang',
       'Kamboul',
-    ],
-    'Siem Reap': ['Siem Reap', 'Prasat Bakong', 'Angkor Thom', 'Banteay Srei'],
-    'Battambang': ['Battambang', 'Sangkae', 'Banan', 'Thma Koul'],
-    'Kampot': ['Kampot', 'Teuk Chhou', 'Dang Tong', 'Chhuk'],
-    'Sihanoukville': [
-      'Sihanoukville',
-      'Prey Nob',
-      'Stueng Hav',
-      'Kampong Seila',
     ],
   };
 
@@ -65,11 +57,15 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
-  List<String> get _cities => _cityDistrictOptions.keys.toList(growable: false);
-
   List<String> get _districtsForSelectedCity {
     final city = _cityController.text.trim();
     return _cityDistrictOptions[city] ?? const <String>[];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _cityController.text = _defaultCity;
   }
 
   @override
@@ -95,7 +91,7 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
             children: [
               const _AuthHeader(
                 title: 'Join as a Provider',
-                subtitle: 'Offer your skills and grow faster',
+                subtitle: 'Offer as a provider and grow faster',
               ),
               const SizedBox(height: AppSpacing.md),
               _AuthToggle(
@@ -231,10 +227,6 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
                                       hint: 'Select your City/Province',
                                       controller: _cityController,
                                       readOnly: true,
-                                      onTap: _pickCity,
-                                      suffixIcon: const Icon(
-                                        Icons.keyboard_arrow_down,
-                                      ),
                                       validator: _validateRequired(
                                         'City/Province',
                                       ),
@@ -396,27 +388,9 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
     return [city, district].where((item) => item.isNotEmpty).join(', ');
   }
 
-  Future<void> _pickCity() async {
-    final picked = await _showOptionSheet(
-      title: 'Select your city/province',
-      options: _cities,
-      selected: _cityController.text.trim(),
-    );
-    if (picked == null) return;
-    setState(() {
-      _cityController.text = picked;
-      if (!_districtsForSelectedCity.contains(
-        _districtController.text.trim(),
-      )) {
-        _districtController.clear();
-      }
-    });
-  }
-
   Future<void> _pickDistrict() async {
     if (_cityController.text.trim().isEmpty) {
-      AppToast.warning(context, 'Please select city/province first.');
-      return;
+      _cityController.text = _defaultCity;
     }
 
     final options = _districtsForSelectedCity;

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../core/config/app_env.dart';
 import '../../data/datasources/remote/finder_post_remote_data_source.dart';
@@ -59,6 +60,7 @@ class FinderPostState {
   }
 
   static Future<void> refresh({int? page, int limit = _pageSize}) async {
+    await _awaitSafeNotifierWindow();
     final targetPage = _normalizedPage(page ?? pagination.value.page);
     loading.value = true;
     try {
@@ -116,6 +118,7 @@ class FinderPostState {
     int limit = _pageSize,
     int maxPages = 5,
   }) async {
+    await _awaitSafeNotifierWindow();
     allPostsLoading.value = true;
     try {
       final combined = <FinderPostItem>[];
@@ -141,6 +144,20 @@ class FinderPostState {
     } finally {
       allPostsLoading.value = false;
     }
+  }
+
+  static Future<void> _awaitSafeNotifierWindow() async {
+    if (SchedulerBinding.instance.schedulerPhase !=
+        SchedulerPhase.persistentCallbacks) {
+      return;
+    }
+    final completer = Completer<void>();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    });
+    await completer.future;
   }
 
   static int _normalizedPage(int page) {

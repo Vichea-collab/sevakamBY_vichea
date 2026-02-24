@@ -41,6 +41,7 @@ class AuthState {
       final user = auth.currentUser!;
       final token = await user.getIdToken();
       _applyBackendTokenToStates(token ?? '');
+      await _alignRoleToRegisteredProfile();
       final isAdmin = await _isAdminSession(user);
       if (isAdmin) {
         await AppSyncState.setSignedIn(false);
@@ -66,6 +67,7 @@ class AuthState {
       }
       final token = await user.getIdToken();
       _applyBackendTokenToStates(token ?? '');
+      await _alignRoleToRegisteredProfile();
       final isAdmin = await _isAdminSession(user);
       if (isAdmin) {
         await AppSyncState.setSignedIn(false);
@@ -369,6 +371,24 @@ class AuthState {
     await ProfileSettingsState.syncRoleProfileFromBackend(
       isProvider: isProvider,
     );
+  }
+
+  static Future<void> _alignRoleToRegisteredProfile() async {
+    final currentIsProvider = AppRoleState.isProvider;
+    final hasCurrentRole =
+        await ProfileSettingsState.hasRoleRegisteredOnBackend(
+          isProvider: currentIsProvider,
+        );
+    if (hasCurrentRole) return;
+
+    final fallbackIsProvider = !currentIsProvider;
+    final hasFallbackRole =
+        await ProfileSettingsState.hasRoleRegisteredOnBackend(
+          isProvider: fallbackIsProvider,
+        );
+    if (hasFallbackRole) {
+      AppRoleState.setProvider(fallbackIsProvider);
+    }
   }
 
   static void _applyBackendTokenToStates(String token) {

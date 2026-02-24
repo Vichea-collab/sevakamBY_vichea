@@ -36,7 +36,10 @@ class _ProviderPortalHomePageState extends State<ProviderPortalHomePage> {
   @override
   void initState() {
     super.initState();
-    unawaited(FinderPostState.refresh(page: 1));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(FinderPostState.refresh(page: 1));
+    });
   }
 
   @override

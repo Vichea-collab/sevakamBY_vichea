@@ -6,6 +6,7 @@ import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../state/app_role_state.dart';
 import '../../state/auth_state.dart';
+import '../../state/order_state.dart';
 import '../../state/profile_image_state.dart';
 import '../../state/profile_settings_state.dart';
 import '../../widgets/app_bottom_nav.dart';
@@ -34,7 +35,28 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
   @override
   void initState() {
     super.initState();
-    unawaited(ProfileSettingsState.syncProviderCompletedOrdersFromBackend());
+    unawaited(_syncCompletedOrders());
+  }
+
+  Future<void> _syncCompletedOrders() async {
+    await ProfileSettingsState.syncProviderCompletedOrdersFromBackend();
+    final providerUid = AuthState.currentUser.value?.uid.trim() ?? '';
+    if (providerUid.isEmpty) return;
+    try {
+      final summary = await OrderState.fetchProviderReviewSummary(
+        providerUid: providerUid,
+        limit: 1,
+      );
+      final current = ProfileSettingsState.providerCompletedOrders.value;
+      final merged = summary.completedJobs > current
+          ? summary.completedJobs
+          : current;
+      if (merged != current) {
+        ProfileSettingsState.providerCompletedOrders.value = merged;
+      }
+    } catch (_) {
+      // Keep current value from provider profile endpoint when summary fetch fails.
+    }
   }
 
   @override

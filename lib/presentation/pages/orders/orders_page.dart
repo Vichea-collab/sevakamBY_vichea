@@ -7,16 +7,13 @@ import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/order.dart';
 import '../../../domain/entities/pagination.dart';
-import '../../../domain/entities/provider.dart';
 import '../../state/order_state.dart';
-import '../../state/booking_catalog_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_state_panel.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pagination_bar.dart';
 import '../../widgets/primary_button.dart';
 import 'order_detail_page.dart';
-import '../booking/booking_address_page.dart';
 
 class OrdersPage extends StatefulWidget {
   static const String routeName = '/orders';
@@ -140,26 +137,23 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
                               _TabChip(
                                 label: 'Incoming',
                                 active: _activeTab == _FinderOrderTab.pending,
-                                onTap: () => setState(
-                                  () => _activeTab = _FinderOrderTab.pending,
-                                ),
+                                onTap: () =>
+                                    _onTabSelected(_FinderOrderTab.pending),
                               ),
                               const SizedBox(width: 8),
                               _TabChip(
                                 label: 'In Progress',
                                 active:
                                     _activeTab == _FinderOrderTab.inProgress,
-                                onTap: () => setState(
-                                  () => _activeTab = _FinderOrderTab.inProgress,
-                                ),
+                                onTap: () =>
+                                    _onTabSelected(_FinderOrderTab.inProgress),
                               ),
                               const SizedBox(width: 8),
                               _TabChip(
                                 label: 'History',
                                 active: _activeTab == _FinderOrderTab.completed,
-                                onTap: () => setState(
-                                  () => _activeTab = _FinderOrderTab.completed,
-                                ),
+                                onTap: () =>
+                                    _onTabSelected(_FinderOrderTab.completed),
                               ),
                             ],
                           ),
@@ -235,38 +229,16 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
                                     ),
                                   ),
                           ),
-                          if (_activeTab == _FinderOrderTab.inProgress &&
-                              visibleOrders.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: PrimaryButton(
-                                label: 'Make another booking',
-                                onPressed: () => Navigator.push(
-                                  context,
-                                  slideFadeRoute(
-                                    BookingAddressPage(
-                                      draft:
-                                          BookingCatalogState.defaultBookingDraft(
-                                            provider: const ProviderItem(
-                                              name: 'Service Provider',
-                                              role: 'Cleaner',
-                                              rating: 4.8,
-                                              imagePath:
-                                                  'assets/images/profile.jpg',
-                                              accentColor: Color(0xFFEAF1FF),
-                                            ),
-                                            serviceName: 'House Cleaning',
-                                          ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          if (pagination.totalPages > 1) ...[
+                          if (pagination.totalItems > pagination.limit) ...[
                             const SizedBox(height: 12),
                             PaginationBar(
                               currentPage: _normalizedPage(pagination.page),
-                              totalPages: pagination.totalPages,
+                              totalPages: pagination.totalPages > 0
+                                  ? pagination.totalPages
+                                  : ((pagination.totalItems +
+                                            pagination.limit -
+                                            1) ~/
+                                        pagination.limit),
                               loading: _isPaging,
                               onPageSelected: _goToPage,
                             ),
@@ -291,8 +263,12 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
     final targetPage = _normalizedPage(
       page ?? OrderState.finderPagination.value.page,
     );
+    final statuses = _statusFiltersForTab(_activeTab);
     if (forceNetwork) {
-      await OrderState.refreshFinderOrders(page: targetPage);
+      await OrderState.refreshFinderOrders(
+        page: targetPage,
+        statuses: statuses,
+      );
     } else {
       await OrderState.refreshCurrentRole(page: targetPage);
     }
@@ -343,6 +319,26 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
       if (mounted) {
         setState(() => _isPaging = false);
       }
+    }
+  }
+
+  void _onTabSelected(_FinderOrderTab tab) {
+    if (_activeTab == tab) return;
+    setState(() {
+      _activeTab = tab;
+      _isPaging = false;
+    });
+    unawaited(_loadOrders(forceNetwork: true, page: 1));
+  }
+
+  List<String> _statusFiltersForTab(_FinderOrderTab tab) {
+    switch (tab) {
+      case _FinderOrderTab.pending:
+        return const <String>['booked'];
+      case _FinderOrderTab.inProgress:
+        return const <String>['on_the_way', 'started'];
+      case _FinderOrderTab.completed:
+        return const <String>['completed', 'cancelled', 'declined'];
     }
   }
 
@@ -618,7 +614,7 @@ class _OrderStatusPill extends StatelessWidget {
     final (label, bg) = switch (status) {
       OrderStatus.booked => ('Incoming', const Color(0xFFD97706)),
       OrderStatus.onTheWay => ('On the way', AppColors.primary),
-      OrderStatus.started => ('Started', AppColors.success),
+      OrderStatus.started => ('Started', const Color(0xFF7C6EF2)),
       OrderStatus.completed => ('Completed', AppColors.success),
       OrderStatus.cancelled => ('Cancelled', AppColors.danger),
       OrderStatus.declined => ('Declined', AppColors.danger),

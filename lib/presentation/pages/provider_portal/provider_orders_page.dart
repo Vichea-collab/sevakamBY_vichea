@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
+import '../../../data/network/backend_api_client.dart';
 import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../state/order_state.dart';
@@ -98,25 +99,22 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
                               _TabChip(
                                 label: 'Incoming',
                                 active: _tab == ProviderOrderTab.incoming,
-                                onTap: () => setState(
-                                  () => _tab = ProviderOrderTab.incoming,
-                                ),
+                                onTap: () =>
+                                    _onTabSelected(ProviderOrderTab.incoming),
                               ),
                               const SizedBox(width: 8),
                               _TabChip(
                                 label: 'In Progress',
                                 active: _tab == ProviderOrderTab.active,
-                                onTap: () => setState(
-                                  () => _tab = ProviderOrderTab.active,
-                                ),
+                                onTap: () =>
+                                    _onTabSelected(ProviderOrderTab.active),
                               ),
                               const SizedBox(width: 8),
                               _TabChip(
                                 label: 'History',
                                 active: _tab == ProviderOrderTab.completed,
-                                onTap: () => setState(
-                                  () => _tab = ProviderOrderTab.completed,
-                                ),
+                                onTap: () =>
+                                    _onTabSelected(ProviderOrderTab.completed),
                               ),
                             ],
                           ),
@@ -195,11 +193,16 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
                                     ),
                                   ),
                           ),
-                          if (pagination.totalPages > 1) ...[
+                          if (pagination.totalItems > pagination.limit) ...[
                             const SizedBox(height: 12),
                             PaginationBar(
                               currentPage: _normalizedPage(pagination.page),
-                              totalPages: pagination.totalPages,
+                              totalPages: pagination.totalPages > 0
+                                  ? pagination.totalPages
+                                  : ((pagination.totalItems +
+                                            pagination.limit -
+                                            1) ~/
+                                        pagination.limit),
                               loading: _isPaging,
                               onPageSelected: _goToPage,
                             ),
@@ -224,8 +227,12 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
     final targetPage = _normalizedPage(
       page ?? OrderState.providerPagination.value.page,
     );
+    final statuses = _statusFiltersForTab(_tab);
     if (forceNetwork) {
-      await OrderState.refreshProviderOrders(page: targetPage);
+      await OrderState.refreshProviderOrders(
+        page: targetPage,
+        statuses: statuses,
+      );
     } else {
       await OrderState.refreshCurrentRole(page: targetPage);
     }
@@ -247,7 +254,21 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
           next == ProviderOrderState.started) {
         setState(() => _tab = ProviderOrderTab.active);
       }
+    } on BackendApiException catch (error) {
+      await _loadOrders(
+        forceNetwork: true,
+        page: _normalizedPage(OrderState.providerPagination.value.page),
+      );
+      if (!mounted) return;
+      final message = error.message.trim().isEmpty
+          ? 'Failed to update order status.'
+          : error.message.trim();
+      AppToast.error(context, message);
     } catch (_) {
+      await _loadOrders(
+        forceNetwork: true,
+        page: _normalizedPage(OrderState.providerPagination.value.page),
+      );
       if (!mounted) return;
       AppToast.error(context, 'Failed to update order status.');
     }
@@ -261,7 +282,21 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
       );
       if (!mounted) return;
       AppToast.warning(context, 'Order ${item.id} declined.');
+    } on BackendApiException catch (error) {
+      await _loadOrders(
+        forceNetwork: true,
+        page: _normalizedPage(OrderState.providerPagination.value.page),
+      );
+      if (!mounted) return;
+      final message = error.message.trim().isEmpty
+          ? 'Failed to decline order.'
+          : error.message.trim();
+      AppToast.error(context, message);
     } catch (_) {
+      await _loadOrders(
+        forceNetwork: true,
+        page: _normalizedPage(OrderState.providerPagination.value.page),
+      );
       if (!mounted) return;
       AppToast.error(context, 'Failed to decline order.');
     }
@@ -279,6 +314,26 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
       if (mounted) {
         setState(() => _isPaging = false);
       }
+    }
+  }
+
+  void _onTabSelected(ProviderOrderTab tab) {
+    if (_tab == tab) return;
+    setState(() {
+      _tab = tab;
+      _isPaging = false;
+    });
+    unawaited(_loadOrders(forceNetwork: true, page: 1));
+  }
+
+  List<String> _statusFiltersForTab(ProviderOrderTab tab) {
+    switch (tab) {
+      case ProviderOrderTab.incoming:
+        return const <String>['booked'];
+      case ProviderOrderTab.active:
+        return const <String>['on_the_way', 'started'];
+      case ProviderOrderTab.completed:
+        return const <String>['completed', 'declined'];
     }
   }
 
@@ -468,7 +523,7 @@ class _StatusPill extends StatelessWidget {
     final (label, bg) = switch (state) {
       ProviderOrderState.incoming => ('Incoming', const Color(0xFFD97706)),
       ProviderOrderState.onTheWay => ('On the way', AppColors.primary),
-      ProviderOrderState.started => ('Started', AppColors.success),
+      ProviderOrderState.started => ('Started', const Color(0xFF7C6EF2)),
       ProviderOrderState.completed => ('Completed', AppColors.success),
       ProviderOrderState.declined => ('Declined', AppColors.danger),
     };

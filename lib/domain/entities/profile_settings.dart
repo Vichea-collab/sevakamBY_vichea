@@ -8,6 +8,7 @@ class ProfileFormData {
   final String phoneNumber;
   final String city;
   final String bio;
+  final String photoUrl;
 
   const ProfileFormData({
     required this.name,
@@ -17,6 +18,7 @@ class ProfileFormData {
     required this.phoneNumber,
     required this.city,
     required this.bio,
+    this.photoUrl = '',
   });
 
   factory ProfileFormData.finderDefault() {
@@ -28,6 +30,7 @@ class ProfileFormData {
       phoneNumber: '+855 12 345 678',
       city: 'Phnom Penh',
       bio: '',
+      photoUrl: '',
     );
   }
 
@@ -40,6 +43,7 @@ class ProfileFormData {
       phoneNumber: '+855 12 345 678',
       city: 'Phnom Penh',
       bio: 'Reliable provider with clean and professional service.',
+      photoUrl: '',
     );
   }
 
@@ -51,6 +55,7 @@ class ProfileFormData {
     String? phoneNumber,
     String? city,
     String? bio,
+    String? photoUrl,
   }) {
     return ProfileFormData(
       name: name ?? this.name,
@@ -60,6 +65,7 @@ class ProfileFormData {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       city: city ?? this.city,
       bio: bio ?? this.bio,
+      photoUrl: photoUrl ?? this.photoUrl,
     );
   }
 
@@ -72,6 +78,7 @@ class ProfileFormData {
       phoneNumber: (map['phoneNumber'] ?? '').toString(),
       city: (map['city'] ?? '').toString(),
       bio: (map['bio'] ?? '').toString(),
+      photoUrl: (map['photoUrl'] ?? '').toString(),
     );
   }
 
@@ -84,6 +91,7 @@ class ProfileFormData {
       'phoneNumber': phoneNumber,
       'city': city,
       'bio': bio,
+      'photoUrl': photoUrl,
     };
   }
 }

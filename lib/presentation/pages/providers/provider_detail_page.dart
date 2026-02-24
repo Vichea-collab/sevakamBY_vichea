@@ -12,6 +12,7 @@ import '../../state/chat_state.dart';
 import '../../state/booking_catalog_state.dart';
 import '../../state/order_state.dart';
 import '../../state/provider_post_state.dart';
+import '../../widgets/app_state_panel.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../booking/booking_address_page.dart';
@@ -38,6 +39,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   @override
   void initState() {
     super.initState();
+    _reviewSummary = OrderState.peekProviderReviewSummary(
+      providerUid: widget.provider.uid,
+    );
     unawaited(_loadProviderReviews());
   }
 
@@ -45,7 +49,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   void didUpdateWidget(covariant ProviderDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.provider.uid.trim() != widget.provider.uid.trim()) {
-      _reviewSummary = null;
+      _reviewSummary = OrderState.peekProviderReviewSummary(
+        providerUid: widget.provider.uid,
+      );
       unawaited(_loadProviderReviews());
     }
   }
@@ -133,8 +139,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   Future<void> _loadProviderReviews() async {
     final providerUid = widget.provider.uid.trim();
     if (providerUid.isEmpty) return;
+    final shouldShowLoading = _reviewSummary == null;
     if (mounted) {
-      setState(() => _loadingReviews = true);
+      setState(() => _loadingReviews = shouldShowLoading);
     }
     try {
       final summary = await OrderState.fetchProviderReviewSummary(
@@ -144,8 +151,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       if (!mounted) return;
       setState(() => _reviewSummary = summary);
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _reviewSummary = null);
+      // Keep the latest known summary on transient fetch failures.
     } finally {
       if (mounted) {
         setState(() => _loadingReviews = false);
@@ -569,7 +575,7 @@ class _CompanyInfoSection extends StatelessWidget {
         const SizedBox(height: 18),
         Row(
           children: [
-            Text('Projects', style: Theme.of(context).textTheme.titleMedium),
+            Text('Orders', style: Theme.of(context).textTheme.titleMedium),
             const Spacer(),
             TextButton(onPressed: () {}, child: const Text('View all')),
           ],
@@ -659,8 +665,8 @@ class _ReviewsSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        if (loading) ...[
-          const Center(child: CircularProgressIndicator()),
+        if (loading && reviews.isEmpty) ...[
+          const AppStatePanel.loading(title: 'Loading reviews'),
           const SizedBox(height: 12),
         ],
         if (!loading && reviews.isEmpty)
@@ -681,6 +687,7 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasPhoto = review.reviewerPhotoUrl.trim().isNotEmpty;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
@@ -694,18 +701,30 @@ class _ReviewCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: AppColors.primary.withValues(alpha: 26),
-                child: Text(
-                  review.reviewerInitials,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
+              if (hasPhoto)
+                CircleAvatar(
+                  radius: 14,
+                  backgroundImage: NetworkImage(review.reviewerPhotoUrl.trim()),
+                )
+              else
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.transparent,
+                    border: Border.all(color: AppColors.divider),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    review.reviewerInitials,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

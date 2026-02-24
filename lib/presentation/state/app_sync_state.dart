@@ -7,6 +7,7 @@ import 'catalog_state.dart';
 import 'finder_post_state.dart';
 import 'order_state.dart';
 import 'provider_post_state.dart';
+import 'user_notification_state.dart';
 
 class AppSyncState with WidgetsBindingObserver {
   // Spark-friendly cadence to reduce Firestore reads.
@@ -153,6 +154,10 @@ class AppSyncState with WidgetsBindingObserver {
             ),
           ),
         );
+      }
+
+      if (!UserNotificationState.loading.value) {
+        tasks.add(_safeRun(UserNotificationState.refresh));
       }
 
       if (tasks.isNotEmpty) {

@@ -103,7 +103,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                 ).textTheme.titleLarge?.copyWith(color: AppColors.textPrimary),
               ),
               Text(
-                'Project ID: #${_order.id}',
+                'Order ID: #${_order.id}',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 8),
@@ -120,7 +120,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'The Skill will start - ${_dateLabel(_order.scheduledAt)} @ ${_order.timeRange}',
+                      'Your provider starts - ${_dateLabel(_order.scheduledAt)} @ ${_order.timeRange}',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w600,
@@ -174,13 +174,13 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               const SizedBox(height: 14),
               Text(
                 _order.status == OrderStatus.completed
-                    ? 'Your project has been completed!'
+                    ? 'Your order has been completed!'
                     : (_order.status == OrderStatus.cancelled ||
                           _order.status == OrderStatus.declined)
                     ? (_order.status == OrderStatus.declined
                           ? 'This booking was declined by provider.'
                           : 'This booking has been cancelled.')
-                    : 'Your project has been booked!',
+                    : 'Your order has been booked!',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: AppColors.primary,
                   fontWeight: FontWeight.w600,
@@ -474,7 +474,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
         StatusTimelineEntry(
           label: 'On the way',
           at: timeline.onTheWayAt!,
-          icon: Icons.local_shipping_outlined,
+          icon: Icons.delivery_dining_rounded,
           color: AppColors.primary,
         ),
       );
@@ -485,7 +485,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
           label: 'Started',
           at: timeline.startedAt!,
           icon: Icons.handyman_rounded,
-          color: AppColors.success,
+          color: const Color(0xFF7C6EF2),
         ),
       );
     }
@@ -654,15 +654,15 @@ class _StatusBanner extends StatelessWidget {
       ),
       OrderStatus.onTheWay => (
         'Provider is on the way',
-        Icons.local_shipping_outlined,
+        Icons.delivery_dining_rounded,
         const Color(0xFFEAF1FF),
         AppColors.primary,
       ),
       OrderStatus.started => (
         'Service in progress',
         Icons.handyman_rounded,
-        const Color(0xFFE9FDF4),
-        AppColors.success,
+        const Color(0xFFF1ECFF),
+        const Color(0xFF7C6EF2),
       ),
       OrderStatus.completed => (
         'Service completed',
@@ -719,7 +719,7 @@ class _OrderStatusChip extends StatelessWidget {
     final (label, color) = switch (status) {
       OrderStatus.booked => ('Incoming', const Color(0xFFD97706)),
       OrderStatus.onTheWay => ('On the way', AppColors.primary),
-      OrderStatus.started => ('Started', AppColors.success),
+      OrderStatus.started => ('Started', const Color(0xFF7C6EF2)),
       OrderStatus.completed => ('Completed', AppColors.success),
       OrderStatus.cancelled => ('Cancelled', AppColors.danger),
       OrderStatus.declined => ('Declined', AppColors.danger),

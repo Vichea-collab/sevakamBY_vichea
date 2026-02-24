@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
@@ -21,6 +23,8 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
+  static const int _maxPhotoBytes = 450 * 1024;
+
   final ImagePicker _picker = ImagePicker();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
@@ -31,13 +35,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _bioController = TextEditingController();
   bool _saving = false;
+  bool _photoChanged = false;
+  String _selectedPhotoDataUrl = '';
 
   bool get _isProvider => AppRoleState.isProvider;
 
   @override
   void initState() {
     super.initState();
-    _setForm(ProfileSettingsState.currentProfile);
+    final profile = ProfileSettingsState.currentProfile;
+    _setForm(profile);
+    _selectedPhotoDataUrl = profile.photoUrl.trim();
   }
 
   @override
@@ -250,6 +258,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   label: 'Use default profile',
                   onTap: () {
                     ProfileImageState.useDefaultAvatar();
+                    _photoChanged = true;
+                    _selectedPhotoDataUrl = '';
                     Navigator.pop(context);
                   },
                 ),
@@ -270,8 +280,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
     if (picked == null) return;
 
     final bytes = await picked.readAsBytes();
+    if (bytes.isEmpty) {
+      if (!mounted) return;
+      AppToast.warning(context, 'Selected image is empty.');
+      return;
+    }
+    if (bytes.lengthInBytes > _maxPhotoBytes) {
+      if (!mounted) return;
+      AppToast.warning(
+        context,
+        'Image is too large. Please select an image under 450 KB.',
+      );
+      return;
+    }
     if (!mounted) return;
+    final extension = _extensionFromName(picked.name);
+    final mimeType = _mimeTypeFromExtension(extension);
+    final dataUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
     ProfileImageState.setCustomAvatar(bytes);
+    _photoChanged = true;
+    _selectedPhotoDataUrl = dataUrl;
   }
 
   void _setForm(ProfileFormData profile) {
@@ -343,13 +371,42 @@ class _EditProfilePageState extends State<EditProfilePage> {
       phoneNumber: _phoneController.text.trim(),
       city: _cityController.text.trim(),
       bio: _bioController.text.trim(),
+      photoUrl: _photoChanged
+          ? _selectedPhotoDataUrl.trim()
+          : ProfileSettingsState.currentProfile.photoUrl.trim(),
     );
 
     setState(() => _saving = true);
     await ProfileSettingsState.saveCurrentProfile(payload);
     if (!mounted) return;
+    _photoChanged = false;
+    _selectedPhotoDataUrl = payload.photoUrl;
     setState(() => _saving = false);
     AppToast.success(context, 'Profile saved successfully.');
+  }
+
+  String _extensionFromName(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    if (dot == -1 || dot >= fileName.length - 1) return 'jpg';
+    return fileName.substring(dot + 1).toLowerCase();
+  }
+
+  String _mimeTypeFromExtension(String extension) {
+    switch (extension) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      case 'heic':
+      case 'heif':
+        return 'image/heic';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
+    }
   }
 }
 

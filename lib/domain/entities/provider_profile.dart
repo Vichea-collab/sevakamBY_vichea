@@ -15,6 +15,7 @@ enum ReviewRange {
 class ProviderReview {
   final String reviewerName;
   final String reviewerInitials;
+  final String reviewerPhotoUrl;
   final double rating;
   final int daysAgo;
   final DateTime? reviewedAt;
@@ -23,6 +24,7 @@ class ProviderReview {
   const ProviderReview({
     required this.reviewerName,
     required this.reviewerInitials,
+    this.reviewerPhotoUrl = '',
     required this.rating,
     required this.daysAgo,
     this.reviewedAt,

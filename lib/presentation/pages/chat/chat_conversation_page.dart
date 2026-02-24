@@ -10,6 +10,7 @@ import '../../../data/network/backend_api_client.dart';
 import '../../../domain/entities/chat.dart';
 import '../../../domain/entities/pagination.dart';
 import '../../state/chat_state.dart';
+import '../../widgets/app_state_panel.dart';
 import '../../widgets/pressable_scale.dart';
 
 class ChatConversationPage extends StatefulWidget {
@@ -80,17 +81,19 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
 
   Widget _buildMessageList(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: AppStatePanel.loading(title: 'Loading conversation'),
+      );
     }
     final messages = _mergedMessages();
     final hasOlder = _loadedPages < _pagination.totalPages;
     if (messages.isEmpty) {
-      return Center(
-        child: Text(
-          'Start your conversation',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: AppStatePanel.empty(
+          title: 'No messages yet',
+          message: 'Start your conversation.',
         ),
       );
     }

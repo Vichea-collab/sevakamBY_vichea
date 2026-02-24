@@ -11,10 +11,12 @@ abstract class OrderRepository {
   Future<PaginatedResult<OrderItem>> fetchFinderOrders({
     int page = 1,
     int limit = 10,
+    List<String> statuses = const <String>[],
   });
   Future<PaginatedResult<ProviderOrderItem>> fetchProviderOrders({
     int page = 1,
     int limit = 10,
+    List<String> statuses = const <String>[],
   });
   Future<List<HomeAddress>> fetchSavedAddresses();
   Future<HomeAddress> createSavedAddress({required HomeAddress address});

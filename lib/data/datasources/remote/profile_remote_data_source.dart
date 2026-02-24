@@ -35,6 +35,7 @@ class ProfileRemoteDataSource {
         .copyWith(
           name: (me['name'] ?? '').toString(),
           email: (me['email'] ?? '').toString(),
+          photoUrl: (me['photoUrl'] ?? '').toString(),
           dateOfBirth: _dateText(role['birthday']),
           country: 'Cambodia',
           phoneNumber: (role['phoneNumber'] ?? '').toString(),
@@ -68,9 +69,10 @@ class ProfileRemoteDataSource {
     required bool isProvider,
     required ProfileFormData profile,
   }) async {
-    await _apiClient.putJson('/api/users/profile', {
+    final userResponse = await _apiClient.putJson('/api/users/profile', {
       'name': profile.name,
       'email': profile.email,
+      'photoUrl': profile.photoUrl,
     });
 
     final path = isProvider
@@ -86,12 +88,14 @@ class ProfileRemoteDataSource {
       rolePayload['location'] = profile.city;
     }
     final response = await _apiClient.putJson(path, rolePayload);
+    final user = _safeMap(userResponse['data']);
     final role = _safeMap(response['data']);
     final resolvedFinderLocation = _locationText(role['location']);
     final resolvedCity = (role['city'] ?? '').toString().trim().isEmpty
         ? resolvedFinderLocation
         : (role['city'] ?? profile.city).toString();
     return profile.copyWith(
+      photoUrl: (user['photoUrl'] ?? profile.photoUrl).toString(),
       city: isProvider
           ? (role['city'] ?? profile.city).toString()
           : resolvedCity,

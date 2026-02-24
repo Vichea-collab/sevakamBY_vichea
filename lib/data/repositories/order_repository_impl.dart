@@ -87,10 +87,12 @@ class OrderRepositoryImpl implements OrderRepository {
   Future<PaginatedResult<OrderItem>> fetchFinderOrders({
     int page = 1,
     int limit = 10,
+    List<String> statuses = const <String>[],
   }) async {
     final result = await _remoteDataSource.fetchFinderOrders(
       page: page,
       limit: limit,
+      statuses: statuses,
     );
     return PaginatedResult(
       items: result.items.map(_toFinderOrder).toList(),
@@ -102,10 +104,12 @@ class OrderRepositoryImpl implements OrderRepository {
   Future<PaginatedResult<ProviderOrderItem>> fetchProviderOrders({
     int page = 1,
     int limit = 10,
+    List<String> statuses = const <String>[],
   }) async {
     final result = await _remoteDataSource.fetchProviderOrders(
       page: page,
       limit: limit,
+      statuses: statuses,
     );
     return PaginatedResult(
       items: result.items.map(_toProviderOrder).toList(),
@@ -215,6 +219,7 @@ class OrderRepositoryImpl implements OrderRepository {
                 (item['reviewerInitials'] ?? '').toString().trim().isNotEmpty
                 ? (item['reviewerInitials'] ?? '').toString().trim()
                 : _initialsFromName(reviewerName),
+            reviewerPhotoUrl: (item['reviewerPhotoUrl'] ?? '').toString(),
             rating: _toDouble(item['rating'], fallback: 0),
             daysAgo: _daysAgoFromDate(reviewedAt),
             reviewedAt: reviewedAt,
@@ -549,6 +554,8 @@ class OrderRepositoryImpl implements OrderRepository {
         return ProviderOrderState.started;
       case 'completed':
         return ProviderOrderState.completed;
+      case 'cancelled':
+        return ProviderOrderState.declined;
       case 'declined':
         return ProviderOrderState.declined;
       case 'booked':

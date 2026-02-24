@@ -29,11 +29,12 @@ class BackendApiClient {
     _bearerToken = token.trim();
   }
 
-  Future<Map<String, dynamic>> getJson(String path) async {
+  Future<Map<String, dynamic>> getJson(
+    String path, {
+    Duration timeout = const Duration(seconds: 6),
+  }) async {
     final uri = Uri.parse('$baseUrl$path');
-    final response = await _http
-        .get(uri, headers: _headers())
-        .timeout(const Duration(seconds: 6));
+    final response = await _http.get(uri, headers: _headers()).timeout(timeout);
     return _decodeResponse(response);
   }
 

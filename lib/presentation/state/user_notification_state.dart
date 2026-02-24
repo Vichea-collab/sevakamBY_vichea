@@ -14,6 +14,9 @@ enum UserNotificationType { system, promotion }
 class UserNotificationItem {
   final String id;
   final UserNotificationType type;
+  final String source;
+  final String orderId;
+  final String orderStatus;
   final String title;
   final String message;
   final String promoCode;
@@ -25,6 +28,9 @@ class UserNotificationItem {
   const UserNotificationItem({
     required this.id,
     required this.type,
+    this.source = '',
+    this.orderId = '',
+    this.orderStatus = '',
     required this.title,
     required this.message,
     this.promoCode = '',
@@ -46,6 +52,9 @@ class UserNotificationItem {
     return UserNotificationItem(
       id: (row['id'] ?? '').toString(),
       type: type,
+      source: (row['source'] ?? '').toString().trim().toLowerCase(),
+      orderId: (row['orderId'] ?? '').toString(),
+      orderStatus: (row['orderStatus'] ?? '').toString().trim().toLowerCase(),
       title: (row['title'] ?? 'Platform update').toString(),
       message: (row['message'] ?? '').toString(),
       promoCode: (row['promoCode'] ?? '').toString(),

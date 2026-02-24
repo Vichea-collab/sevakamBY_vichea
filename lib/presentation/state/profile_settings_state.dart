@@ -10,6 +10,7 @@ import '../../domain/entities/pagination.dart';
 import '../../domain/entities/profile_settings.dart';
 import '../../domain/repositories/profile_settings_repository.dart';
 import 'app_role_state.dart';
+import 'profile_image_state.dart';
 
 class ProfileSettingsState {
   static const int _helpPageSize = 10;
@@ -51,6 +52,12 @@ class ProfileSettingsState {
       ValueNotifier(const <HelpSupportTicket>[]);
   static final ValueNotifier<List<HelpSupportTicket>> providerHelpTickets =
       ValueNotifier(const <HelpSupportTicket>[]);
+  static final ValueNotifier<bool> finderHelpTicketsLoading = ValueNotifier(
+    false,
+  );
+  static final ValueNotifier<bool> providerHelpTicketsLoading = ValueNotifier(
+    false,
+  );
   static final ValueNotifier<PaginationMeta> finderHelpTicketsPagination =
       ValueNotifier(const PaginationMeta.initial(limit: _helpPageSize));
   static final ValueNotifier<PaginationMeta> providerHelpTicketsPagination =
@@ -59,6 +66,10 @@ class ProfileSettingsState {
       ValueNotifier(const <HelpTicketMessage>[]);
   static final ValueNotifier<List<HelpTicketMessage>>
   providerHelpTicketMessages = ValueNotifier(const <HelpTicketMessage>[]);
+  static final ValueNotifier<bool> finderHelpTicketMessagesLoading =
+      ValueNotifier(false);
+  static final ValueNotifier<bool> providerHelpTicketMessagesLoading =
+      ValueNotifier(false);
   static final ValueNotifier<PaginationMeta>
   finderHelpTicketMessagesPagination = ValueNotifier(
     const PaginationMeta.initial(limit: _helpMessagePageSize),
@@ -91,6 +102,8 @@ class ProfileSettingsState {
 
     finderProfile.value = await _repository.loadProfile(isProvider: false);
     providerProfile.value = await _repository.loadProfile(isProvider: true);
+    _applyAvatarForRole(profile: finderProfile.value, isProvider: false);
+    _applyAvatarForRole(profile: providerProfile.value, isProvider: true);
     final finderLoaded = await _repository.loadPaymentMethod(isProvider: false);
     final finderNormalized = _normalizePaymentMethod(finderLoaded);
     finderPaymentMethod.value = finderNormalized;
@@ -160,12 +173,14 @@ class ProfileSettingsState {
       );
       if (isProvider) {
         providerProfile.value = profile;
+        _applyAvatarForRole(profile: profile, isProvider: true);
         providerProfession.value = await _repository
             .loadProviderProfessionFromBackend();
         providerCompletedOrders.value = await _repository
             .loadProviderCompletedOrdersFromBackend();
       } else {
         finderProfile.value = profile;
+        _applyAvatarForRole(profile: profile, isProvider: false);
       }
       return true;
     } catch (_) {
@@ -206,9 +221,21 @@ class ProfileSettingsState {
     await _repository.saveProfile(isProvider: isProvider, profile: profile);
     if (isProvider) {
       providerProfile.value = profile;
+      _applyAvatarForRole(profile: profile, isProvider: true);
     } else {
       finderProfile.value = profile;
+      _applyAvatarForRole(profile: profile, isProvider: false);
     }
+  }
+
+  static void _applyAvatarForRole({
+    required ProfileFormData profile,
+    required bool isProvider,
+  }) {
+    ProfileImageState.setRemoteAvatarUrl(
+      profile.photoUrl,
+      isProvider: isProvider,
+    );
   }
 
   static Future<void> saveCurrentPaymentMethod(PaymentMethod method) async {
@@ -271,17 +298,31 @@ class ProfileSettingsState {
   }
 
   static Future<void> refreshCurrentHelpTickets({int page = 1}) async {
-    final result = await _repository.loadHelpTickets(
-      isProvider: isProvider,
-      page: page,
-      limit: _helpPageSize,
-    );
-    if (isProvider) {
-      providerHelpTickets.value = result.items;
-      providerHelpTicketsPagination.value = result.pagination;
+    final providerRole = isProvider;
+    if (providerRole) {
+      providerHelpTicketsLoading.value = true;
     } else {
-      finderHelpTickets.value = result.items;
-      finderHelpTicketsPagination.value = result.pagination;
+      finderHelpTicketsLoading.value = true;
+    }
+    try {
+      final result = await _repository.loadHelpTickets(
+        isProvider: providerRole,
+        page: page,
+        limit: _helpPageSize,
+      );
+      if (providerRole) {
+        providerHelpTickets.value = result.items;
+        providerHelpTicketsPagination.value = result.pagination;
+      } else {
+        finderHelpTickets.value = result.items;
+        finderHelpTicketsPagination.value = result.pagination;
+      }
+    } finally {
+      if (providerRole) {
+        providerHelpTicketsLoading.value = false;
+      } else {
+        finderHelpTicketsLoading.value = false;
+      }
     }
   }
 
@@ -289,18 +330,32 @@ class ProfileSettingsState {
     required String ticketId,
     int page = 1,
   }) async {
-    final result = await _repository.loadHelpTicketMessages(
-      isProvider: isProvider,
-      ticketId: ticketId,
-      page: page,
-      limit: _helpMessagePageSize,
-    );
-    if (isProvider) {
-      providerHelpTicketMessages.value = result.items;
-      providerHelpTicketMessagesPagination.value = result.pagination;
+    final providerRole = isProvider;
+    if (providerRole) {
+      providerHelpTicketMessagesLoading.value = true;
     } else {
-      finderHelpTicketMessages.value = result.items;
-      finderHelpTicketMessagesPagination.value = result.pagination;
+      finderHelpTicketMessagesLoading.value = true;
+    }
+    try {
+      final result = await _repository.loadHelpTicketMessages(
+        isProvider: providerRole,
+        ticketId: ticketId,
+        page: page,
+        limit: _helpMessagePageSize,
+      );
+      if (providerRole) {
+        providerHelpTicketMessages.value = result.items;
+        providerHelpTicketMessagesPagination.value = result.pagination;
+      } else {
+        finderHelpTicketMessages.value = result.items;
+        finderHelpTicketMessagesPagination.value = result.pagination;
+      }
+    } finally {
+      if (providerRole) {
+        providerHelpTicketMessagesLoading.value = false;
+      } else {
+        finderHelpTicketMessagesLoading.value = false;
+      }
     }
   }
 

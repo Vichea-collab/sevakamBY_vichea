@@ -10,6 +10,7 @@ import '../../state/profile_image_state.dart';
 import '../../state/profile_settings_state.dart';
 import '../../state/provider_post_state.dart';
 import '../../widgets/app_bottom_nav.dart';
+import '../../widgets/app_state_panel.dart';
 import '../../widgets/category_chip.dart';
 import '../../widgets/pressable_scale.dart';
 import '../../widgets/section_title.dart';
@@ -55,32 +56,44 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  ValueListenableBuilder(
-                    valueListenable: CatalogState.categories,
-                    builder: (context, categories, _) {
-                      if (categories.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return SizedBox(
-                        height: 150,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemBuilder: (context, index) {
-                            final category = categories[index];
-                            return CategoryChip(
-                              category: category,
-                              onTap: () => Navigator.push(
-                                context,
-                                slideFadeRoute(
-                                  SearchPage(initialCategory: category.name),
-                                ),
-                              ),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: CatalogState.loading,
+                    builder: (context, catalogLoading, _) {
+                      return ValueListenableBuilder(
+                        valueListenable: CatalogState.categories,
+                        builder: (context, categories, _) {
+                          if (categories.isEmpty && catalogLoading) {
+                            return const AppStatePanel.loading(
+                              title: 'Loading categories',
                             );
-                          },
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(width: AppSpacing.md),
-                          itemCount: categories.length,
-                        ),
+                          }
+                          if (categories.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return SizedBox(
+                            height: 150,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemBuilder: (context, index) {
+                                final category = categories[index];
+                                return CategoryChip(
+                                  category: category,
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    slideFadeRoute(
+                                      SearchPage(
+                                        initialCategory: category.name,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(width: AppSpacing.md),
+                              itemCount: categories.length,
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -94,36 +107,48 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  ValueListenableBuilder(
-                    valueListenable: CatalogState.services,
-                    builder: (context, services, child) {
-                      final popular = CatalogState.popularServices(limit: 6);
-                      if (popular.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return SizedBox(
-                        height: 230,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemBuilder: (context, index) {
-                            final service = popular[index];
-                            return ServiceCard(
-                              item: service,
-                              onTap: () => Navigator.push(
-                                context,
-                                slideFadeRoute(
-                                  SearchPage(
-                                    initialQuery: service.title,
-                                    initialCategory: service.category,
-                                  ),
-                                ),
-                              ),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: CatalogState.loading,
+                    builder: (context, catalogLoading, _) {
+                      return ValueListenableBuilder(
+                        valueListenable: CatalogState.services,
+                        builder: (context, services, child) {
+                          final popular = CatalogState.popularServices(
+                            limit: 6,
+                          );
+                          if (popular.isEmpty && catalogLoading) {
+                            return const AppStatePanel.loading(
+                              title: 'Loading popular services',
                             );
-                          },
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(width: AppSpacing.md),
-                          itemCount: popular.length,
-                        ),
+                          }
+                          if (popular.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return SizedBox(
+                            height: 230,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemBuilder: (context, index) {
+                                final service = popular[index];
+                                return ServiceCard(
+                                  item: service,
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    slideFadeRoute(
+                                      SearchPage(
+                                        initialQuery: service.title,
+                                        initialCategory: service.category,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(width: AppSpacing.md),
+                              itemCount: popular.length,
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -464,26 +489,36 @@ class _ProviderPostSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<ProviderPostItem>>(
-      valueListenable: ProviderPostState.posts,
-      builder: (context, posts, _) {
-        if (posts.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        return Column(
-          children: [
-            SectionTitle(
-              title: 'Latest provider posts',
-              actionLabel: 'View all',
-              onAction: () => Navigator.push(
-                context,
-                slideFadeRoute(const ProviderPostsPage()),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            ...posts.take(3).map((item) => _ProviderPostTile(post: item)),
-            const SizedBox(height: AppSpacing.lg),
-          ],
+    return ValueListenableBuilder<bool>(
+      valueListenable: ProviderPostState.loading,
+      builder: (context, postLoading, _) {
+        return ValueListenableBuilder<List<ProviderPostItem>>(
+          valueListenable: ProviderPostState.posts,
+          builder: (context, posts, _) {
+            if (posts.isEmpty && postLoading) {
+              return const AppStatePanel.loading(
+                title: 'Loading provider posts',
+              );
+            }
+            if (posts.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Column(
+              children: [
+                SectionTitle(
+                  title: 'Latest provider posts',
+                  actionLabel: 'View all',
+                  onAction: () => Navigator.push(
+                    context,
+                    slideFadeRoute(const ProviderPostsPage()),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                ...posts.take(3).map((item) => _ProviderPostTile(post: item)),
+                const SizedBox(height: AppSpacing.lg),
+              ],
+            );
+          },
         );
       },
     );
@@ -677,12 +712,12 @@ class _HomeGrid extends StatelessWidget {
         Expanded(
           child: _ImageTile(
             title: 'Interior painting',
-            color: Color(0xFFEF4444),
+            color: Color(0xFF2563EB),
           ),
         ),
         SizedBox(width: AppSpacing.md),
         Expanded(
-          child: _ImageTile(title: 'House Painting', color: Color(0xFF22C55E)),
+          child: _ImageTile(title: 'House Painting', color: Color(0xFF3B82F6)),
         ),
       ],
     );

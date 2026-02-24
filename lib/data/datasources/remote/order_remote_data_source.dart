@@ -29,9 +29,19 @@ class OrderRemoteDataSource {
   Future<PaginatedResult<Map<String, dynamic>>> fetchFinderOrders({
     int page = 1,
     int limit = _defaultPageSize,
+    List<String> statuses = const <String>[],
   }) async {
+    final statusQuery = statuses
+        .map((value) => value.trim().toLowerCase())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final path = statusQuery.isEmpty
+        ? '/api/orders/finder?page=$page&limit=$limit'
+        : '/api/orders/finder?page=$page&limit=$limit&status=${Uri.encodeQueryComponent(statusQuery.join(','))}';
     final response = await _apiClient.getJson(
-      '/api/orders/finder?page=$page&limit=$limit',
+      path,
+      timeout: const Duration(seconds: 12),
     );
     final items = _safeList(response['data']);
     final pagination = PaginationMeta.fromMap(
@@ -46,9 +56,19 @@ class OrderRemoteDataSource {
   Future<PaginatedResult<Map<String, dynamic>>> fetchProviderOrders({
     int page = 1,
     int limit = _defaultPageSize,
+    List<String> statuses = const <String>[],
   }) async {
+    final statusQuery = statuses
+        .map((value) => value.trim().toLowerCase())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final path = statusQuery.isEmpty
+        ? '/api/orders/provider?page=$page&limit=$limit'
+        : '/api/orders/provider?page=$page&limit=$limit&status=${Uri.encodeQueryComponent(statusQuery.join(','))}';
     final response = await _apiClient.getJson(
-      '/api/orders/provider?page=$page&limit=$limit',
+      path,
+      timeout: const Duration(seconds: 12),
     );
     final items = _safeList(response['data']);
     final pagination = PaginationMeta.fromMap(

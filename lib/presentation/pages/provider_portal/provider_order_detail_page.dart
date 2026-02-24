@@ -7,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
+import '../../../data/network/backend_api_client.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../state/order_state.dart';
 import '../../widgets/app_bottom_nav.dart';
@@ -96,7 +97,7 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
                 ),
               ),
               Text(
-                'Project ID: #${_order.id}',
+                'Order ID: #${_order.id}',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 8),
@@ -114,7 +115,7 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'The Skill will start - ${_order.scheduleDate} @ ${_order.scheduleTime}',
+                      'Provider starts - ${_order.scheduleDate} @ ${_order.scheduleTime}',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w600,
@@ -130,7 +131,7 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Your project progress',
+                'Order progress',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.primary,
                   fontWeight: FontWeight.w700,
@@ -264,7 +265,21 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
       if (!mounted) return;
       setState(() => _order = updated);
       AppToast.success(context, 'Status updated: ${_statusLabel(next)}');
+    } on BackendApiException catch (error) {
+      await OrderState.refreshProviderOrders(
+        page: OrderState.providerPagination.value.page,
+      );
+      _syncOrderFromState();
+      if (!mounted) return;
+      final message = error.message.trim().isEmpty
+          ? 'Failed to update order status.'
+          : error.message.trim();
+      AppToast.error(context, message);
     } catch (_) {
+      await OrderState.refreshProviderOrders(
+        page: OrderState.providerPagination.value.page,
+      );
+      _syncOrderFromState();
       if (!mounted) return;
       AppToast.error(context, 'Failed to update order status.');
     } finally {
@@ -404,7 +419,7 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
         StatusTimelineEntry(
           label: 'On the way',
           at: timeline.onTheWayAt!,
-          icon: Icons.local_shipping_outlined,
+          icon: Icons.delivery_dining_rounded,
           color: AppColors.primary,
         ),
       );
@@ -415,7 +430,7 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
           label: 'Started',
           at: timeline.startedAt!,
           icon: Icons.handyman_rounded,
-          color: AppColors.success,
+          color: const Color(0xFF7C6EF2),
         ),
       );
     }
@@ -680,15 +695,15 @@ class _ProviderStatusBanner extends StatelessWidget {
       ),
       ProviderOrderState.onTheWay => (
         'You accepted and are on the way',
-        Icons.local_shipping_outlined,
+        Icons.delivery_dining_rounded,
         const Color(0xFFEAF1FF),
         AppColors.primary,
       ),
       ProviderOrderState.started => (
         'Service started, keep client updated',
         Icons.handyman_rounded,
-        const Color(0xFFE9FDF4),
-        AppColors.success,
+        const Color(0xFFF1ECFF),
+        const Color(0xFF7C6EF2),
       ),
       ProviderOrderState.completed => (
         'Order successfully completed',
@@ -739,7 +754,7 @@ class _ProviderStatusChip extends StatelessWidget {
     final (label, color) = switch (status) {
       ProviderOrderState.incoming => ('Incoming', const Color(0xFFD97706)),
       ProviderOrderState.onTheWay => ('On the way', AppColors.primary),
-      ProviderOrderState.started => ('Started', AppColors.success),
+      ProviderOrderState.started => ('Started', const Color(0xFF7C6EF2)),
       ProviderOrderState.completed => ('Completed', AppColors.success),
       ProviderOrderState.declined => ('Declined', AppColors.danger),
     };

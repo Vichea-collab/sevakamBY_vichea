@@ -162,6 +162,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                         key: ValueKey<String>(
                           'provider_notice_content_${visibleNotices.length}_${backendItems.length}',
                         ),
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (visibleNotices.isNotEmpty) ...[
                             _ProviderNotificationSummary(
@@ -355,6 +356,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
       });
     return sorted
         .map((item) {
+          final isOrderStatus = item.source == 'order_status';
           final lifecycle = item.lifecycle;
           final stateLabel = lifecycle == 'active'
               ? 'Active'
@@ -364,12 +366,16 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
               ? 'Expired'
               : 'Inactive';
           final code = item.promoCode.trim();
-          final description = item.isPromo
+          final description = isOrderStatus
+              ? item.message
+              : item.isPromo
               ? code.isEmpty
                     ? '${item.message} • $stateLabel'
                     : '${item.message} • Code: $code • $stateLabel'
               : '${item.message} • $stateLabel';
-          final color = item.isPromo
+          final color = isOrderStatus
+              ? _orderStatusColor(item.orderStatus)
+              : item.isPromo
               ? (lifecycle == 'active'
                     ? AppColors.success
                     : lifecycle == 'scheduled'
@@ -377,18 +383,71 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                     : AppColors.danger)
               : AppColors.primary;
           return _ProviderNoticeEntry(
-            key: 'admin:${item.id}',
+            key: isOrderStatus ? 'order:${item.id}' : 'admin:${item.id}',
             title: item.title,
             description: description,
             timeLabel: _timeAgo(item.createdAt),
-            icon: item.isPromo
+            icon: isOrderStatus
+                ? _orderStatusIcon(item.orderStatus)
+                : item.isPromo
                 ? Icons.local_offer_rounded
                 : Icons.campaign_rounded,
             color: color,
-            tab: ProviderOrderTab.active,
+            tab: isOrderStatus
+                ? _orderStatusTab(item.orderStatus)
+                : ProviderOrderTab.active,
           );
         })
         .toList(growable: false);
+  }
+
+  ProviderOrderTab _orderStatusTab(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'booked':
+        return ProviderOrderTab.incoming;
+      case 'on_the_way':
+      case 'started':
+        return ProviderOrderTab.active;
+      case 'completed':
+      case 'cancelled':
+      case 'declined':
+      default:
+        return ProviderOrderTab.completed;
+    }
+  }
+
+  IconData _orderStatusIcon(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'booked':
+        return Icons.inbox_rounded;
+      case 'on_the_way':
+        return Icons.delivery_dining_rounded;
+      case 'started':
+        return Icons.handyman_rounded;
+      case 'completed':
+        return Icons.check_circle_rounded;
+      case 'cancelled':
+        return Icons.cancel_rounded;
+      case 'declined':
+      default:
+        return Icons.highlight_off_rounded;
+    }
+  }
+
+  Color _orderStatusColor(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'booked':
+        return const Color(0xFFF59E0B);
+      case 'on_the_way':
+      case 'started':
+        return const Color(0xFF7C6EF2);
+      case 'completed':
+        return AppColors.success;
+      case 'cancelled':
+      case 'declined':
+      default:
+        return AppColors.danger;
+    }
   }
 
   Future<void> _confirmClearAll(

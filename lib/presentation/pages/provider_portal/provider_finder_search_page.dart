@@ -36,7 +36,6 @@ class _ProviderFinderSearchPageState extends State<ProviderFinderSearchPage> {
   @override
   void initState() {
     super.initState();
-    unawaited(_primeFinderRequests());
     _query = widget.initialQuery.trim();
     if (_query.isNotEmpty) {
       _searchController.text = _query;
@@ -44,6 +43,10 @@ class _ProviderFinderSearchPageState extends State<ProviderFinderSearchPage> {
         offset: _query.length,
       );
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_primeFinderRequests());
+    });
   }
 
   @override

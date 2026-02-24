@@ -154,18 +154,29 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     ? ProfileSettingsState.providerHelpTickets
                     : ProfileSettingsState.finderHelpTickets,
                 builder: (context, tickets, _) {
-                  return ValueListenableBuilder<PaginationMeta>(
+                  return ValueListenableBuilder<bool>(
                     valueListenable: ProfileSettingsState.isProvider
-                        ? ProfileSettingsState.providerHelpTicketsPagination
-                        : ProfileSettingsState.finderHelpTicketsPagination,
-                    builder: (context, pagination, _) {
-                      final Widget ticketBody = tickets.isEmpty
-                          ? const AppStatePanel.empty(
+                        ? ProfileSettingsState.providerHelpTicketsLoading
+                        : ProfileSettingsState.finderHelpTicketsLoading,
+                    builder: (context, loading, _) {
+                      return ValueListenableBuilder<PaginationMeta>(
+                        valueListenable: ProfileSettingsState.isProvider
+                            ? ProfileSettingsState.providerHelpTicketsPagination
+                            : ProfileSettingsState.finderHelpTicketsPagination,
+                        builder: (context, pagination, _) {
+                          final Widget ticketBody;
+                          if (loading && tickets.isEmpty) {
+                            ticketBody = const AppStatePanel.loading(
+                              title: 'Loading support tickets',
+                            );
+                          } else if (tickets.isEmpty) {
+                            ticketBody = const AppStatePanel.empty(
                               title: 'No support tickets yet',
                               message:
                                   'Your submitted support requests will appear here.',
-                            )
-                          : Container(
+                            );
+                          } else {
+                            ticketBody = Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
@@ -202,9 +213,12 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                                 ],
                               ),
                             );
-                      return AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        child: ticketBody,
+                          }
+                          return AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            child: ticketBody,
+                          );
+                        },
                       );
                     },
                   );

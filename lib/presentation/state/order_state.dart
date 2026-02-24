@@ -17,6 +17,8 @@ import '../../domain/entities/provider_profile.dart';
 import '../../domain/entities/provider_portal.dart';
 import '../../domain/repositories/order_repository.dart';
 import 'app_role_state.dart' show AppRole, AppRoleState;
+import 'profile_settings_state.dart';
+import 'user_notification_state.dart';
 
 class OrderState {
   static const int _pageSize = 10;
@@ -43,6 +45,8 @@ class OrderState {
   );
   static final ValueNotifier<bool> loading = ValueNotifier(false);
   static final ValueNotifier<bool> realtimeActive = ValueNotifier(false);
+  static final Map<String, ProviderReviewSummary> _providerReviewSummaryCache =
+      <String, ProviderReviewSummary>{};
 
   static bool _initialized = false;
   static String _backendToken = AppEnv.apiAuthToken().trim();
@@ -55,6 +59,13 @@ class OrderState {
   _ordersSubscription;
   static AppRole? _streamRole;
   static String _streamUid = '';
+  static Timer? _notificationRefreshDebounce;
+  static final Map<String, String> _finderRealtimeOrderStatuses =
+      <String, String>{};
+  static bool _finderRealtimePrimed = false;
+  static DateTime? _finderRoleForbiddenUntil;
+  static DateTime? _providerRoleForbiddenUntil;
+  static final Map<String, DateTime> _logCooldownByKey = <String, DateTime>{};
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -77,7 +88,9 @@ class OrderState {
     _backendToken = token.trim();
     _repository.setBearerToken(_backendToken);
     if (_backendToken.isEmpty) {
+      _notificationRefreshDebounce?.cancel();
       unawaited(_stopRealtime());
+      _providerReviewSummaryCache.clear();
       finderOrders.value = const <OrderItem>[];
       providerOrders.value = const <ProviderOrderItem>[];
       finderPagination.value = const PaginationMeta.initial(limit: _pageSize);
@@ -91,6 +104,7 @@ class OrderState {
     bool forceNetwork = false,
     int? page,
   }) async {
+    if (loading.value) return;
     final isProvider = AppRoleState.isProvider;
     final fallbackPage = isProvider
         ? providerPagination.value.page
@@ -111,9 +125,16 @@ class OrderState {
   static Future<void> refreshFinderOrders({
     int? page,
     int limit = _pageSize,
-    bool allowRoleFallback = true,
+    List<String> statuses = const <String>[],
   }) async {
     final targetPage = page ?? _normalizedPage(finderPagination.value.page);
+    if (AppRoleState.isProvider) {
+      _resetFinderOrders(targetPage, limit);
+      return;
+    }
+    if (_isInRoleForbiddenCooldown(isProviderEndpoint: false)) {
+      return;
+    }
     loading.value = true;
     try {
       final ready = await _ensureBackendToken();
@@ -122,27 +143,42 @@ class OrderState {
         return;
       }
       final result = await _runWithAuthRetry(
-        () => _repository.fetchFinderOrders(page: targetPage, limit: limit),
+        () => _repository.fetchFinderOrders(
+          page: targetPage,
+          limit: limit,
+          statuses: statuses,
+        ),
       );
       finderOrders.value = result.items;
       finderPagination.value = result.pagination;
-      if (AppRoleState.isProvider) {
-        AppRoleState.setProvider(false);
-      }
+      _finderRoleForbiddenUntil = null;
     } on BackendApiException catch (error) {
-      if (_isRoleForbidden(error) && allowRoleFallback) {
-        AppRoleState.setProvider(true);
-        await refreshProviderOrders(
-          page: _normalizedPage(providerPagination.value.page),
-          limit: limit,
-          allowRoleFallback: false,
+      if (_isRoleForbidden(error)) {
+        _finderRoleForbiddenUntil = DateTime.now().add(
+          const Duration(seconds: 15),
         );
-        return;
+        _logThrottled(
+          key: 'order.finder.forbidden',
+          message:
+              'OrderState finder orders forbidden for current role; pausing retries for 15s.',
+        );
+      } else {
+        _logThrottled(
+          key: 'order.finder.backend',
+          message: 'OrderState.refreshFinderOrders failed: $error',
+        );
       }
-      debugPrint('OrderState.refreshFinderOrders failed: $error');
       _resetFinderOrders(targetPage, limit);
+    } on TimeoutException catch (error) {
+      _logThrottled(
+        key: 'order.finder.timeout',
+        message: 'OrderState.refreshFinderOrders timed out: $error',
+      );
     } catch (error) {
-      debugPrint('OrderState.refreshFinderOrders failed: $error');
+      _logThrottled(
+        key: 'order.finder.other',
+        message: 'OrderState.refreshFinderOrders failed: $error',
+      );
       _resetFinderOrders(targetPage, limit);
     } finally {
       loading.value = false;
@@ -152,9 +188,16 @@ class OrderState {
   static Future<void> refreshProviderOrders({
     int? page,
     int limit = _pageSize,
-    bool allowRoleFallback = true,
+    List<String> statuses = const <String>[],
   }) async {
     final targetPage = page ?? _normalizedPage(providerPagination.value.page);
+    if (!AppRoleState.isProvider) {
+      _resetProviderOrders(targetPage, limit);
+      return;
+    }
+    if (_isInRoleForbiddenCooldown(isProviderEndpoint: true)) {
+      return;
+    }
     loading.value = true;
     try {
       final ready = await _ensureBackendToken();
@@ -163,27 +206,42 @@ class OrderState {
         return;
       }
       final result = await _runWithAuthRetry(
-        () => _repository.fetchProviderOrders(page: targetPage, limit: limit),
+        () => _repository.fetchProviderOrders(
+          page: targetPage,
+          limit: limit,
+          statuses: statuses,
+        ),
       );
       providerOrders.value = result.items;
       providerPagination.value = result.pagination;
-      if (!AppRoleState.isProvider) {
-        AppRoleState.setProvider(true);
-      }
+      _providerRoleForbiddenUntil = null;
     } on BackendApiException catch (error) {
-      if (_isRoleForbidden(error) && allowRoleFallback) {
-        AppRoleState.setProvider(false);
-        await refreshFinderOrders(
-          page: _normalizedPage(finderPagination.value.page),
-          limit: limit,
-          allowRoleFallback: false,
+      if (_isRoleForbidden(error)) {
+        _providerRoleForbiddenUntil = DateTime.now().add(
+          const Duration(seconds: 15),
         );
-        return;
+        _logThrottled(
+          key: 'order.provider.forbidden',
+          message:
+              'OrderState provider orders forbidden for current role; pausing retries for 15s.',
+        );
+      } else {
+        _logThrottled(
+          key: 'order.provider.backend',
+          message: 'OrderState.refreshProviderOrders failed: $error',
+        );
       }
-      debugPrint('OrderState.refreshProviderOrders failed: $error');
       _resetProviderOrders(targetPage, limit);
+    } on TimeoutException catch (error) {
+      _logThrottled(
+        key: 'order.provider.timeout',
+        message: 'OrderState.refreshProviderOrders timed out: $error',
+      );
     } catch (error) {
-      debugPrint('OrderState.refreshProviderOrders failed: $error');
+      _logThrottled(
+        key: 'order.provider.other',
+        message: 'OrderState.refreshProviderOrders failed: $error',
+      );
       _resetProviderOrders(targetPage, limit);
     } finally {
       loading.value = false;
@@ -269,6 +327,36 @@ class OrderState {
     return error.message.trim().toLowerCase().contains('forbidden (role)');
   }
 
+  static bool _isInRoleForbiddenCooldown({required bool isProviderEndpoint}) {
+    final until = isProviderEndpoint
+        ? _providerRoleForbiddenUntil
+        : _finderRoleForbiddenUntil;
+    if (until == null) return false;
+    if (DateTime.now().isAfter(until)) {
+      if (isProviderEndpoint) {
+        _providerRoleForbiddenUntil = null;
+      } else {
+        _finderRoleForbiddenUntil = null;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  static void _logThrottled({
+    required String key,
+    required String message,
+    Duration cooldown = const Duration(seconds: 8),
+  }) {
+    final now = DateTime.now();
+    final last = _logCooldownByKey[key];
+    if (last != null && now.difference(last) < cooldown) {
+      return;
+    }
+    _logCooldownByKey[key] = now;
+    debugPrint(message);
+  }
+
   static Future<OrderItem> createFinderOrder(BookingDraft draft) async {
     final created = await _repository.createFinderOrder(draft);
     if (_normalizedPage(finderPagination.value.page) == 1) {
@@ -329,6 +417,7 @@ class OrderState {
       status: status,
     );
     finderOrders.value = _replaceFinder(updated);
+    _scheduleNotificationRefresh();
     return updated;
   }
 
@@ -343,38 +432,64 @@ class OrderState {
       comment: comment,
     );
     finderOrders.value = _replaceFinder(updated);
+    _primeProviderReviewSummaryFromOrder(updated);
+    final providerUid = updated.provider.uid.trim();
+    if (providerUid.isNotEmpty) {
+      unawaited(fetchProviderReviewSummary(providerUid: providerUid, limit: 50));
+    }
     return updated;
+  }
+
+  static ProviderReviewSummary? peekProviderReviewSummary({
+    required String providerUid,
+  }) {
+    return _providerReviewSummaryCache[providerUid.trim()];
   }
 
   static Future<ProviderReviewSummary> fetchProviderReviewSummary({
     required String providerUid,
     int limit = 20,
   }) async {
-    final ready = await _ensureBackendToken();
-    if (!ready) {
-      return ProviderReviewSummary(
-        providerUid: providerUid,
+    final normalizedProviderUid = providerUid.trim();
+    if (normalizedProviderUid.isEmpty) {
+      return const ProviderReviewSummary(
+        providerUid: '',
         averageRating: 0,
         totalReviews: 0,
         completedJobs: 0,
-        reviews: const <ProviderReview>[],
+        reviews: <ProviderReview>[],
       );
     }
+    final cached = _providerReviewSummaryCache[normalizedProviderUid];
+    final ready = await _ensureBackendToken();
+    if (!ready) {
+      return cached ??
+          ProviderReviewSummary(
+            providerUid: normalizedProviderUid,
+            averageRating: 0,
+            totalReviews: 0,
+            completedJobs: 0,
+            reviews: const <ProviderReview>[],
+          );
+    }
     try {
-      return await _runWithAuthRetry(
+      final summary = await _runWithAuthRetry(
         () => _repository.fetchProviderReviewSummary(
-          providerUid: providerUid,
+          providerUid: normalizedProviderUid,
           limit: limit,
         ),
       );
+      _providerReviewSummaryCache[normalizedProviderUid] = summary;
+      return summary;
     } catch (_) {
-      return ProviderReviewSummary(
-        providerUid: providerUid,
-        averageRating: 0,
-        totalReviews: 0,
-        completedJobs: 0,
-        reviews: const <ProviderReview>[],
-      );
+      return cached ??
+          ProviderReviewSummary(
+            providerUid: normalizedProviderUid,
+            averageRating: 0,
+            totalReviews: 0,
+            completedJobs: 0,
+            reviews: const <ProviderReview>[],
+          );
     }
   }
 
@@ -391,6 +506,7 @@ class OrderState {
       state: state,
     );
     providerOrders.value = _replaceProvider(updated);
+    _scheduleNotificationRefresh();
     return updated;
   }
 
@@ -416,6 +532,82 @@ class OrderState {
     final next = List<ProviderOrderItem>.from(providerOrders.value);
     next[index] = item;
     return next;
+  }
+
+  static void _primeProviderReviewSummaryFromOrder(OrderItem order) {
+    final providerUid = order.provider.uid.trim();
+    final rating = order.rating;
+    if (providerUid.isEmpty || rating == null || rating <= 0) return;
+
+    final reviewerName = _currentFinderReviewerName();
+    final reviewerPhotoUrl = _currentFinderReviewerPhotoUrl();
+    final now = order.reviewedAt ?? DateTime.now();
+    final nextReview = ProviderReview(
+      reviewerName: reviewerName,
+      reviewerInitials: _initialsFromName(reviewerName),
+      reviewerPhotoUrl: reviewerPhotoUrl,
+      rating: rating,
+      daysAgo: 0,
+      reviewedAt: now,
+      comment: order.reviewComment,
+    );
+
+    final current = _providerReviewSummaryCache[providerUid];
+    if (current == null) {
+      _providerReviewSummaryCache[providerUid] = ProviderReviewSummary(
+        providerUid: providerUid,
+        averageRating: rating,
+        totalReviews: 1,
+        completedJobs: 0,
+        reviews: <ProviderReview>[nextReview],
+      );
+      return;
+    }
+
+    final nextReviews = List<ProviderReview>.from(current.reviews);
+    nextReviews.insert(0, nextReview);
+    final nextTotalReviews = current.totalReviews + 1;
+    final adjustedSum = (current.averageRating * current.totalReviews) + rating;
+    final nextAverage = nextTotalReviews > 0
+        ? double.parse((adjustedSum / nextTotalReviews).toStringAsFixed(2))
+        : 0.0;
+
+    _providerReviewSummaryCache[providerUid] = ProviderReviewSummary(
+      providerUid: current.providerUid,
+      averageRating: nextAverage,
+      totalReviews: nextTotalReviews,
+      completedJobs: current.completedJobs,
+      reviews: nextReviews,
+    );
+  }
+
+  static String _currentFinderReviewerName() {
+    final profileName = ProfileSettingsState.finderProfile.value.name.trim();
+    if (profileName.isNotEmpty) return profileName;
+    final authName = FirebaseAuth.instance.currentUser?.displayName?.trim() ?? '';
+    if (authName.isNotEmpty) return authName;
+    return 'Customer';
+  }
+
+  static String _currentFinderReviewerPhotoUrl() {
+    final profilePhoto = ProfileSettingsState.finderProfile.value.photoUrl.trim();
+    if (profilePhoto.isNotEmpty) return profilePhoto;
+    return FirebaseAuth.instance.currentUser?.photoURL?.trim() ?? '';
+  }
+
+  static String _initialsFromName(String name) {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) return 'CU';
+    if (parts.length == 1) {
+      final first = parts.first;
+      if (first.length == 1) return first.toUpperCase();
+      return first.substring(0, 2).toUpperCase();
+    }
+    return (parts.first[0] + parts.last[0]).toUpperCase();
   }
 
   static Future<bool> _startRealtimeIfAvailable() async {
@@ -455,6 +647,18 @@ class OrderState {
           return row;
         }).toList()..sort((a, b) => _createdAtMillis(b) - _createdAtMillis(a));
 
+        final nextStatuses = _extractOrderStatuses(rows);
+        final hasStatusDelta =
+            _finderRealtimePrimed &&
+            _hasFinderStatusChanges(
+              previous: _finderRealtimeOrderStatuses,
+              next: nextStatuses,
+            );
+        _finderRealtimeOrderStatuses
+          ..clear()
+          ..addAll(nextStatuses);
+        _finderRealtimePrimed = true;
+
         finderOrders.value = rows.map(_toFinderOrder).toList();
         finderPagination.value = PaginationMeta(
           page: 1,
@@ -464,6 +668,9 @@ class OrderState {
           hasPrevPage: false,
           hasNextPage: false,
         );
+        if (hasStatusDelta) {
+          _scheduleNotificationRefresh();
+        }
         realtimeActive.value = true;
       },
       onError: (error) {
@@ -489,7 +696,42 @@ class OrderState {
     _ordersSubscription = null;
     _streamRole = null;
     _streamUid = '';
+    _finderRealtimeOrderStatuses.clear();
+    _finderRealtimePrimed = false;
     realtimeActive.value = false;
+  }
+
+  static void _scheduleNotificationRefresh() {
+    _notificationRefreshDebounce?.cancel();
+    _notificationRefreshDebounce = Timer(const Duration(milliseconds: 300), () {
+      unawaited(UserNotificationState.refresh());
+    });
+  }
+
+  static Map<String, String> _extractOrderStatuses(
+    List<Map<String, dynamic>> rows,
+  ) {
+    final mapped = <String, String>{};
+    for (final row in rows) {
+      final id = (row['id'] ?? '').toString().trim();
+      if (id.isEmpty) continue;
+      final status = (row['status'] ?? '').toString().trim().toLowerCase();
+      mapped[id] = status;
+    }
+    return mapped;
+  }
+
+  static bool _hasFinderStatusChanges({
+    required Map<String, String> previous,
+    required Map<String, String> next,
+  }) {
+    if (previous.length != next.length) return true;
+    for (final entry in next.entries) {
+      if (previous[entry.key] != entry.value) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static bool _isPermissionDeniedError(Object error) {

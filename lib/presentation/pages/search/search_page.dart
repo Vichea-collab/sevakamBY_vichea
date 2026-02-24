@@ -11,6 +11,7 @@ import '../../../domain/entities/provider.dart';
 import '../../../domain/entities/service.dart';
 import '../../state/catalog_state.dart';
 import '../../state/provider_post_state.dart';
+import '../../widgets/app_state_panel.dart';
 import '../../widgets/category_chip.dart';
 import '../../widgets/pressable_scale.dart';
 import '../providers/provider_category_page.dart';
@@ -165,7 +166,10 @@ class _SearchPageState extends State<SearchPage> {
     return Scaffold(
       body: SafeArea(
         child: _bootstrapping && providerPosts.isEmpty
-            ? const Center(child: CircularProgressIndicator())
+            ? const Padding(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: AppStatePanel.loading(title: 'Loading search data'),
+              )
             : Column(
                 children: [
                   Padding(
@@ -291,7 +295,7 @@ class _SearchPageState extends State<SearchPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Available Skills',
+                          'Available Providers',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 10),
