@@ -22,8 +22,8 @@ class FirebaseBootstrap {
       }
 
       if (kIsWeb) {
-        final apiKey = AppEnv.firebaseApiKey();
-        final appId = AppEnv.firebaseAppId();
+        final apiKey = AppEnv.firebaseWebApiKey();
+        final appId = AppEnv.firebaseWebAppId();
         final senderId = AppEnv.firebaseMessagingSenderId();
         final projectId = AppEnv.firebaseProjectId();
         final requiredReady =
@@ -66,6 +66,13 @@ class FirebaseBootstrap {
 
   static Future<void> _activateAppCheckIfSupported() async {
     try {
+      if (kDebugMode && !AppEnv.enableDebugMobileAppCheck()) {
+        debugPrint(
+          'Firebase App Check (mobile) skipped in debug mode. '
+          'Set FIREBASE_ENABLE_DEBUG_MOBILE_APP_CHECK=true to enable it.',
+        );
+        return;
+      }
       switch (defaultTargetPlatform) {
         case TargetPlatform.android:
           await FirebaseAppCheck.instance.activate(
@@ -75,17 +82,14 @@ class FirebaseBootstrap {
           );
           break;
         case TargetPlatform.iOS:
-        case TargetPlatform.macOS:
           await FirebaseAppCheck.instance.activate(
             providerApple: kDebugMode
                 ? const AppleDebugProvider()
                 : const AppleDeviceCheckProvider(),
           );
           break;
-        case TargetPlatform.windows:
-        case TargetPlatform.linux:
-        case TargetPlatform.fuchsia:
-          // App Check is not required for these local desktop dev targets here.
+        default:
+          // This app currently targets web/android/ios only.
           break;
       }
     } catch (error) {

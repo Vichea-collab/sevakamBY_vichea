@@ -46,11 +46,11 @@ class AddressMapPickerPage extends StatefulWidget {
 class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   static const LatLng _phnomPenh = LatLng(11.5564, 104.9282);
   static const String _fixedCity = 'Phnom Penh';
-  static const double _phnomPenhNorth = 11.71;
-  static const double _phnomPenhSouth = 11.46;
-  static const double _phnomPenhWest = 104.79;
-  static const double _phnomPenhEast = 105.03;
-  static const double _phnomPenhMaxDistanceMeters = 30000;
+  static const double _phnomPenhNorth = 11.82;
+  static const double _phnomPenhSouth = 11.35;
+  static const double _phnomPenhWest = 104.62;
+  static const double _phnomPenhEast = 105.12;
+  static const double _phnomPenhMaxDistanceMeters = 60000;
 
   String get _apiKey => AppEnv.googleMapsApiKey();
 
@@ -67,7 +67,16 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   bool _locating = false;
   bool _hasLocationPermission = false;
 
-  bool get _useOpenStreetMap => kIsWeb || _apiKey.trim().isEmpty;
+  bool get _useOpenStreetMap {
+    // Keep Android debug/emulator stable even when Google Maps SDK key
+    // restrictions are not fully configured yet.
+    if (!kIsWeb &&
+        kDebugMode &&
+        defaultTargetPlatform == TargetPlatform.android) {
+      return true;
+    }
+    return kIsWeb || _apiKey.trim().isEmpty;
+  }
 
   bool get _mapSupported {
     if (kIsWeb) return true;
@@ -249,7 +258,8 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         zoom: 11.5,
       ),
       myLocationEnabled: _hasLocationPermission,
-      myLocationButtonEnabled: _hasLocationPermission,
+      // Use the custom "current location" action so we can enforce Phnom Penh bounds.
+      myLocationButtonEnabled: false,
       zoomControlsEnabled: false,
       onMapCreated: (controller) => _googleMapController = controller,
       onTap: (point) {
@@ -295,7 +305,9 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       ),
       children: [
         fm.TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          urlTemplate:
+              'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+          subdomains: const ['a', 'b', 'c', 'd'],
           userAgentPackageName: 'com.example.servicefinder',
         ),
         fm.MarkerLayer(
@@ -384,6 +396,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       'address': '$query, Phnom Penh, Cambodia',
       'components': 'country:KH',
       'region': 'kh',
+      'language': 'en',
       'key': _apiKey,
     });
     final response = await http.get(uri);
@@ -414,6 +427,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       'format': 'jsonv2',
       'limit': '1',
       'countrycodes': 'kh',
+      'accept-language': 'en',
     });
     final response = await http.get(
       uri,
@@ -474,16 +488,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       }
       setState(() => _hasLocationPermission = true);
 
-      Position? position;
-      try {
-        position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-          ),
-        );
-      } catch (_) {
-        position = await Geolocator.getLastKnownPosition();
-      }
+      final position = await _resolveBestCurrentPosition();
       if (position == null) {
         _showMessage(
           'Unable to get your current location.',
@@ -492,10 +497,41 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         return;
       }
       final point = LatLng(position.latitude, position.longitude);
-      if (!_isInsidePhnomPenh(point)) {
+      final debugNetworkPoint = await _resolveApproxNetworkLocation();
+      if (_shouldPreferNetworkFallback(
+        position: position,
+        gpsPoint: point,
+        networkPoint: debugNetworkPoint,
+      )) {
+        final networkPoint = debugNetworkPoint!;
+        setState(() => _selectedPoint = networkPoint);
+        await _moveCamera(networkPoint, zoom: 15.0);
+        await _reverseGeocode(networkPoint);
+        _showMessage(
+          'Using emulator/network location for better accuracy.',
+          type: AppToastType.info,
+        );
+        return;
+      }
+
+      final outsidePhnomPenh = !_isInsidePhnomPenh(point);
+      final reverseMatched =
+          outsidePhnomPenh && await _isReverseGeocodedInPhnomPenh(point);
+      if (outsidePhnomPenh && !reverseMatched) {
+        final networkPoint = await _resolveApproxNetworkLocation();
+        if (networkPoint != null) {
+          setState(() => _selectedPoint = networkPoint);
+          await _moveCamera(networkPoint, zoom: 15.0);
+          await _reverseGeocode(networkPoint);
+          _showMessage(
+            'Using network location fallback for Phnom Penh.',
+            type: AppToastType.info,
+          );
+          return;
+        }
         _moveToCity(_fixedCity);
         _showMessage(
-          'Current location is outside Phnom Penh. Only Phnom Penh locations are supported.',
+          'Current location (${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}) is outside Phnom Penh. Only Phnom Penh locations are supported.',
           type: AppToastType.warning,
         );
         return;
@@ -510,6 +546,102 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         setState(() => _locating = false);
       }
     }
+  }
+
+  Future<Position?> _resolveBestCurrentPosition() async {
+    final candidates = <Position>[];
+
+    try {
+      final LocationSettings primarySettings =
+          (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+          ? AndroidSettings(
+              accuracy: LocationAccuracy.bestForNavigation,
+              forceLocationManager: true,
+              timeLimit: const Duration(seconds: 12),
+            )
+          : const LocationSettings(
+              accuracy: LocationAccuracy.best,
+              timeLimit: Duration(seconds: 12),
+            );
+      final current = await Geolocator.getCurrentPosition(
+        locationSettings: primarySettings,
+      );
+      candidates.add(current);
+    } catch (_) {}
+
+    try {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final secondary = await Geolocator.getCurrentPosition(
+          locationSettings: AndroidSettings(
+            accuracy: LocationAccuracy.high,
+            forceLocationManager: false,
+            timeLimit: const Duration(seconds: 8),
+          ),
+        );
+        candidates.add(secondary);
+      }
+    } catch (_) {}
+
+    try {
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null && _isPositionFresh(lastKnown)) {
+        candidates.add(lastKnown);
+      }
+    } catch (_) {}
+
+    try {
+      final streamed = await Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 8),
+        ),
+      ).first.timeout(const Duration(seconds: 8));
+      candidates.add(streamed);
+    } catch (_) {}
+
+    if (candidates.isEmpty) return null;
+
+    Position best = candidates.first;
+    double bestScore = _locationScore(best);
+    for (final candidate in candidates.skip(1)) {
+      final score = _locationScore(candidate);
+      if (score < bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+    return best;
+  }
+
+  double _locationScore(Position position) {
+    final point = LatLng(position.latitude, position.longitude);
+    final insidePenalty = _isInsidePhnomPenh(point) ? 0.0 : 1000000.0;
+    final distanceToCenter = Geolocator.distanceBetween(
+      _phnomPenh.latitude,
+      _phnomPenh.longitude,
+      position.latitude,
+      position.longitude,
+    );
+    final accuracyPenalty = position.accuracy.isFinite ? position.accuracy : 0;
+    final staleMinutes = _positionAgeMinutes(position);
+    final stalePenalty = staleMinutes > 20 ? staleMinutes * 2000 : 0.0;
+    final mockedPenalty = position.isMocked ? 5000.0 : 0.0;
+    return insidePenalty +
+        distanceToCenter +
+        (accuracyPenalty * 0.25) +
+        stalePenalty +
+        mockedPenalty;
+  }
+
+  bool _isPositionFresh(Position position) {
+    return _positionAgeMinutes(position) <= 30;
+  }
+
+  double _positionAgeMinutes(Position position) {
+    final nowUtc = DateTime.now().toUtc();
+    final timestampUtc = position.timestamp.toUtc();
+    final diff = nowUtc.difference(timestampUtc).abs();
+    return diff.inSeconds / 60.0;
   }
 
   Future<void> _prepareLocationPermissions() async {
@@ -541,6 +673,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
         'latlng': '${point.latitude},${point.longitude}',
         'region': 'kh',
+        'language': 'en',
         'key': _apiKey,
       });
       final response = await http.get(uri);
@@ -553,7 +686,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         final formatted = (first['formatted_address'] as String?) ?? '';
         _selectedAddress = formatted.isEmpty
             ? 'Phnom Penh, Cambodia'
-            : '$formatted, Phnom Penh, Cambodia';
+            : formatted;
       });
     } catch (_) {
       // Keep current label when reverse geocoding fails.
@@ -566,6 +699,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         'lat': '${point.latitude}',
         'lon': '${point.longitude}',
         'format': 'jsonv2',
+        'accept-language': 'en',
       });
       final response = await http.get(
         uri,
@@ -697,6 +831,151 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       point.longitude,
     );
     return meters <= _phnomPenhMaxDistanceMeters;
+  }
+
+  Future<bool> _isReverseGeocodedInPhnomPenh(LatLng point) async {
+    try {
+      if (_useOpenStreetMap) {
+        final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+          'lat': '${point.latitude}',
+          'lon': '${point.longitude}',
+          'format': 'jsonv2',
+          'accept-language': 'en',
+        });
+        final response = await http.get(
+          uri,
+          headers: const {
+            'User-Agent':
+                'servicefinder/1.0 (contact: support@servicefinder.local)',
+          },
+        );
+        if (response.statusCode != 200) return false;
+        final body = jsonDecode(response.body);
+        if (body is! Map<String, dynamic>) return false;
+        final display = (body['display_name'] ?? '').toString().toLowerCase();
+        if (display.contains('phnom penh')) return true;
+        final address = body['address'];
+        if (address is Map<String, dynamic>) {
+          for (final value in address.values) {
+            if ('${value ?? ''}'.toLowerCase().contains('phnom penh')) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+
+      final uri = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', {
+        'latlng': '${point.latitude},${point.longitude}',
+        'region': 'kh',
+        'key': _apiKey,
+      });
+      final response = await http.get(uri);
+      if (response.statusCode != 200) return false;
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final results = (body['results'] as List<dynamic>? ?? []);
+      if (results.isEmpty) return false;
+      for (final item in results) {
+        final entry = item as Map<String, dynamic>;
+        final formatted = (entry['formatted_address'] ?? '')
+            .toString()
+            .toLowerCase();
+        if (formatted.contains('phnom penh')) return true;
+        final components =
+            (entry['address_components'] as List<dynamic>? ?? []);
+        for (final component in components) {
+          final map = component as Map<String, dynamic>;
+          final longName = (map['long_name'] ?? '').toString().toLowerCase();
+          final shortName = (map['short_name'] ?? '').toString().toLowerCase();
+          if (longName.contains('phnom penh') ||
+              shortName.contains('phnom penh')) {
+            return true;
+          }
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<LatLng?> _resolveApproxNetworkLocation() async {
+    if (kIsWeb) return null;
+
+    final endpoints = <Uri>[
+      Uri.https('ipapi.co', '/json'),
+      Uri.https('ipwho.is', '/'),
+    ];
+
+    for (final endpoint in endpoints) {
+      try {
+        final response = await http
+            .get(
+              endpoint,
+              headers: const {
+                'User-Agent':
+                    'servicefinder/1.0 (contact: support@servicefinder.local)',
+              },
+            )
+            .timeout(const Duration(seconds: 6));
+        if (response.statusCode != 200) continue;
+        final body = jsonDecode(response.body);
+        if (body is! Map<String, dynamic>) continue;
+
+        final lat = _extractDouble(body, const ['latitude', 'lat']);
+        final lng = _extractDouble(body, const ['longitude', 'lon', 'lng']);
+        if (lat == null || lng == null) continue;
+
+        final point = LatLng(lat, lng);
+        if (_isInsidePhnomPenh(point)) {
+          return point;
+        }
+      } catch (_) {
+        // Continue to next endpoint.
+      }
+    }
+    return null;
+  }
+
+  bool _shouldPreferNetworkFallback({
+    required Position position,
+    required LatLng gpsPoint,
+    required LatLng? networkPoint,
+  }) {
+    if (networkPoint == null) return false;
+    if (!kDebugMode ||
+        kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android) {
+      return false;
+    }
+
+    final gpsToNetworkMeters = _distanceMeters(gpsPoint, networkPoint);
+    if (gpsToNetworkMeters < 1200) return false;
+
+    final gpsToCityCenterMeters = _distanceMeters(gpsPoint, _phnomPenh);
+    final looksSyntheticCenter = gpsToCityCenterMeters <= 150;
+    return position.isMocked || looksSyntheticCenter;
+  }
+
+  double _distanceMeters(LatLng a, LatLng b) {
+    return Geolocator.distanceBetween(
+      a.latitude,
+      a.longitude,
+      b.latitude,
+      b.longitude,
+    );
+  }
+
+  double? _extractDouble(Map<String, dynamic> map, List<String> keys) {
+    for (final key in keys) {
+      final value = map[key];
+      if (value is num) return value.toDouble();
+      if (value is String) {
+        final parsed = double.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
   }
 
   void _showMessage(String text, {AppToastType type = AppToastType.info}) {

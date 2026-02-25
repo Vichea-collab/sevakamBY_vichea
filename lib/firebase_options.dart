@@ -14,22 +14,14 @@ class DefaultFirebaseOptions {
         return android;
       case TargetPlatform.iOS:
         return ios;
-      case TargetPlatform.macOS:
-        return macos;
-      case TargetPlatform.windows:
-        return windows;
-      case TargetPlatform.linux:
-        return linux;
       default:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions are not supported for this platform.',
-        );
+        throw UnsupportedError('This app supports only web, android, and ios.');
     }
   }
 
   static FirebaseOptions get web => FirebaseOptions(
-    apiKey: AppEnv.firebaseApiKey(),
-    appId: AppEnv.firebaseAppId(),
+    apiKey: AppEnv.firebaseWebApiKey(),
+    appId: AppEnv.firebaseWebAppId(),
     messagingSenderId: AppEnv.firebaseMessagingSenderId(),
     projectId: AppEnv.firebaseProjectId(),
     authDomain: AppEnv.firebaseAuthDomain(),
@@ -38,48 +30,20 @@ class DefaultFirebaseOptions {
   );
 
   static FirebaseOptions get android => FirebaseOptions(
-    apiKey: AppEnv.firebaseApiKey(),
-    appId: AppEnv.firebaseAppId(),
+    apiKey: AppEnv.firebaseAndroidApiKey(),
+    appId: AppEnv.firebaseAndroidAppId(),
     messagingSenderId: AppEnv.firebaseMessagingSenderId(),
     projectId: AppEnv.firebaseProjectId(),
     storageBucket: AppEnv.firebaseStorageBucket(),
   );
 
   static FirebaseOptions get ios => FirebaseOptions(
-    apiKey: AppEnv.firebaseApiKey(),
-    appId: AppEnv.firebaseAppId(),
+    apiKey: AppEnv.firebaseIosApiKey(),
+    appId: AppEnv.firebaseIosAppId(),
     messagingSenderId: AppEnv.firebaseMessagingSenderId(),
     projectId: AppEnv.firebaseProjectId(),
     storageBucket: AppEnv.firebaseStorageBucket(),
     iosClientId: AppEnv.firebaseIosClientId(),
     iosBundleId: AppEnv.firebaseIosBundleId(),
-  );
-
-  static FirebaseOptions get macos => FirebaseOptions(
-    apiKey: AppEnv.firebaseApiKey(),
-    appId: AppEnv.firebaseAppId(),
-    messagingSenderId: AppEnv.firebaseMessagingSenderId(),
-    projectId: AppEnv.firebaseProjectId(),
-    storageBucket: AppEnv.firebaseStorageBucket(),
-    iosClientId: AppEnv.firebaseIosClientId(),
-    iosBundleId: AppEnv.firebaseIosBundleId(),
-  );
-
-  static FirebaseOptions get windows => FirebaseOptions(
-    apiKey: AppEnv.firebaseApiKey(),
-    appId: AppEnv.firebaseAppId(),
-    messagingSenderId: AppEnv.firebaseMessagingSenderId(),
-    projectId: AppEnv.firebaseProjectId(),
-    authDomain: AppEnv.firebaseAuthDomain(),
-    storageBucket: AppEnv.firebaseStorageBucket(),
-  );
-
-  static FirebaseOptions get linux => FirebaseOptions(
-    apiKey: AppEnv.firebaseApiKey(),
-    appId: AppEnv.firebaseAppId(),
-    messagingSenderId: AppEnv.firebaseMessagingSenderId(),
-    projectId: AppEnv.firebaseProjectId(),
-    authDomain: AppEnv.firebaseAuthDomain(),
-    storageBucket: AppEnv.firebaseStorageBucket(),
   );
 }

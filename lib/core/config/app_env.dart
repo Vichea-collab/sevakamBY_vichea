@@ -30,13 +30,50 @@ class AppEnv {
   }
 
   static String googleMapsApiKey() {
-    if (kIsWeb) {
-      final webKey = _read(
-        key: 'GOOGLE_MAPS_WEB_API_KEY',
-        fallback: const String.fromEnvironment('GOOGLE_MAPS_WEB_API_KEY'),
-      );
-      if (webKey.isNotEmpty) return webKey;
+    if (kIsWeb) return googleMapsWebApiKey();
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return googleMapsAndroidApiKey();
+      case TargetPlatform.iOS:
+        return googleMapsIosApiKey();
+      default:
+        return _read(
+          key: 'GOOGLE_MAPS_API_KEY',
+          fallback: const String.fromEnvironment('GOOGLE_MAPS_API_KEY'),
+        );
     }
+  }
+
+  static String googleMapsWebApiKey() {
+    final webSpecific = _read(
+      key: 'GOOGLE_MAPS_WEB_API_KEY',
+      fallback: const String.fromEnvironment('GOOGLE_MAPS_WEB_API_KEY'),
+    );
+    if (webSpecific.isNotEmpty) return webSpecific;
+    return _read(
+      key: 'GOOGLE_MAPS_API_KEY',
+      fallback: const String.fromEnvironment('GOOGLE_MAPS_API_KEY'),
+    );
+  }
+
+  static String googleMapsAndroidApiKey() {
+    final androidSpecific = _read(
+      key: 'GOOGLE_MAPS_ANDROID_API_KEY',
+      fallback: const String.fromEnvironment('GOOGLE_MAPS_ANDROID_API_KEY'),
+    );
+    if (androidSpecific.isNotEmpty) return androidSpecific;
+    return _read(
+      key: 'GOOGLE_MAPS_API_KEY',
+      fallback: const String.fromEnvironment('GOOGLE_MAPS_API_KEY'),
+    );
+  }
+
+  static String googleMapsIosApiKey() {
+    final iosSpecific = _read(
+      key: 'GOOGLE_MAPS_IOS_API_KEY',
+      fallback: const String.fromEnvironment('GOOGLE_MAPS_IOS_API_KEY'),
+    );
+    if (iosSpecific.isNotEmpty) return iosSpecific;
     return _read(
       key: 'GOOGLE_MAPS_API_KEY',
       fallback: const String.fromEnvironment('GOOGLE_MAPS_API_KEY'),
@@ -50,11 +87,35 @@ class AppEnv {
     );
   }
 
+  static String firebaseWebApiKey() {
+    return _read(key: 'FIREBASE_WEB_API_KEY', fallback: firebaseApiKey());
+  }
+
+  static String firebaseAndroidApiKey() {
+    return _read(key: 'FIREBASE_ANDROID_API_KEY', fallback: firebaseApiKey());
+  }
+
+  static String firebaseIosApiKey() {
+    return _read(key: 'FIREBASE_IOS_API_KEY', fallback: firebaseApiKey());
+  }
+
   static String firebaseAppId() {
     return _read(
       key: 'FIREBASE_APP_ID',
       fallback: const String.fromEnvironment('FIREBASE_APP_ID'),
     );
+  }
+
+  static String firebaseWebAppId() {
+    return _read(key: 'FIREBASE_WEB_APP_ID', fallback: firebaseAppId());
+  }
+
+  static String firebaseAndroidAppId() {
+    return _read(key: 'FIREBASE_ANDROID_APP_ID', fallback: firebaseAppId());
+  }
+
+  static String firebaseIosAppId() {
+    return _read(key: 'FIREBASE_IOS_APP_ID', fallback: firebaseAppId());
   }
 
   static String firebaseMessagingSenderId() {
@@ -118,6 +179,16 @@ class AppEnv {
       key: 'FIREBASE_RECAPTCHA_V3_SITE_KEY',
       fallback: const String.fromEnvironment('FIREBASE_RECAPTCHA_V3_SITE_KEY'),
     );
+  }
+
+  static bool enableDebugMobileAppCheck() {
+    final raw = _read(
+      key: 'FIREBASE_ENABLE_DEBUG_MOBILE_APP_CHECK',
+      fallback: const String.fromEnvironment(
+        'FIREBASE_ENABLE_DEBUG_MOBILE_APP_CHECK',
+      ),
+    ).toLowerCase();
+    return raw == '1' || raw == 'true' || raw == 'yes' || raw == 'on';
   }
 
   static String _read({required String key, required String fallback}) {

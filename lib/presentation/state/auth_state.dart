@@ -20,6 +20,7 @@ import 'user_notification_state.dart';
 class AuthState {
   static final ValueNotifier<User?> currentUser = ValueNotifier<User?>(null);
   static final ValueNotifier<bool> ready = ValueNotifier(false);
+  static const Duration _authOperationTimeout = Duration(seconds: 18);
 
   static bool _initialized = false;
   static bool _googleInitialized = false;
@@ -38,50 +39,60 @@ class AuthState {
     final auth = FirebaseAuth.instance;
     currentUser.value = auth.currentUser;
     if (auth.currentUser != null) {
-      final user = auth.currentUser!;
-      final token = await user.getIdToken();
-      _applyBackendTokenToStates(token ?? '');
-      await _alignRoleToRegisteredProfile();
-      final isAdmin = await _isAdminSession(user);
-      if (isAdmin) {
-        await AppSyncState.setSignedIn(false);
-      } else {
-        await ChatState.refresh();
-        await FinderPostState.refresh();
-        await FinderPostState.refreshAllForLookup();
-        await ProviderPostState.refresh();
-        await ProviderPostState.refreshAllForLookup();
-        await OrderState.refreshCurrentRole();
-        await AppSyncState.setSignedIn(true);
-      }
+      await _syncSignedInUser(auth.currentUser!);
     } else {
       await AppSyncState.setSignedIn(false);
     }
     await _idTokenSubscription?.cancel();
-    _idTokenSubscription = auth.idTokenChanges().listen((user) async {
-      currentUser.value = user;
-      if (user == null) {
-        _applyBackendTokenToStates('');
-        await AppSyncState.setSignedIn(false);
-        return;
-      }
-      final token = await user.getIdToken();
-      _applyBackendTokenToStates(token ?? '');
+    _idTokenSubscription = auth.idTokenChanges().listen(
+      (user) async {
+        currentUser.value = user;
+        if (user == null) {
+          _applyBackendTokenToStates('');
+          await AppSyncState.setSignedIn(false);
+          return;
+        }
+        await _syncSignedInUser(user);
+      },
+      onError: (error, stackTrace) {
+        debugPrint('AuthState.idTokenChanges error: $error');
+      },
+    );
+    ready.value = true;
+  }
+
+  static Future<void> _syncSignedInUser(User user) async {
+    String token = '';
+    try {
+      token = await user.getIdToken() ?? '';
+    } catch (error) {
+      debugPrint('AuthState.getIdToken failed: $error');
+    }
+    _applyBackendTokenToStates(token);
+    if (token.trim().isEmpty) {
+      await AppSyncState.setSignedIn(false);
+      return;
+    }
+
+    try {
       await _alignRoleToRegisteredProfile();
       final isAdmin = await _isAdminSession(user);
       if (isAdmin) {
         await AppSyncState.setSignedIn(false);
-      } else {
-        await ChatState.refresh();
-        await FinderPostState.refresh();
-        await FinderPostState.refreshAllForLookup();
-        await ProviderPostState.refresh();
-        await ProviderPostState.refreshAllForLookup();
-        await OrderState.refreshCurrentRole();
-        await AppSyncState.setSignedIn(true);
+        return;
       }
-    });
-    ready.value = true;
+
+      await ChatState.refresh();
+      await FinderPostState.refresh();
+      await FinderPostState.refreshAllForLookup();
+      await ProviderPostState.refresh();
+      await ProviderPostState.refreshAllForLookup();
+      await OrderState.refreshCurrentRole();
+      await AppSyncState.setSignedIn(true);
+    } catch (error) {
+      debugPrint('AuthState._syncSignedInUser failed: $error');
+      await AppSyncState.setSignedIn(false);
+    }
   }
 
   static bool get isSignedIn => currentUser.value != null;
@@ -95,19 +106,30 @@ class AuthState {
 
     try {
       final UserCredential result;
+      final provider = GoogleAuthProvider()..addScope('email');
+      provider.setCustomParameters({'prompt': 'select_account'});
       if (kIsWeb) {
-        final provider = GoogleAuthProvider()..addScope('email');
-        provider.setCustomParameters({'prompt': 'select_account'});
-        result = await FirebaseAuth.instance.signInWithPopup(provider);
+        result = await _runAuthOperation(
+          operation: 'Google sign-in',
+          action: () => FirebaseAuth.instance.signInWithPopup(provider),
+        );
       } else {
         await _ensureGoogleInitialized();
-        await _resetGoogleSessionForAccountChooser();
-        final account = await GoogleSignIn.instance.authenticate();
-        final authentication = account.authentication;
-        final credential = GoogleAuthProvider.credential(
-          idToken: authentication.idToken,
+        final account = await _runAuthOperation(
+          operation: 'Google account selection',
+          action: GoogleSignIn.instance.authenticate,
+          enforceTimeout: false,
         );
-        result = await FirebaseAuth.instance.signInWithCredential(credential);
+        final authentication = account.authentication;
+        final idToken = authentication.idToken?.trim() ?? '';
+        if (idToken.isEmpty) {
+          return 'Google sign-in token is missing. Check Firebase Google provider and Android OAuth SHA setup.';
+        }
+        final credential = GoogleAuthProvider.credential(idToken: idToken);
+        result = await _runAuthOperation(
+          operation: 'Google sign-in',
+          action: () => FirebaseAuth.instance.signInWithCredential(credential),
+        );
       }
       final user = result.user;
       if (user == null) return 'Google sign-in failed.';
@@ -135,19 +157,19 @@ class AuthState {
         );
       }
       return null;
+    } on FirebaseAuthException catch (error) {
+      debugPrint(
+        'FirebaseAuthException (google credential): code=${error.code}, message=${error.message}',
+      );
+      return _friendlyAuthError(error, googleFlow: true);
     } on GoogleSignInException catch (error) {
       debugPrint(
         'GoogleSignInException: code=${error.code}, desc=${error.description}, details=${error.details}',
       );
       return _friendlyGoogleSignInError(error);
-    } on FirebaseAuthException catch (error) {
-      debugPrint(
-        'FirebaseAuthException (google credential): code=${error.code}, message=${error.message}',
-      );
-      return _friendlyAuthError(error);
     } catch (error) {
       debugPrint('Google sign-in unexpected error: $error');
-      return error.toString();
+      return _friendlyUnknownGoogleError(error);
     }
   }
 
@@ -160,9 +182,12 @@ class AuthState {
     if (!configured) return FirebaseBootstrap.setupHint();
 
     try {
-      final result = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
+      final result = await _runAuthOperation(
+        operation: 'Email sign-in',
+        action: () => FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email.trim(),
+          password: password,
+        ),
       );
       final user = result.user;
       if (user == null) return 'Sign-in failed.';
@@ -179,7 +204,7 @@ class AuthState {
     } on FirebaseAuthException catch (error) {
       return _friendlyAuthError(error);
     } catch (error) {
-      return error.toString();
+      return _friendlyUnknownAuthError(error);
     }
   }
 
@@ -191,12 +216,16 @@ class AuthState {
     if (trimmed.isEmpty) return 'Email is required.';
 
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: trimmed);
+      await _runAuthOperation(
+        operation: 'Password reset',
+        action: () =>
+            FirebaseAuth.instance.sendPasswordResetEmail(email: trimmed),
+      );
       return null;
     } on FirebaseAuthException catch (error) {
       return _friendlyAuthError(error);
     } catch (error) {
-      return error.toString();
+      return _friendlyUnknownAuthError(error);
     }
   }
 
@@ -217,17 +246,22 @@ class AuthState {
     try {
       User? user;
       try {
-        final result = await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(
-              email: email.trim(),
-              password: password,
-            );
+        final result = await _runAuthOperation(
+          operation: 'Account registration',
+          action: () => FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: email.trim(),
+            password: password,
+          ),
+        );
         user = result.user;
       } on FirebaseAuthException catch (error) {
         if (error.code != 'email-already-in-use') rethrow;
-        final existing = await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: email.trim(),
-          password: password,
+        final existing = await _runAuthOperation(
+          operation: 'Existing account sign-in',
+          action: () => FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: email.trim(),
+            password: password,
+          ),
         );
         user = existing.user;
       }
@@ -257,7 +291,7 @@ class AuthState {
     } on FirebaseAuthException catch (error) {
       return _friendlyAuthError(error);
     } catch (error) {
-      return error.toString();
+      return _friendlyUnknownAuthError(error);
     }
   }
 
@@ -272,6 +306,15 @@ class AuthState {
     } catch (_) {}
     _applyBackendTokenToStates('');
     await AppSyncState.setSignedIn(false);
+  }
+
+  static Future<void> _ensureGoogleInitialized() async {
+    if (_googleInitialized) return;
+    final webClientId = AppEnv.firebaseWebClientId().trim();
+    await GoogleSignIn.instance.initialize(
+      serverClientId: webClientId.isEmpty ? null : webClientId,
+    );
+    _googleInitialized = true;
   }
 
   static Future<String?> switchRole({required bool toProvider}) async {
@@ -299,24 +342,6 @@ class AuthState {
     await ProviderPostState.refreshAllForLookup();
     await OrderState.refreshCurrentRole();
     return null;
-  }
-
-  static Future<void> _ensureGoogleInitialized() async {
-    if (_googleInitialized) return;
-    final webClientId = AppEnv.firebaseWebClientId();
-    await GoogleSignIn.instance.initialize(
-      serverClientId: webClientId.isEmpty ? null : webClientId,
-    );
-    _googleInitialized = true;
-  }
-
-  static Future<void> _resetGoogleSessionForAccountChooser() async {
-    try {
-      await GoogleSignIn.instance.signOut();
-    } catch (_) {}
-    try {
-      await GoogleSignIn.instance.disconnect();
-    } catch (_) {}
   }
 
   static Future<String?> _applyAuthenticatedSession(
@@ -427,7 +452,40 @@ class AuthState {
     return 'Finder account is not registered for this email. Please register finder role first.';
   }
 
-  static String _friendlyAuthError(FirebaseAuthException error) {
+  static String _friendlyAuthError(
+    FirebaseAuthException error, {
+    bool googleFlow = false,
+  }) {
+    final message = (error.message ?? '').toLowerCase();
+    final looksNetworkIssue =
+        message.contains('network') ||
+        message.contains('timeout') ||
+        message.contains('failed to resolve name') ||
+        message.contains('unable to resolve host') ||
+        message.contains('unknown host') ||
+        message.contains('connection');
+
+    if (googleFlow) {
+      if (looksNetworkIssue) {
+        return _networkAuthHint();
+      }
+      switch (error.code) {
+        case 'account-exists-with-different-credential':
+          return 'This email is linked to another sign-in method. Sign in with that method first, then link Google from account settings.';
+        case 'invalid-credential':
+          return 'Google sign-in credential is invalid. Check Firebase OAuth setup (package name, SHA keys, and google-services.json).';
+        case 'operation-not-allowed':
+          return 'Google sign-in is disabled in Firebase Authentication. Enable Google provider and try again.';
+        case 'popup-closed-by-user':
+        case 'cancelled-popup-request':
+        case 'web-context-cancelled':
+        case 'user-cancelled':
+          return 'Google sign-in was canceled or interrupted. If this keeps happening, check emulator internet/DNS and retry.';
+        case 'user-disabled':
+          return 'This account has been disabled.';
+      }
+    }
+
     switch (error.code) {
       case 'invalid-email':
         return 'Invalid email address.';
@@ -444,7 +502,7 @@ class AuthState {
       case 'too-many-requests':
         return 'Too many attempts. Please try again later.';
       case 'network-request-failed':
-        return 'Network error. Please check your internet connection.';
+        return _networkAuthHint();
       default:
         return error.message?.trim().isNotEmpty == true
             ? error.message!.trim()
@@ -452,11 +510,49 @@ class AuthState {
     }
   }
 
+  static String _friendlyUnknownGoogleError(Object error) {
+    final raw = error.toString().trim();
+    final signal = raw.toLowerCase();
+    if (signal.contains('apiexception: 10') ||
+        signal.contains('developer_error') ||
+        signal.contains('google-services.json') ||
+        signal.contains('sha-1') ||
+        signal.contains('sha1')) {
+      return 'Google sign-in is not configured correctly. Check Firebase Android SHA keys and google-services.json.';
+    }
+    if (signal.contains('network') ||
+        signal.contains('timeout') ||
+        signal.contains('failed to resolve name') ||
+        signal.contains('unable to resolve host')) {
+      return _networkAuthHint();
+    }
+    return raw.isEmpty ? 'Google sign-in failed.' : raw;
+  }
+
   static String _friendlyGoogleSignInError(GoogleSignInException error) {
     final details = error.details?.toString().trim() ?? '';
+    final description = error.description?.trim() ?? '';
+    final signal = '$description $details'.toLowerCase();
     String withDetails(String message) {
       if (details.isEmpty) return message;
       return '$message ($details)';
+    }
+
+    if (signal.contains('network') ||
+        signal.contains('failed to resolve name') ||
+        signal.contains('unable to resolve host') ||
+        signal.contains('unknown host') ||
+        signal.contains('timeout')) {
+      return withDetails(_networkAuthHint());
+    }
+    if (signal.contains('apiexception: 10') ||
+        signal.contains('developer_error') ||
+        signal.contains('sha-1') ||
+        signal.contains('sha1') ||
+        signal.contains('google-services.json')) {
+      return withDetails(
+        'Google sign-in is not configured correctly. Check Firebase Android SHA keys and google-services.json.',
+      );
     }
 
     switch (error.code) {
@@ -469,7 +565,9 @@ class AuthState {
           'Google provider configuration failed. Verify Google sign-in is enabled in Firebase Authentication.',
         );
       case GoogleSignInExceptionCode.canceled:
-        return 'Google sign-in was canceled.';
+        return withDetails(
+          'Google sign-in was canceled. Please select a Google account and try again.',
+        );
       case GoogleSignInExceptionCode.interrupted:
         return withDetails('Google sign-in was interrupted. Please try again.');
       case GoogleSignInExceptionCode.uiUnavailable:
@@ -479,10 +577,71 @@ class AuthState {
           'Google account mismatch detected. Please sign out and retry.',
         );
       case GoogleSignInExceptionCode.unknownError:
-        final desc = error.description?.trim() ?? '';
-        return desc.isNotEmpty
-            ? withDetails('Google sign-in failed: $desc')
-            : withDetails('Google sign-in failed.');
+        return withDetails(
+          description.isEmpty ? 'Google sign-in failed.' : description,
+        );
     }
+  }
+
+  static String _friendlyUnknownAuthError(Object error) {
+    final raw = error.toString().trim();
+    final signal = raw.toLowerCase();
+    if (signal.contains('network') ||
+        signal.contains('timeout') ||
+        signal.contains('failed to resolve name') ||
+        signal.contains('unable to resolve host')) {
+      return _networkAuthHint();
+    }
+    return raw.isEmpty ? 'Authentication failed.' : raw;
+  }
+
+  static Future<T> _runAuthOperation<T>({
+    required String operation,
+    required Future<T> Function() action,
+    bool enforceTimeout = true,
+  }) async {
+    const retryDelays = <Duration>[
+      Duration(milliseconds: 700),
+      Duration(milliseconds: 1400),
+    ];
+    var attempt = 0;
+    while (true) {
+      try {
+        if (!enforceTimeout) {
+          return await action();
+        }
+        return await action().timeout(
+          _authOperationTimeout,
+          onTimeout: () =>
+              throw TimeoutException('$operation timed out. Please try again.'),
+        );
+      } catch (error) {
+        final shouldRetry =
+            _isTransientAuthNetworkError(error) && attempt < retryDelays.length;
+        if (!shouldRetry) rethrow;
+        await Future.delayed(retryDelays[attempt]);
+        attempt += 1;
+      }
+    }
+  }
+
+  static bool _isTransientAuthNetworkError(Object error) {
+    if (error is TimeoutException) return true;
+    if (error is FirebaseAuthException &&
+        error.code == 'network-request-failed') {
+      return true;
+    }
+    final text = error.toString().toLowerCase();
+    return text.contains('network error') ||
+        text.contains('failed to resolve name') ||
+        text.contains('unable to resolve host') ||
+        text.contains('connection reset') ||
+        text.contains('connection refused') ||
+        text.contains('socket') ||
+        text.contains('timed out');
+  }
+
+  static String _networkAuthHint() {
+    return 'Network error during authentication. The device/emulator cannot reach Google/Firebase servers. Check internet and DNS, then retry.';
   }
 }

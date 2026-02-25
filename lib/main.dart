@@ -12,16 +12,30 @@ import 'presentation/state/catalog_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AppEnv.load();
-  await AuthState.initialize();
+  await _runSafe('AppEnv.load', AppEnv.load);
+  await _runSafe('AuthState.initialize', AuthState.initialize);
   await Future.wait<void>([
-    ProfileSettingsState.initialize(),
-    CatalogState.initialize(),
-    ChatState.initialize(),
-    FinderPostState.initialize(),
-    ProviderPostState.initialize(),
-    OrderState.initialize(),
+    _runSafe(
+      'ProfileSettingsState.initialize',
+      ProfileSettingsState.initialize,
+    ),
+    _runSafe('CatalogState.initialize', CatalogState.initialize),
+    _runSafe('ChatState.initialize', ChatState.initialize),
+    _runSafe('FinderPostState.initialize', FinderPostState.initialize),
+    _runSafe('ProviderPostState.initialize', ProviderPostState.initialize),
+    _runSafe('OrderState.initialize', OrderState.initialize),
   ]);
-  await AppSyncState.initialize(signedIn: AuthState.isSignedIn);
+  await _runSafe(
+    'AppSyncState.initialize',
+    () => AppSyncState.initialize(signedIn: AuthState.isSignedIn),
+  );
   runApp(const ServiceFinderApp());
+}
+
+Future<void> _runSafe(String label, Future<void> Function() action) async {
+  try {
+    await action();
+  } catch (error) {
+    debugPrint('$label failed: $error');
+  }
 }

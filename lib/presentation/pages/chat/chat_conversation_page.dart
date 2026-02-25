@@ -34,6 +34,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   int _loadedPages = 1;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
   _messagesSubscription;
+  Timer? _fallbackRefreshTimer;
   bool _realtimeActive = false;
 
   @override
@@ -42,6 +43,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     unawaited(ChatState.markThreadAsRead(widget.thread.id));
     unawaited(_loadInitial());
     unawaited(_bindRealtimeMessages());
+    _startFallbackRefreshTimer();
   }
 
   @override
@@ -51,6 +53,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     if (subscription != null) {
       unawaited(subscription.cancel());
     }
+    _fallbackRefreshTimer?.cancel();
     _inputController.dispose();
     super.dispose();
   }
@@ -196,12 +199,25 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         });
       },
       onError: (_) {
+        final subscription = _messagesSubscription;
+        _messagesSubscription = null;
+        if (subscription != null) {
+          unawaited(subscription.cancel());
+        }
         if (!mounted) return;
         setState(() {
           _realtimeActive = false;
         });
       },
     );
+  }
+
+  void _startFallbackRefreshTimer() {
+    _fallbackRefreshTimer?.cancel();
+    _fallbackRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || _realtimeActive || _loading || _sending) return;
+      unawaited(_refreshLatest());
+    });
   }
 
   ChatMessage _toRealtimeMessage(Map<String, dynamic> row, String currentUid) {

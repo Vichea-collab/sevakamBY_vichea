@@ -65,6 +65,7 @@ class OrderState {
   static bool _finderRealtimePrimed = false;
   static DateTime? _finderRoleForbiddenUntil;
   static DateTime? _providerRoleForbiddenUntil;
+  static DateTime? _realtimeUnavailableUntil;
   static final Map<String, DateTime> _logCooldownByKey = <String, DateTime>{};
 
   static Future<void> initialize() async {
@@ -111,7 +112,9 @@ class OrderState {
         : finderPagination.value.page;
     final targetPage = _normalizedPage(page ?? fallbackPage);
 
-    if (!forceNetwork && targetPage == 1) {
+    if (!forceNetwork &&
+        targetPage == 1 &&
+        !_isRealtimeTemporarilyUnavailable()) {
       final usingRealtime = await _startRealtimeIfAvailable();
       if (usingRealtime) return;
     }
@@ -435,7 +438,9 @@ class OrderState {
     _primeProviderReviewSummaryFromOrder(updated);
     final providerUid = updated.provider.uid.trim();
     if (providerUid.isNotEmpty) {
-      unawaited(fetchProviderReviewSummary(providerUid: providerUid, limit: 50));
+      unawaited(
+        fetchProviderReviewSummary(providerUid: providerUid, limit: 50),
+      );
     }
     return updated;
   }
@@ -584,13 +589,15 @@ class OrderState {
   static String _currentFinderReviewerName() {
     final profileName = ProfileSettingsState.finderProfile.value.name.trim();
     if (profileName.isNotEmpty) return profileName;
-    final authName = FirebaseAuth.instance.currentUser?.displayName?.trim() ?? '';
+    final authName =
+        FirebaseAuth.instance.currentUser?.displayName?.trim() ?? '';
     if (authName.isNotEmpty) return authName;
     return 'Customer';
   }
 
   static String _currentFinderReviewerPhotoUrl() {
-    final profilePhoto = ProfileSettingsState.finderProfile.value.photoUrl.trim();
+    final profilePhoto = ProfileSettingsState.finderProfile.value.photoUrl
+        .trim();
     if (profilePhoto.isNotEmpty) return profilePhoto;
     return FirebaseAuth.instance.currentUser?.photoURL?.trim() ?? '';
   }
@@ -671,6 +678,7 @@ class OrderState {
         if (hasStatusDelta) {
           _scheduleNotificationRefresh();
         }
+        _realtimeUnavailableUntil = null;
         realtimeActive.value = true;
       },
       onError: (error) {
@@ -680,6 +688,10 @@ class OrderState {
           _realtimeEnabled = false;
           debugPrint(
             'OrderState realtime disabled for this session due to Firestore permission rules.',
+          );
+        } else {
+          _realtimeUnavailableUntil = DateTime.now().add(
+            const Duration(seconds: 30),
           );
         }
         realtimeActive.value = false;
@@ -699,6 +711,12 @@ class OrderState {
     _finderRealtimeOrderStatuses.clear();
     _finderRealtimePrimed = false;
     realtimeActive.value = false;
+  }
+
+  static bool _isRealtimeTemporarilyUnavailable() {
+    final until = _realtimeUnavailableUntil;
+    if (until == null) return false;
+    return DateTime.now().isBefore(until);
   }
 
   static void _scheduleNotificationRefresh() {
