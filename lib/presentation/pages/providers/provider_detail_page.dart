@@ -372,6 +372,7 @@ class _ProviderSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatarProvider = _imageProviderFromPath(profile.provider.imagePath);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -386,7 +387,14 @@ class _ProviderSummaryCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 18,
-                backgroundImage: AssetImage(profile.provider.imagePath),
+                backgroundImage: avatarProvider,
+                child: avatarProvider == null
+                    ? const Icon(
+                        Icons.person,
+                        size: 16,
+                        color: AppColors.primary,
+                      )
+                    : null,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -440,6 +448,19 @@ class _ProviderSummaryCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  ImageProvider<Object>? _imageProviderFromPath(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return null;
+    if (value.startsWith('assets/')) {
+      return AssetImage(value);
+    }
+    final uri = Uri.tryParse(value);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      return NetworkImage(value);
+    }
+    return null;
   }
 }
 
@@ -666,7 +687,7 @@ class _ReviewsSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         if (loading && reviews.isEmpty) ...[
-          const AppStatePanel.loading(title: 'Loading reviews'),
+          const Center(child: AppStatePanel.loading(title: 'Loading reviews')),
           const SizedBox(height: 12),
         ],
         if (!loading && reviews.isEmpty)
@@ -687,7 +708,8 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasPhoto = review.reviewerPhotoUrl.trim().isNotEmpty;
+    final photoProvider = _imageProviderFromPath(review.reviewerPhotoUrl);
+    final hasPhoto = photoProvider != null;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
@@ -702,10 +724,7 @@ class _ReviewCard extends StatelessWidget {
           Row(
             children: [
               if (hasPhoto)
-                CircleAvatar(
-                  radius: 14,
-                  backgroundImage: NetworkImage(review.reviewerPhotoUrl.trim()),
-                )
+                CircleAvatar(radius: 14, backgroundImage: photoProvider)
               else
                 Container(
                   width: 28,
@@ -750,6 +769,19 @@ class _ReviewCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  ImageProvider<Object>? _imageProviderFromPath(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return null;
+    if (value.startsWith('assets/')) {
+      return AssetImage(value);
+    }
+    final uri = Uri.tryParse(value);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      return NetworkImage(value);
+    }
+    return null;
   }
 
   String _reviewTimestamp(ProviderReview review) {

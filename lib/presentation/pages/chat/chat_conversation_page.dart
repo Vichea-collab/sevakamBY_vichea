@@ -41,6 +41,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   void initState() {
     super.initState();
     unawaited(ChatState.markThreadAsRead(widget.thread.id));
+    unawaited(ChatState.flushQueuedMessages(threadId: widget.thread.id));
     unawaited(_loadInitial());
     unawaited(_bindRealtimeMessages());
     _startFallbackRefreshTimer();
@@ -84,9 +85,11 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
 
   Widget _buildMessageList(BuildContext context) {
     if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.all(16),
-        child: AppStatePanel.loading(title: 'Loading conversation'),
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: AppStatePanel.loading(title: 'Loading conversation'),
+        ),
       );
     }
     final messages = _mergedMessages();
@@ -144,6 +147,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         _loadedPages = 1;
         _loading = false;
       });
+      _ackDeliveredFromMessages(result.items);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -167,6 +171,13 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         _latestMessages = result.items;
         _pagination = result.pagination;
       });
+      _ackDeliveredFromMessages(result.items);
+      final hasUnread = ChatState.threads.value.any(
+        (thread) => thread.id == widget.thread.id && thread.unreadCount > 0,
+      );
+      if (hasUnread) {
+        unawaited(ChatState.markThreadAsRead(widget.thread.id));
+      }
     } catch (_) {}
   }
 
@@ -187,8 +198,36 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     _messagesSubscription = stream.listen(
       (snapshot) {
         if (!mounted) return;
+        final needsReadAck = snapshot.docs.any((doc) {
+          final row = doc.data();
+          final senderUid = (row['senderUid'] ?? '').toString().trim();
+          if (senderUid.isEmpty || senderUid == uid) return false;
+          final seenBy = (row['seenBy'] is List)
+              ? (row['seenBy'] as List)
+                    .map((item) => item.toString().trim())
+                    .toSet()
+              : <String>{};
+          return !seenBy.contains(uid);
+        });
+        final deliveryIds = <String>{};
         final mapped = snapshot.docs
-            .map((doc) => _toRealtimeMessage(doc.data(), uid))
+            .map((doc) {
+              final row = doc.data();
+              final senderUid = (row['senderUid'] ?? '').toString().trim();
+              final deliveredTo = (row['deliveredTo'] is List)
+                  ? (row['deliveredTo'] as List)
+                        .map((item) => item.toString().trim())
+                        .toSet()
+                  : <String>{};
+              final messageId = (row['id'] ?? '').toString().trim();
+              if (senderUid.isNotEmpty &&
+                  senderUid != uid &&
+                  messageId.isNotEmpty &&
+                  !deliveredTo.contains(uid)) {
+                deliveryIds.add(messageId);
+              }
+              return _toRealtimeMessage(row, uid);
+            })
             .toList(growable: false);
         setState(() {
           _latestMessages = mapped;
@@ -197,6 +236,17 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
             _loading = false;
           }
         });
+        if (needsReadAck) {
+          unawaited(ChatState.markThreadAsRead(widget.thread.id));
+        }
+        if (deliveryIds.isNotEmpty) {
+          unawaited(
+            ChatState.acknowledgeDelivered(
+              widget.thread.id,
+              messageIds: deliveryIds.toList(growable: false),
+            ),
+          );
+        }
       },
       onError: (_) {
         final subscription = _messagesSubscription;
@@ -227,13 +277,50 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     final type = rawType == 'image' || imageUrl.isNotEmpty
         ? ChatMessageType.image
         : ChatMessageType.text;
+    final seenBy = (row['seenBy'] is List)
+        ? (row['seenBy'] as List)
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList(growable: false)
+        : const <String>[];
+    final deliveredTo = (row['deliveredTo'] is List)
+        ? (row['deliveredTo'] as List)
+              .map((item) => item.toString().trim())
+              .where((item) => item.isNotEmpty)
+              .toList(growable: false)
+        : const <String>[];
     return ChatMessage(
+      id: (row['id'] ?? '').toString().trim().isEmpty
+          ? '${senderUid}_${_toRealtimeDateTime(row['sentAt'] ?? row['createdAt']).millisecondsSinceEpoch}'
+          : (row['id'] ?? '').toString().trim(),
       text: (row['text'] ?? '').toString(),
       type: type,
       imageUrl: imageUrl,
       fromMe: senderUid == currentUid,
       sentAt: _toRealtimeDateTime(row['sentAt'] ?? row['createdAt']),
+      deliveryStatus: _deliveryStatusForMessage(
+        senderUid: senderUid,
+        currentUid: currentUid,
+        seenBy: seenBy,
+        deliveredTo: deliveredTo,
+      ),
     );
+  }
+
+  ChatDeliveryStatus _deliveryStatusForMessage({
+    required String senderUid,
+    required String currentUid,
+    required List<String> seenBy,
+    required List<String> deliveredTo,
+  }) {
+    if (senderUid != currentUid) return ChatDeliveryStatus.seen;
+    final peerSeen = seenBy.any((uid) => uid.isNotEmpty && uid != senderUid);
+    if (peerSeen) return ChatDeliveryStatus.seen;
+    final peerDelivered = deliveredTo.any(
+      (uid) => uid.isNotEmpty && uid != senderUid,
+    );
+    if (peerDelivered) return ChatDeliveryStatus.delivered;
+    return ChatDeliveryStatus.sent;
   }
 
   DateTime _toRealtimeDateTime(dynamic value) {
@@ -279,6 +366,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           hasNextPage: _loadedPages < result.pagination.totalPages,
         );
       });
+      _ackDeliveredFromMessages(result.items);
     } catch (_) {
       // keep current messages when page fetch fails
     } finally {
@@ -292,12 +380,45 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     return _dedupeAndSort(<ChatMessage>[..._olderMessages, ..._latestMessages]);
   }
 
+  void _ackDeliveredFromMessages(List<ChatMessage> messages) {
+    final ids = messages
+        .where((message) => !message.fromMe)
+        .map((message) => message.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (ids.isEmpty) return;
+    unawaited(
+      ChatState.acknowledgeDelivered(widget.thread.id, messageIds: ids),
+    );
+  }
+
   List<ChatMessage> _dedupeAndSort(List<ChatMessage> messages) {
-    final seen = <String>{};
+    final seenIds = <String>{};
+    final seenFingerprint = <String>{};
     final unique = <ChatMessage>[];
     final sorted = List<ChatMessage>.from(messages)
       ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
     for (final message in sorted) {
+      final id = message.id.trim();
+      if (id.isNotEmpty && seenIds.contains(id)) {
+        continue;
+      }
+      if (id.isNotEmpty && !id.startsWith('local_')) {
+        final pendingIndex = unique.indexWhere((queued) {
+          if (!queued.fromMe || !queued.id.startsWith('local_')) return false;
+          if (queued.type != message.type) return false;
+          if (message.type == ChatMessageType.text &&
+              queued.text.trim() != message.text.trim()) {
+            return false;
+          }
+          final delta = queued.sentAt.difference(message.sentAt).abs();
+          return delta.inMinutes <= 3;
+        });
+        if (pendingIndex >= 0) {
+          unique.removeAt(pendingIndex);
+        }
+      }
       final key = [
         message.sentAt.millisecondsSinceEpoch,
         message.fromMe ? 1 : 0,
@@ -305,9 +426,12 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         message.text,
         message.imageUrl,
       ].join('|');
-      if (seen.add(key)) {
+      if (id.isNotEmpty) {
+        seenIds.add(id);
         unique.add(message);
+        continue;
       }
+      if (seenFingerprint.add(key)) unique.add(message);
     }
     return unique;
   }
@@ -315,15 +439,40 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   Future<void> _sendMessage() async {
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
+    final localId = 'local_${DateTime.now().microsecondsSinceEpoch}';
+    final pending = ChatMessage(
+      id: localId,
+      text: text,
+      fromMe: true,
+      sentAt: DateTime.now(),
+      deliveryStatus: ChatDeliveryStatus.sending,
+    );
+    setState(() {
+      _latestMessages = _dedupeAndSort(<ChatMessage>[
+        ..._latestMessages,
+        pending,
+      ]);
+      _inputController.clear();
+    });
     setState(() => _sending = true);
     try {
-      await ChatState.sendMessage(threadId: widget.thread.id, text: text);
-      _inputController.clear();
+      final sent = await ChatState.sendMessage(
+        threadId: widget.thread.id,
+        text: text,
+        clientMessageId: localId,
+      );
+      if (!mounted) return;
+      _replaceLocalMessage(localId, sent);
       if (!_realtimeActive) {
         await _refreshLatest();
       }
+    } on ChatQueuedException catch (error) {
+      if (!mounted) return;
+      AppToast.info(context, error.message);
+      unawaited(ChatState.flushQueuedMessages(threadId: widget.thread.id));
     } catch (_) {
       if (mounted) {
+        _removeLocalMessage(localId);
         AppToast.error(context, 'Unable to send message right now.');
       }
     } finally {
@@ -334,6 +483,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   }
 
   Future<void> _sendImage() async {
+    String? pendingLocalId;
     try {
       final picked = await _picker.pickImage(
         source: ImageSource.gallery,
@@ -348,17 +498,43 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         }
         return;
       }
+      final localId = 'local_${DateTime.now().microsecondsSinceEpoch}';
+      pendingLocalId = localId;
+      final pending = ChatMessage(
+        id: localId,
+        text: '',
+        type: ChatMessageType.image,
+        fromMe: true,
+        sentAt: DateTime.now(),
+        deliveryStatus: ChatDeliveryStatus.sending,
+      );
+      setState(() {
+        _latestMessages = _dedupeAndSort(<ChatMessage>[
+          ..._latestMessages,
+          pending,
+        ]);
+      });
       setState(() => _sending = true);
-      await ChatState.sendImageMessage(
+      final sent = await ChatState.sendImageMessage(
         threadId: widget.thread.id,
         bytes: bytes,
         fileName: picked.name,
+        clientMessageId: localId,
       );
+      if (!mounted) return;
+      _replaceLocalMessage(localId, sent);
       if (!_realtimeActive) {
         await _refreshLatest();
       }
+    } on ChatQueuedException catch (error) {
+      if (!mounted) return;
+      AppToast.info(context, error.message);
+      unawaited(ChatState.flushQueuedMessages(threadId: widget.thread.id));
     } catch (error) {
       if (mounted) {
+        if (pendingLocalId != null) {
+          _removeLocalMessage(pendingLocalId);
+        }
         final reason = error is BackendApiException
             ? error.message
             : 'Unable to send image right now.';
@@ -369,6 +545,29 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         setState(() => _sending = false);
       }
     }
+  }
+
+  void _replaceLocalMessage(String localId, ChatMessage remote) {
+    setState(() {
+      _latestMessages = _dedupeAndSort(
+        _latestMessages
+            .map((message) {
+              if (message.id == localId) {
+                return remote;
+              }
+              return message;
+            })
+            .toList(growable: false),
+      );
+    });
+  }
+
+  void _removeLocalMessage(String localId) {
+    setState(() {
+      _latestMessages = _latestMessages
+          .where((message) => message.id != localId)
+          .toList(growable: false);
+    });
   }
 }
 
@@ -471,11 +670,24 @@ class _MessageBubble extends StatelessWidget {
             const SizedBox(height: 4),
             Align(
               alignment: Alignment.centerRight,
-              child: Text(
-                _timeLabel(message.sentAt),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontSize: 11),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _timeLabel(message.sentAt),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(fontSize: 11),
+                  ),
+                  if (message.fromMe) ...[
+                    const SizedBox(width: 6),
+                    Icon(
+                      _statusIcon(message.deliveryStatus),
+                      size: 12,
+                      color: _statusColor(message.deliveryStatus),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
@@ -489,6 +701,29 @@ class _MessageBubble extends StatelessWidget {
     final minute = time.minute.toString().padLeft(2, '0');
     final suffix = time.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $suffix';
+  }
+
+  IconData _statusIcon(ChatDeliveryStatus status) {
+    switch (status) {
+      case ChatDeliveryStatus.sending:
+        return Icons.schedule_rounded;
+      case ChatDeliveryStatus.sent:
+        return Icons.done_rounded;
+      case ChatDeliveryStatus.delivered:
+      case ChatDeliveryStatus.seen:
+        return Icons.done_all_rounded;
+    }
+  }
+
+  Color _statusColor(ChatDeliveryStatus status) {
+    switch (status) {
+      case ChatDeliveryStatus.seen:
+        return AppColors.primary;
+      case ChatDeliveryStatus.sending:
+      case ChatDeliveryStatus.sent:
+      case ChatDeliveryStatus.delivered:
+        return AppColors.textSecondary;
+    }
   }
 }
 

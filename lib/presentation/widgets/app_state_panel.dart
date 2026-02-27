@@ -47,7 +47,7 @@ class AppStatePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final visual = _visualFor(type);
-    return Container(
+    final panel = Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -105,6 +105,16 @@ class AppStatePanel extends StatelessWidget {
         ],
       ),
     );
+
+    if (type == AppStatePanelType.loading) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: panel,
+        ),
+      );
+    }
+    return panel;
   }
 
   _StatePanelVisual _visualFor(AppStatePanelType nextType) {

@@ -3,6 +3,9 @@ import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/app_env.dart';
 import '../../core/firebase/firebase_bootstrap.dart';
@@ -15,6 +18,9 @@ import 'profile_settings_state.dart';
 
 class ChatState {
   static const int _pageSize = 10;
+  static const String _outboxStorageKey = 'chat_outbox_v1';
+  static const Duration _outboxFlushInterval = Duration(seconds: 8);
+  static const Duration _unreadSyncInterval = Duration(seconds: 6);
 
   static final BackendApiClient _apiClient = BackendApiClient(
     baseUrl: AppEnv.apiBaseUrl(),
@@ -29,24 +35,45 @@ class ChatState {
   );
   static final ValueNotifier<bool> loading = ValueNotifier(false);
   static final ValueNotifier<bool> realtimeActive = ValueNotifier(false);
+  static final ValueNotifier<int> unreadCount = ValueNotifier(0);
+  static final ValueNotifier<int> pendingOutboxCount = ValueNotifier(0);
+
+  static final List<_QueuedOutgoingMessage> _outbox =
+      <_QueuedOutgoingMessage>[];
+  static bool _outboxLoaded = false;
+  static bool _flushingOutbox = false;
+  static Timer? _outboxFlushTimer;
+  static Timer? _unreadSyncTimer;
+  static final Set<String> _pendingReadThreadIds = <String>{};
 
   static bool _initialized = false;
 
   static Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
+    await _restoreOutbox();
+    _startOutboxFlushTimer();
+    _startUnreadSyncTimer();
     await refresh();
+    await refreshUnreadCount();
+    unawaited(flushQueuedMessages());
   }
 
   static void setBackendToken(String token) {
     _apiClient.setBearerToken(token);
     if (token.trim().isEmpty) {
+      _unreadSyncTimer?.cancel();
+      _unreadSyncTimer = null;
       threads.value = const <ChatThread>[];
       threadPagination.value = const PaginationMeta.initial(limit: _pageSize);
       realtimeActive.value = false;
+      unreadCount.value = 0;
       return;
     }
+    _startUnreadSyncTimer();
     unawaited(refresh(page: 1));
+    unawaited(refreshUnreadCount());
+    unawaited(flushQueuedMessages());
   }
 
   static Future<void> refresh({int? page, int limit = _pageSize}) async {
@@ -67,9 +94,10 @@ class ChatState {
         return;
       }
       final result = await _loadThreadsFromApi(page: targetPage, limit: limit);
-      threads.value = result.items;
+      threads.value = _applyPendingReadMask(result.items);
       threadPagination.value = result.pagination;
       realtimeActive.value = false;
+      unawaited(refreshUnreadCount());
     } catch (_) {
       threads.value = const <ChatThread>[];
       threadPagination.value = PaginationMeta(
@@ -83,6 +111,25 @@ class ChatState {
       realtimeActive.value = false;
     } finally {
       loading.value = false;
+    }
+  }
+
+  static Future<void> refreshUnreadCount() async {
+    if (_apiClient.bearerToken.trim().isEmpty) {
+      unreadCount.value = 0;
+      return;
+    }
+    if (_pendingReadThreadIds.isNotEmpty) {
+      return;
+    }
+    try {
+      final response = await _apiClient.getJson('/api/chats/unread-count');
+      final row = _safeMap(response['data']);
+      final raw = row['unreadCount'];
+      final next = raw is num ? raw.toInt() : int.tryParse('$raw') ?? 0;
+      unreadCount.value = next < 0 ? 0 : next;
+    } catch (_) {
+      // Keep current unread count when request fails.
     }
   }
 
@@ -134,7 +181,8 @@ class ChatState {
         ? _pageSize
         : threadPagination.value.limit;
     if (_normalizedPage(threadPagination.value.page) == 1) {
-      threads.value = updated.take(limit).toList(growable: false);
+      final nextThreads = updated.take(limit).toList(growable: false);
+      threads.value = nextThreads;
     }
     if (!existed) {
       final totalItems = threadPagination.value.totalItems + 1;
@@ -173,35 +221,95 @@ class ChatState {
     return result;
   }
 
-  static Future<void> sendMessage({
+  static Future<ChatThread?> fetchThreadById(String threadId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
+    final id = threadId.trim();
+    if (uid.isEmpty || id.isEmpty || _apiClient.bearerToken.isEmpty) {
+      return null;
+    }
+    final response = await _apiClient.getJson('/api/chats/$id');
+    final row = _safeMap(response['data']);
+    final resolvedId = (row['id'] ?? id).toString().trim();
+    if (resolvedId.isEmpty) {
+      return null;
+    }
+    return _threadFromMap(resolvedId, row, uid);
+  }
+
+  static Future<void> acknowledgeDelivered(
+    String threadId, {
+    List<String> messageIds = const <String>[],
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
+    final id = threadId.trim();
+    if (uid.isEmpty || id.isEmpty || _apiClient.bearerToken.isEmpty) {
+      return;
+    }
+    final payload = <String, dynamic>{};
+    if (messageIds.isNotEmpty) {
+      payload['messageIds'] = messageIds
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
+    }
+    await _apiClient.putJson('/api/chats/$id/delivered', payload);
+  }
+
+  static Future<ChatMessage> sendMessage({
     required String threadId,
     required String text,
+    String clientMessageId = '',
   }) async {
     final message = text.trim();
-    if (message.isEmpty) return;
+    if (message.isEmpty) {
+      throw StateError('Message cannot be empty.');
+    }
 
     final current = FirebaseAuth.instance.currentUser;
     if (current == null) {
       throw StateError('Please sign in first.');
     }
 
-    await _apiClient.postJson('/api/chats/${threadId.trim()}/messages', {
-      'text': message,
-      'senderName': _safeName(
-        ProfileSettingsState.currentProfile,
-        fallback: current.displayName,
-      ),
-    });
-
-    unawaited(refresh());
+    try {
+      final sent = await _postMessage(
+        threadId: threadId,
+        body: <String, dynamic>{
+          'text': message,
+          'senderName': _safeName(
+            ProfileSettingsState.currentProfile,
+            fallback: current.displayName,
+          ),
+        },
+        currentUid: current.uid.trim(),
+      );
+      unawaited(refresh());
+      return sent;
+    } catch (error) {
+      if (_isRetryableSendError(error)) {
+        await _queueMessage(
+          _QueuedOutgoingMessage.text(
+            localId: clientMessageId.trim().isEmpty
+                ? 'local_${DateTime.now().microsecondsSinceEpoch}'
+                : clientMessageId.trim(),
+            threadId: threadId.trim(),
+            text: message,
+          ),
+        );
+        throw const ChatQueuedException();
+      }
+      rethrow;
+    }
   }
 
-  static Future<void> sendImageMessage({
+  static Future<ChatMessage> sendImageMessage({
     required String threadId,
     required Uint8List bytes,
     required String fileName,
+    String clientMessageId = '',
   }) async {
-    if (bytes.isEmpty) return;
+    if (bytes.isEmpty) {
+      throw StateError('Image is empty.');
+    }
 
     final current = FirebaseAuth.instance.currentUser;
     if (current == null) {
@@ -216,23 +324,42 @@ class ChatState {
     final base64Data = base64Encode(bytes);
     final dataUrl = 'data:$mimeType;base64,$base64Data';
 
-    await _apiClient.postJson(
-      '/api/chats/${threadId.trim()}/messages',
-      {
-        'text': '',
-        'type': 'image',
-        'imageDataUrl': dataUrl,
-        'fileName': safeFileName,
-        'mimeType': mimeType,
-        'senderName': _safeName(
-          ProfileSettingsState.currentProfile,
-          fallback: current.displayName,
-        ),
-      },
-      timeout: const Duration(seconds: 25),
-    );
-
-    unawaited(refresh());
+    try {
+      final sent = await _postMessage(
+        threadId: threadId,
+        body: <String, dynamic>{
+          'text': '',
+          'type': 'image',
+          'imageDataUrl': dataUrl,
+          'fileName': safeFileName,
+          'mimeType': mimeType,
+          'senderName': _safeName(
+            ProfileSettingsState.currentProfile,
+            fallback: current.displayName,
+          ),
+        },
+        currentUid: current.uid.trim(),
+        timeout: const Duration(seconds: 25),
+      );
+      unawaited(refresh());
+      return sent;
+    } catch (error) {
+      if (_isRetryableSendError(error)) {
+        await _queueMessage(
+          _QueuedOutgoingMessage.image(
+            localId: clientMessageId.trim().isEmpty
+                ? 'local_${DateTime.now().microsecondsSinceEpoch}'
+                : clientMessageId.trim(),
+            threadId: threadId.trim(),
+            imageDataUrl: dataUrl,
+            fileName: safeFileName,
+            mimeType: mimeType,
+          ),
+        );
+        throw const ChatQueuedException();
+      }
+      rethrow;
+    }
   }
 
   static Future<void> markThreadAsRead(String threadId) async {
@@ -241,25 +368,74 @@ class ChatState {
     if (uid.isEmpty || id.isEmpty || _apiClient.bearerToken.isEmpty) {
       return;
     }
+    _pendingReadThreadIds.add(id);
+    _markThreadReadLocallySafely(id);
+    try {
+      await _apiClient.putJson(
+        '/api/chats/$id/read',
+        const <String, dynamic>{},
+      );
+    } catch (_) {
+      // Keep local seen state; next sync will reconcile.
+    } finally {
+      _pendingReadThreadIds.remove(id);
+      unawaited(refreshUnreadCount());
+    }
+  }
 
-    await _apiClient.putJson('/api/chats/$id/read', const <String, dynamic>{});
-
-    final current = threads.value;
-    threads.value = current
-        .map(
-          (thread) => thread.id == id
-              ? ChatThread(
-                  id: thread.id,
-                  title: thread.title,
-                  subtitle: thread.subtitle,
-                  avatarPath: thread.avatarPath,
-                  updatedAt: thread.updatedAt,
-                  unreadCount: 0,
-                  messages: thread.messages,
-                )
-              : thread,
-        )
-        .toList(growable: false);
+  static Future<void> flushQueuedMessages({String threadId = ''}) async {
+    if (!_outboxLoaded || _flushingOutbox) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
+    if (uid.isEmpty || _apiClient.bearerToken.trim().isEmpty) return;
+    _flushingOutbox = true;
+    try {
+      final targetThread = threadId.trim();
+      final snapshot = List<_QueuedOutgoingMessage>.from(_outbox);
+      var changed = false;
+      var sentCount = 0;
+      for (final queued in snapshot) {
+        if (targetThread.isNotEmpty && queued.threadId != targetThread) {
+          continue;
+        }
+        final payload = queued.toPayload();
+        try {
+          await _postMessage(
+            threadId: queued.threadId,
+            body: payload,
+            currentUid: uid,
+            timeout: const Duration(seconds: 25),
+          );
+          _outbox.removeWhere((item) => item.localId == queued.localId);
+          changed = true;
+          sentCount += 1;
+        } catch (error) {
+          if (_isRetryableSendError(error)) {
+            final index = _outbox.indexWhere(
+              (item) => item.localId == queued.localId,
+            );
+            if (index >= 0) {
+              _outbox[index] = _outbox[index].copyWith(
+                retries: _outbox[index].retries + 1,
+                lastAttemptAtMs: DateTime.now().millisecondsSinceEpoch,
+              );
+              changed = true;
+            }
+            continue;
+          }
+          _outbox.removeWhere((item) => item.localId == queued.localId);
+          changed = true;
+        }
+      }
+      if (changed) {
+        await _persistOutbox();
+      }
+      if (sentCount > 0) {
+        unawaited(refresh(page: 1));
+        unawaited(refreshUnreadCount());
+      }
+    } finally {
+      _flushingOutbox = false;
+    }
   }
 
   static Future<PaginatedResult<ChatThread>> _loadThreadsFromApi({
@@ -348,22 +524,19 @@ class ChatState {
         data
             .whereType<Map>()
             .map(_safeMap)
-            .map(
-              (row) => ChatMessage(
-                text: (row['text'] ?? '').toString(),
-                type: _messageTypeFromStorage(
-                  (row['type'] ?? '').toString(),
-                  imageUrl: (row['imageUrl'] ?? '').toString(),
-                ),
-                imageUrl: (row['imageUrl'] ?? '').toString(),
-                fromMe:
-                    (row['senderUid'] ?? '').toString().trim() == currentUid,
-                sentAt: _toDateTime(row['sentAt']),
-                seen: true,
-              ),
-            )
+            .map((row) => _messageFromRow(row, currentUid))
             .toList(growable: false)
           ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
+
+    final incomingIds = mapped
+        .where((message) => !message.fromMe)
+        .map((message) => message.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (incomingIds.isNotEmpty) {
+      unawaited(acknowledgeDelivered(threadId, messageIds: incomingIds));
+    }
 
     final pagination = PaginationMeta.fromMap(
       _safeMap(response['pagination']),
@@ -379,7 +552,16 @@ class ChatState {
     Map<String, dynamic> row,
     String currentUid,
   ) {
-    final fallbackSubtitle = (row['lastMessageText'] ?? '').toString().trim();
+    final rawFallbackSubtitle = (row['lastMessageText'] ?? '')
+        .toString()
+        .trim();
+    final lastSenderUid = (row['lastSenderUid'] ?? '').toString().trim();
+    final fallbackSubtitle =
+        lastSenderUid.isNotEmpty &&
+            lastSenderUid == currentUid &&
+            rawFallbackSubtitle.isNotEmpty
+        ? 'You: $rawFallbackSubtitle'
+        : rawFallbackSubtitle;
     final fallbackTitle = _fallbackPeerName(row, currentUid);
     final title = (row['title'] ?? '').toString().trim();
     final subtitle = (row['subtitle'] ?? '').toString().trim();
@@ -523,5 +705,377 @@ class ChatState {
       return 'Hi $peer, I want to discuss your service.';
     }
     return 'Hi $peer, I can help with your request.';
+  }
+
+  static ChatMessage _messageFromRow(
+    Map<String, dynamic> row,
+    String currentUid,
+  ) {
+    final senderUid = (row['senderUid'] ?? '').toString().trim();
+    final imageUrl = (row['imageUrl'] ?? '').toString().trim();
+    final seenBy = _safeStringList(row['seenBy']);
+    final deliveredTo = _safeStringList(row['deliveredTo']);
+    final sentAt = _toDateTime(row['sentAt']);
+    final id = (row['id'] ?? '').toString().trim();
+    return ChatMessage(
+      id: id.isEmpty ? '${senderUid}_${sentAt.millisecondsSinceEpoch}' : id,
+      text: (row['text'] ?? '').toString(),
+      type: _messageTypeFromStorage(
+        (row['type'] ?? '').toString(),
+        imageUrl: imageUrl,
+      ),
+      imageUrl: imageUrl,
+      fromMe: senderUid == currentUid,
+      sentAt: sentAt,
+      deliveryStatus: _deliveryStatusForMessage(
+        senderUid: senderUid,
+        currentUid: currentUid,
+        seenBy: seenBy,
+        deliveredTo: deliveredTo,
+      ),
+    );
+  }
+
+  static ChatDeliveryStatus _deliveryStatusForMessage({
+    required String senderUid,
+    required String currentUid,
+    required List<String> seenBy,
+    required List<String> deliveredTo,
+  }) {
+    if (senderUid != currentUid) {
+      return ChatDeliveryStatus.seen;
+    }
+    final peerSeen = seenBy.any((uid) => uid.isNotEmpty && uid != senderUid);
+    if (peerSeen) return ChatDeliveryStatus.seen;
+    final peerDelivered = deliveredTo.any(
+      (uid) => uid.isNotEmpty && uid != senderUid,
+    );
+    if (peerDelivered) return ChatDeliveryStatus.delivered;
+    return ChatDeliveryStatus.sent;
+  }
+
+  static List<String> _safeStringList(dynamic value) {
+    if (value is! List) return const <String>[];
+    return value
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  static Future<ChatMessage> _postMessage({
+    required String threadId,
+    required Map<String, dynamic> body,
+    required String currentUid,
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
+    final response = await _apiClient.postJson(
+      '/api/chats/${threadId.trim()}/messages',
+      body,
+      timeout: timeout,
+    );
+    return _messageFromRow(_safeMap(response['data']), currentUid);
+  }
+
+  static bool _isRetryableSendError(Object error) {
+    if (error is TimeoutException) return true;
+    if (error is BackendApiException) {
+      final status = error.statusCode ?? 0;
+      if (status == 0 || status == 408 || status == 429) {
+        return true;
+      }
+      return status >= 500;
+    }
+    final lower = error.toString().toLowerCase();
+    return lower.contains('network') ||
+        lower.contains('socket') ||
+        lower.contains('timeout');
+  }
+
+  static Future<void> _queueMessage(_QueuedOutgoingMessage queued) async {
+    await _restoreOutbox();
+    final exists = _outbox.any((item) => item.localId == queued.localId);
+    if (exists) return;
+    _outbox.add(queued);
+    _outbox.sort((a, b) => a.createdAtMs.compareTo(b.createdAtMs));
+    await _persistOutbox();
+    unawaited(flushQueuedMessages(threadId: queued.threadId));
+  }
+
+  static void _startOutboxFlushTimer() {
+    _outboxFlushTimer?.cancel();
+    _outboxFlushTimer = Timer.periodic(_outboxFlushInterval, (_) {
+      unawaited(flushQueuedMessages());
+    });
+  }
+
+  static void _startUnreadSyncTimer() {
+    _unreadSyncTimer?.cancel();
+    _unreadSyncTimer = Timer.periodic(_unreadSyncInterval, (_) {
+      if (_apiClient.bearerToken.trim().isEmpty) return;
+      unawaited(refreshUnreadCount());
+    });
+  }
+
+  static Future<void> _restoreOutbox() async {
+    if (_outboxLoaded) return;
+    _outboxLoaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_outboxStorageKey) ?? '';
+      if (raw.trim().isEmpty) {
+        pendingOutboxCount.value = 0;
+        return;
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        pendingOutboxCount.value = 0;
+        return;
+      }
+      _outbox
+        ..clear()
+        ..addAll(
+          decoded
+              .whereType<Map>()
+              .map(
+                (item) => _QueuedOutgoingMessage.fromMap(
+                  item.map((key, value) => MapEntry(key.toString(), value)),
+                ),
+              )
+              .whereType<_QueuedOutgoingMessage>(),
+        );
+      _outbox.sort((a, b) => a.createdAtMs.compareTo(b.createdAtMs));
+    } catch (_) {
+      _outbox.clear();
+    }
+    pendingOutboxCount.value = _outbox.length;
+  }
+
+  static Future<void> _persistOutbox() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = _outbox
+          .map((item) => item.toMap())
+          .toList(growable: false);
+      await prefs.setString(_outboxStorageKey, jsonEncode(payload));
+    } catch (_) {
+      // Keep in-memory outbox as fallback.
+    }
+    pendingOutboxCount.value = _outbox.length;
+  }
+
+  static bool isQueuedLocalMessageId(String value) {
+    final id = value.trim();
+    if (id.isEmpty) return false;
+    return _outbox.any((item) => item.localId == id);
+  }
+
+  static void _markThreadReadLocally(String threadId) {
+    final current = threads.value;
+    var unreadInThread = 0;
+    for (final thread in current) {
+      if (thread.id == threadId) {
+        unreadInThread = thread.unreadCount;
+        break;
+      }
+    }
+    final updated = threads.value
+        .map(
+          (thread) => thread.id == threadId
+              ? ChatThread(
+                  id: thread.id,
+                  title: thread.title,
+                  subtitle: thread.subtitle,
+                  avatarPath: thread.avatarPath,
+                  updatedAt: thread.updatedAt,
+                  unreadCount: 0,
+                  messages: thread.messages,
+                )
+              : thread,
+        )
+        .toList(growable: false);
+    threads.value = updated;
+    if (unreadInThread > 0) {
+      final next = unreadCount.value - unreadInThread;
+      unreadCount.value = next < 0 ? 0 : next;
+    }
+  }
+
+  static List<ChatThread> _applyPendingReadMask(List<ChatThread> source) {
+    if (_pendingReadThreadIds.isEmpty || source.isEmpty) return source;
+    return source
+        .map(
+          (thread) => _pendingReadThreadIds.contains(thread.id)
+              ? ChatThread(
+                  id: thread.id,
+                  title: thread.title,
+                  subtitle: thread.subtitle,
+                  avatarPath: thread.avatarPath,
+                  updatedAt: thread.updatedAt,
+                  unreadCount: 0,
+                  messages: thread.messages,
+                )
+              : thread,
+        )
+        .toList(growable: false);
+  }
+
+  static void _markThreadReadLocallySafely(String threadId) {
+    final schedulerPhase = SchedulerBinding.instance.schedulerPhase;
+    final isDuringFrameBuild =
+        schedulerPhase == SchedulerPhase.transientCallbacks ||
+        schedulerPhase == SchedulerPhase.midFrameMicrotasks ||
+        schedulerPhase == SchedulerPhase.persistentCallbacks;
+    if (!isDuringFrameBuild) {
+      _markThreadReadLocally(threadId);
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _markThreadReadLocally(threadId);
+    });
+  }
+}
+
+class ChatQueuedException implements Exception {
+  final String message;
+
+  const ChatQueuedException([
+    this.message =
+        'Message queued and will send automatically when connection returns.',
+  ]);
+
+  @override
+  String toString() => message;
+}
+
+class _QueuedOutgoingMessage {
+  final String localId;
+  final String threadId;
+  final String type;
+  final String text;
+  final String imageDataUrl;
+  final String fileName;
+  final String mimeType;
+  final int createdAtMs;
+  final int lastAttemptAtMs;
+  final int retries;
+
+  const _QueuedOutgoingMessage({
+    required this.localId,
+    required this.threadId,
+    required this.type,
+    required this.text,
+    required this.imageDataUrl,
+    required this.fileName,
+    required this.mimeType,
+    required this.createdAtMs,
+    required this.lastAttemptAtMs,
+    required this.retries,
+  });
+
+  factory _QueuedOutgoingMessage.text({
+    required String localId,
+    required String threadId,
+    required String text,
+  }) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return _QueuedOutgoingMessage(
+      localId: localId,
+      threadId: threadId,
+      type: 'text',
+      text: text,
+      imageDataUrl: '',
+      fileName: '',
+      mimeType: '',
+      createdAtMs: now,
+      lastAttemptAtMs: 0,
+      retries: 0,
+    );
+  }
+
+  factory _QueuedOutgoingMessage.image({
+    required String localId,
+    required String threadId,
+    required String imageDataUrl,
+    required String fileName,
+    required String mimeType,
+  }) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return _QueuedOutgoingMessage(
+      localId: localId,
+      threadId: threadId,
+      type: 'image',
+      text: '',
+      imageDataUrl: imageDataUrl,
+      fileName: fileName,
+      mimeType: mimeType,
+      createdAtMs: now,
+      lastAttemptAtMs: 0,
+      retries: 0,
+    );
+  }
+
+  static _QueuedOutgoingMessage? fromMap(Map<String, dynamic> row) {
+    final localId = (row['localId'] ?? '').toString().trim();
+    final threadId = (row['threadId'] ?? '').toString().trim();
+    final type = (row['type'] ?? 'text').toString().trim().toLowerCase();
+    if (localId.isEmpty || threadId.isEmpty) {
+      return null;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return _QueuedOutgoingMessage(
+      localId: localId,
+      threadId: threadId,
+      type: type == 'image' ? 'image' : 'text',
+      text: (row['text'] ?? '').toString(),
+      imageDataUrl: (row['imageDataUrl'] ?? '').toString(),
+      fileName: (row['fileName'] ?? '').toString(),
+      mimeType: (row['mimeType'] ?? '').toString(),
+      createdAtMs: (row['createdAtMs'] as num?)?.toInt() ?? now,
+      lastAttemptAtMs: (row['lastAttemptAtMs'] as num?)?.toInt() ?? 0,
+      retries: (row['retries'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'localId': localId,
+      'threadId': threadId,
+      'type': type,
+      'text': text,
+      'imageDataUrl': imageDataUrl,
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'createdAtMs': createdAtMs,
+      'lastAttemptAtMs': lastAttemptAtMs,
+      'retries': retries,
+    };
+  }
+
+  _QueuedOutgoingMessage copyWith({int? lastAttemptAtMs, int? retries}) {
+    return _QueuedOutgoingMessage(
+      localId: localId,
+      threadId: threadId,
+      type: type,
+      text: text,
+      imageDataUrl: imageDataUrl,
+      fileName: fileName,
+      mimeType: mimeType,
+      createdAtMs: createdAtMs,
+      lastAttemptAtMs: lastAttemptAtMs ?? this.lastAttemptAtMs,
+      retries: retries ?? this.retries,
+    );
+  }
+
+  Map<String, dynamic> toPayload() {
+    if (type == 'image') {
+      return <String, dynamic>{
+        'text': '',
+        'type': 'image',
+        'imageDataUrl': imageDataUrl,
+        'fileName': fileName,
+        'mimeType': mimeType,
+      };
+    }
+    return <String, dynamic>{'text': text};
   }
 }

@@ -48,7 +48,7 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                 title: 'Home Address',
                 actions: [
                   TextButton.icon(
-                    onPressed: _addAddressSheet,
+                    onPressed: () => _openAddressSheet(),
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('Add'),
                   ),
@@ -61,8 +61,10 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 220),
                   child: _loadingAddresses && _addresses.isEmpty
-                      ? const AppStatePanel.loading(
-                          title: 'Loading saved addresses',
+                      ? const Center(
+                          child: AppStatePanel.loading(
+                            title: 'Loading saved addresses',
+                          ),
                         )
                       : _addresses.isEmpty
                       ? const AppStatePanel.empty(
@@ -133,6 +135,31 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                                           : Icons.radio_button_off,
                                       color: AppColors.primary,
                                     ),
+                                    PopupMenuButton<String>(
+                                      onSelected: (action) {
+                                        if (action == 'edit') {
+                                          unawaited(
+                                            _openAddressSheet(
+                                              existing: address,
+                                            ),
+                                          );
+                                          return;
+                                        }
+                                        if (action == 'delete') {
+                                          unawaited(_deleteAddress(address));
+                                        }
+                                      },
+                                      itemBuilder: (_) => const [
+                                        PopupMenuItem<String>(
+                                          value: 'edit',
+                                          child: Text('Edit'),
+                                        ),
+                                        PopupMenuItem<String>(
+                                          value: 'delete',
+                                          child: Text('Delete'),
+                                        ),
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ),
@@ -170,12 +197,19 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
     );
   }
 
-  Future<void> _addAddressSheet() async {
+  Future<void> _openAddressSheet({HomeAddress? existing}) async {
     final labelController = TextEditingController();
     final mapLinkController = TextEditingController();
     final streetController = TextEditingController();
     final additionalController = TextEditingController();
-    var pickedCity = 'Phnom Penh';
+    if (existing != null) {
+      labelController.text = existing.label;
+      mapLinkController.text = existing.mapLink;
+      streetController.text = existing.street;
+    }
+    var pickedCity = existing?.city.trim().isNotEmpty == true
+        ? existing!.city.trim()
+        : 'Phnom Penh';
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -220,7 +254,7 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                     ),
                     const SizedBox(height: 22),
                     Text(
-                      'Add Address',
+                      existing == null ? 'Add Address' : 'Edit Address',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -315,6 +349,7 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                             streetController: streetController,
                             additionalController: additionalController,
                             pickedCity: pickedCity,
+                            existing: existing,
                           ),
                         );
                       },
@@ -330,6 +365,7 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
                           streetController: streetController,
                           additionalController: additionalController,
                           pickedCity: pickedCity,
+                          existing: existing,
                         );
                       },
                     ),
@@ -374,6 +410,7 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
     required TextEditingController streetController,
     required TextEditingController additionalController,
     required String pickedCity,
+    HomeAddress? existing,
   }) async {
     if (labelController.text.trim().isEmpty ||
         streetController.text.trim().isEmpty) {
@@ -385,21 +422,29 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
         ? streetController.text.trim()
         : '${streetController.text.trim()}, $additional';
     final draftAddress = HomeAddress(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: existing?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
       label: labelController.text.trim(),
       mapLink: mapLinkController.text.trim(),
       street: resolvedStreet,
       city: pickedCity.trim().isEmpty ? 'Phnom Penh' : pickedCity.trim(),
-      isDefault: _addresses.isEmpty,
+      isDefault: existing?.isDefault ?? _addresses.isEmpty,
     );
     try {
-      final saved = await OrderState.createSavedAddress(address: draftAddress);
+      final saved = existing == null
+          ? await OrderState.createSavedAddress(address: draftAddress)
+          : await OrderState.updateSavedAddress(address: draftAddress);
       if (!mounted) return;
       setState(() {
-        _addresses = [
-          saved,
-          ..._addresses.where((item) => item.id != saved.id),
-        ];
+        if (existing == null) {
+          _addresses = [
+            saved,
+            ..._addresses.where((item) => item.id != saved.id),
+          ];
+        } else {
+          _addresses = _addresses
+              .map((item) => item.id == saved.id ? saved : item)
+              .toList(growable: false);
+        }
         _selectedId = saved.id;
       });
       Navigator.pop(context);
@@ -440,5 +485,40 @@ class _BookingAddressPageState extends State<BookingAddressPage> {
     final defaultIndex = items.indexWhere((item) => item.isDefault);
     if (defaultIndex >= 0) return items[defaultIndex].id;
     return items.first.id;
+  }
+
+  Future<void> _deleteAddress(HomeAddress address) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete address'),
+        content: Text('Delete "${address.label}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await OrderState.deleteSavedAddress(addressId: address.id);
+      if (!mounted) return;
+      setState(() {
+        _addresses = _addresses
+            .where((item) => item.id != address.id)
+            .toList(growable: false);
+        _selectedId = _firstPreferredAddressId(_addresses);
+      });
+      AppToast.success(context, 'Address deleted.');
+    } catch (error) {
+      if (!mounted) return;
+      AppToast.error(context, error.toString());
+    }
   }
 }

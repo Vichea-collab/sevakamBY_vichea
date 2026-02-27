@@ -46,7 +46,8 @@ class _NotificationMessengerSheet extends StatefulWidget {
       _NotificationMessengerSheetState();
 }
 
-class _NotificationMessengerSheetState extends State<_NotificationMessengerSheet> {
+class _NotificationMessengerSheetState
+    extends State<_NotificationMessengerSheet> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _composerController = TextEditingController();
   String _query = '';
@@ -77,7 +78,9 @@ class _NotificationMessengerSheetState extends State<_NotificationMessengerSheet
           color: AppColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: _activeThread == null ? _buildThreadList() : _buildConversation(),
+        child: _activeThread == null
+            ? _buildThreadList()
+            : _buildConversation(),
       ),
     );
   }
@@ -87,12 +90,12 @@ class _NotificationMessengerSheetState extends State<_NotificationMessengerSheet
     final visible = query.isEmpty
         ? _threads
         : _threads
-            .where(
-              (thread) =>
-                  thread.title.toLowerCase().contains(query) ||
-                  thread.subtitle.toLowerCase().contains(query),
-            )
-            .toList();
+              .where(
+                (thread) =>
+                    thread.title.toLowerCase().contains(query) ||
+                    thread.subtitle.toLowerCase().contains(query),
+              )
+              .toList();
 
     return Column(
       children: [
@@ -107,16 +110,16 @@ class _NotificationMessengerSheetState extends State<_NotificationMessengerSheet
                     Text(
                       widget.title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       widget.subtitle,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -146,8 +149,8 @@ class _NotificationMessengerSheetState extends State<_NotificationMessengerSheet
                   child: Text(
                     'No conversations found',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 )
               : ListView.separated(
@@ -162,7 +165,9 @@ class _NotificationMessengerSheetState extends State<_NotificationMessengerSheet
                       onTap: () {
                         setState(() {
                           _activeThread = thread;
-                          _activeMessages = List<ChatMessage>.from(thread.messages);
+                          _activeMessages = List<ChatMessage>.from(
+                            thread.messages,
+                          );
                         });
                       },
                     );
@@ -197,15 +202,15 @@ class _NotificationMessengerSheetState extends State<_NotificationMessengerSheet
                     Text(
                       thread.title,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     Text(
                       'Active now',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.success,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: AppColors.success),
                     ),
                   ],
                 ),
@@ -275,10 +280,11 @@ class _NotificationMessengerSheetState extends State<_NotificationMessengerSheet
     final text = _composerController.text.trim();
     if (text.isEmpty || _activeThread == null) return;
     final message = ChatMessage(
+      id: 'local_${DateTime.now().microsecondsSinceEpoch}',
       text: text,
       fromMe: true,
       sentAt: DateTime.now(),
-      seen: true,
+      deliveryStatus: ChatDeliveryStatus.delivered,
     );
     setState(() {
       _activeMessages = [..._activeMessages, message];
@@ -299,10 +305,11 @@ class _NotificationMessengerSheetState extends State<_NotificationMessengerSheet
       unreadCount: 0,
       messages: _activeMessages,
     );
-    _threads = _threads
-        .map((item) => item.id == updatedThread.id ? updatedThread : item)
-        .toList()
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    _threads =
+        _threads
+            .map((item) => item.id == updatedThread.id ? updatedThread : item)
+            .toList()
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     _activeThread = updatedThread;
   }
 }
@@ -346,9 +353,9 @@ class _MessengerThreadTile extends StatelessWidget {
                     Text(
                       thread.title,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -356,8 +363,8 @@ class _MessengerThreadTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -369,8 +376,8 @@ class _MessengerThreadTile extends StatelessWidget {
                   Text(
                     _timeLabel(thread.updatedAt),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   if (thread.unreadCount > 0)
@@ -386,9 +393,9 @@ class _MessengerThreadTile extends StatelessWidget {
                       child: Text(
                         '${thread.unreadCount}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                 ],
@@ -434,16 +441,16 @@ class _MessengerBubble extends StatelessWidget {
           children: [
             Text(
               message.text,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: AppColors.textPrimary),
             ),
             const SizedBox(height: 4),
             Text(
               _timeLabel(message.sentAt),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
             ),
           ],
         ),

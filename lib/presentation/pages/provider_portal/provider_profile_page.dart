@@ -19,6 +19,7 @@ import '../profile/edit_profile_page.dart';
 import '../profile/help_support_page.dart';
 import '../profile/notification_page.dart';
 import '../profile/payment_page.dart';
+import 'provider_home_page.dart';
 import 'provider_profession_page.dart';
 import 'provider_verification_page.dart';
 
@@ -66,7 +67,14 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
           children: [
-            const AppTopBar(title: 'My Profile', showBack: false),
+            AppTopBar(
+              title: 'My Profile',
+              showBack: true,
+              onBack: () => Navigator.pushReplacementNamed(
+                context,
+                ProviderPortalHomePage.routeName,
+              ),
+            ),
             const SizedBox(height: 10),
             const _ProviderHero(),
             const SizedBox(height: 16),

@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
+import '../../../domain/entities/provider_portal.dart';
+import '../../state/auth_state.dart';
 import '../../state/catalog_state.dart';
 import '../../state/provider_post_state.dart';
 import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
+import 'provider_home_page.dart';
 
 class ProviderPostPage extends StatefulWidget {
   static const String routeName = '/provider/post';
@@ -24,6 +29,7 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
   final _priceController = TextEditingController(text: '12');
   final _areaController = TextEditingController(text: 'Phnom Penh, Cambodia');
   final _detailsController = TextEditingController();
+  String? _editingPostId;
   bool _availableNow = true;
   bool _posting = false;
 
@@ -52,6 +58,7 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
     CatalogState.categories.addListener(_syncSelectionFromCatalog);
     CatalogState.services.addListener(_syncSelectionFromCatalog);
     _syncSelectionFromCatalog();
+    unawaited(ProviderPostState.refreshAllForLookup(maxPages: 5));
   }
 
   @override
@@ -127,109 +134,155 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             children: [
-              const AppTopBar(title: 'Post', showBack: false),
+              AppTopBar(
+                title: 'Post',
+                showBack: true,
+                onBack: () => Navigator.pushReplacementNamed(
+                  context,
+                  ProviderPortalHomePage.routeName,
+                ),
+                actions: [
+                  TextButton.icon(
+                    onPressed: _openManageSheet,
+                    icon: const Icon(Icons.edit_note, size: 16),
+                    label: const Text('Manage'),
+                  ),
+                ],
+              ),
               const SizedBox(height: 10),
               Expanded(
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppColors.divider),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'What service can you offer?',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Create a provider post so clients can find you faster.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      _FieldLabel(label: 'Category*'),
-                      _PickerField(
-                        label: _selectedCategory,
-                        onTap: _pickCategory,
-                      ),
-                      const SizedBox(height: 8),
-                      _FieldLabel(label: 'Service*'),
-                      _PickerField(
-                        label: _selectedServiceLabel,
-                        onTap: _pickService,
-                      ),
-                      const SizedBox(height: 8),
-                      _FieldLabel(label: 'Rate per hour (USD)*'),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _priceController,
-                              keyboardType: TextInputType.number,
-                              decoration: _fieldDecoration(
-                                hintText: 'Enter your hourly rate',
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'What service can you offer?',
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                               ),
-                            ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Create a provider post so clients can find you faster.',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 12),
+                              _FieldLabel(label: 'Category*'),
+                              _PickerField(
+                                label: _selectedCategory,
+                                onTap: _pickCategory,
+                              ),
+                              const SizedBox(height: 8),
+                              _FieldLabel(label: 'Service*'),
+                              _PickerField(
+                                label: _selectedServiceLabel,
+                                onTap: _pickService,
+                              ),
+                              const SizedBox(height: 8),
+                              _FieldLabel(label: 'Rate per hour (USD)*'),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _priceController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: _fieldDecoration(
+                                        hintText: 'Enter your hourly rate',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: AppColors.divider,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '/hour',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              _FieldLabel(label: 'Service area*'),
+                              TextField(
+                                controller: _areaController,
+                                decoration: _fieldDecoration(
+                                  hintText: 'Example: Toul Kork, Phnom Penh',
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SwitchListTile(
+                                contentPadding: EdgeInsets.zero,
+                                value: _availableNow,
+                                activeThumbColor: AppColors.primary,
+                                title: const Text('Available now'),
+                                onChanged: (value) =>
+                                    setState(() => _availableNow = value),
+                              ),
+                              _FieldLabel(label: 'Post details*'),
+                              TextField(
+                                controller: _detailsController,
+                                minLines: 4,
+                                maxLines: 6,
+                                decoration: _fieldDecoration(
+                                  hintText:
+                                      'Example: Professional team, tools included, same-day support.',
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              if (_editingPostId != null)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: _posting ? null : _cancelEdit,
+                                    child: const Text('Cancel edit'),
+                                  ),
+                                ),
+                              PrimaryButton(
+                                label: _posting
+                                    ? (_editingPostId == null
+                                          ? 'Posting...'
+                                          : 'Updating...')
+                                    : (_editingPostId == null
+                                          ? 'Post'
+                                          : 'Update post'),
+                                onPressed: _posting ? null : _submit,
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.divider),
-                            ),
-                            child: Text(
-                              '/hour',
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      _FieldLabel(label: 'Service area*'),
-                      TextField(
-                        controller: _areaController,
-                        decoration: _fieldDecoration(
-                          hintText: 'Example: Toul Kork, Phnom Penh',
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: _availableNow,
-                        activeThumbColor: AppColors.primary,
-                        title: const Text('Available now'),
-                        onChanged: (value) =>
-                            setState(() => _availableNow = value),
-                      ),
-                      _FieldLabel(label: 'Post details*'),
-                      TextField(
-                        controller: _detailsController,
-                        minLines: 4,
-                        maxLines: 6,
-                        decoration: _fieldDecoration(
-                          hintText:
-                              'Example: Professional team, tools included, same-day support.',
-                        ),
-                      ),
-                      const Spacer(),
-                      PrimaryButton(
-                        label: _posting ? 'Posting...' : 'Post',
-                        onPressed: _posting ? null : _submit,
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -253,29 +306,223 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
     setState(() => _posting = true);
     try {
       final services = _selectedServices.toList(growable: false)..sort();
-      await ProviderPostState.createProviderPost(
-        category: _selectedCategory,
-        services: services,
-        area: _areaController.text.trim(),
-        details: _detailsController.text.trim(),
-        ratePerHour: price,
-        availableNow: _availableNow,
+      final editingPostId = _editingPostId;
+      if (editingPostId == null) {
+        await ProviderPostState.createProviderPost(
+          category: _selectedCategory,
+          services: services,
+          area: _areaController.text.trim(),
+          details: _detailsController.text.trim(),
+          ratePerHour: price,
+          availableNow: _availableNow,
+        );
+      } else {
+        await ProviderPostState.updateProviderPost(
+          postId: editingPostId,
+          category: _selectedCategory,
+          services: services,
+          area: _areaController.text.trim(),
+          details: _detailsController.text.trim(),
+          ratePerHour: price,
+          availableNow: _availableNow,
+        );
+      }
+      if (!mounted) return;
+      _editingPostId = null;
+      _detailsController.clear();
+      final successMessage = editingPostId == null
+          ? (services.length == 1
+                ? 'Your offer for ${services.first} is now live at \$${price.toStringAsFixed(0)}/hour.'
+                : 'Your offer for ${services.length} services is now live.')
+          : 'Your provider post was updated successfully.';
+      await _showPostSubmitResultSheet(
+        success: true,
+        title: editingPostId == null ? 'Post Published' : 'Post Updated',
+        message: successMessage,
+        actionLabel: 'Go to Home',
       );
       if (!mounted) return;
-      _detailsController.clear();
-      AppToast.success(
-        context,
-        services.length == 1
-            ? 'Provider post published for ${services.first} (${price.toStringAsFixed(0)}/hour).'
-            : 'Provider post published for ${services.length} services.',
-      );
+      Navigator.pushReplacementNamed(context, ProviderPortalHomePage.routeName);
     } catch (error) {
       if (!mounted) return;
-      AppToast.error(context, error.toString());
+      await _showPostSubmitResultSheet(
+        success: false,
+        title: 'Post Failed',
+        message: error.toString(),
+        actionLabel: 'Try Again',
+      );
     } finally {
       if (mounted) {
         setState(() => _posting = false);
       }
+    }
+  }
+
+  Future<void> _showPostSubmitResultSheet({
+    required bool success,
+    required String title,
+    required String message,
+    required String actionLabel,
+  }) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _PostSubmitResultSheet(
+        success: success,
+        title: title,
+        message: message,
+        actionLabel: actionLabel,
+      ),
+    );
+  }
+
+  Future<void> _openManageSheet() async {
+    await ProviderPostState.refreshAllForLookup(maxPages: 5);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return ValueListenableBuilder<List<ProviderPostItem>>(
+          valueListenable: ProviderPostState.allPosts,
+          builder: (context, allPosts, _) {
+            final uid = AuthState.currentUser.value?.uid.trim() ?? '';
+            final ownPosts = allPosts
+                .where(
+                  (item) => uid.isNotEmpty && item.providerUid.trim() == uid,
+                )
+                .toList(growable: false);
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Manage my posts',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: ownPosts.isEmpty
+                          ? const Center(
+                              child: Text('No posts available to edit yet.'),
+                            )
+                          : ListView.separated(
+                              itemCount: ownPosts.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 8),
+                              itemBuilder: (context, index) {
+                                final post = ownPosts[index];
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: const BorderSide(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
+                                  title: Text(post.serviceLabel),
+                                  subtitle: Text(
+                                    '${post.category} • ${post.area}',
+                                  ),
+                                  trailing: PopupMenuButton<String>(
+                                    onSelected: (action) async {
+                                      if (action == 'edit') {
+                                        Navigator.pop(sheetContext);
+                                        _beginEdit(post);
+                                        return;
+                                      }
+                                      if (action == 'delete') {
+                                        final deleted = await _deletePost(post);
+                                        if (!deleted) return;
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem<String>(
+                                        value: 'edit',
+                                        child: Text('Edit'),
+                                      ),
+                                      PopupMenuItem<String>(
+                                        value: 'delete',
+                                        child: Text('Delete'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _beginEdit(ProviderPostItem post) {
+    setState(() {
+      _editingPostId = post.id;
+      _selectedCategory = post.category;
+      _selectedServices
+        ..clear()
+        ..addAll(post.serviceList.toSet());
+      _priceController.text = post.ratePerHour.toStringAsFixed(0);
+      _areaController.text = post.area;
+      _detailsController.text = post.details;
+      _availableNow = post.availableNow;
+    });
+  }
+
+  void _cancelEdit() {
+    setState(() => _editingPostId = null);
+  }
+
+  Future<bool> _deletePost(ProviderPostItem post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete post'),
+        content: Text('Delete "${post.serviceLabel}" offer?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    try {
+      await ProviderPostState.deleteProviderPost(postId: post.id);
+      if (!mounted) return false;
+      if (_editingPostId == post.id) {
+        setState(() => _editingPostId = null);
+      }
+      AppToast.success(context, 'Post deleted.');
+      return true;
+    } catch (error) {
+      if (!mounted) return false;
+      AppToast.error(context, error.toString());
+      return false;
     }
   }
 
@@ -609,6 +856,110 @@ class _PickerField extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PostSubmitResultSheet extends StatelessWidget {
+  final bool success;
+  final String title;
+  final String message;
+  final String actionLabel;
+
+  const _PostSubmitResultSheet({
+    required this.success,
+    required this.title,
+    required this.message,
+    required this.actionLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = success ? Icons.check_circle_rounded : Icons.error_rounded;
+    final accent = success ? AppColors.success : AppColors.danger;
+    final background = success
+        ? const Color(0xFFF0FFF4)
+        : const Color(0xFFFFF1F2);
+    final gradient = success
+        ? const [Color(0xFF059669), Color(0xFF10B981)]
+        : const [Color(0xFFDC2626), Color(0xFFEF4444)];
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x29000000),
+                blurRadius: 24,
+                offset: Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    color: background,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: accent.withValues(alpha: 0.2)),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, size: 34, color: accent),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: gradient),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Text(actionLabel),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

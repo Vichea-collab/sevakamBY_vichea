@@ -79,7 +79,11 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
                           AppTopBar(
                             title: 'Orders',
                             subtitle: 'Track booking progress and history',
-                            showBack: false,
+                            showBack: true,
+                            onBack: () => Navigator.pushReplacementNamed(
+                              context,
+                              '/home',
+                            ),
                             actions: [
                               PopupMenuButton<String>(
                                 initialValue: _filter,
@@ -160,15 +164,15 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
                           const SizedBox(height: 14),
                           Expanded(
                             child: isLoading && allOrders.isEmpty
-                                ? ListView(
-                                    physics:
-                                        const AlwaysScrollableScrollPhysics(),
-                                    children: const [
-                                      SizedBox(height: 80),
-                                      AppStatePanel.loading(
+                                ? const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.md,
+                                      ),
+                                      child: AppStatePanel.loading(
                                         title: 'Loading your orders',
                                       ),
-                                    ],
+                                    ),
                                   )
                                 : RefreshIndicator(
                                     onRefresh: () => _loadOrders(

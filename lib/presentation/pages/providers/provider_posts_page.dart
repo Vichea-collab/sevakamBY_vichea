@@ -176,8 +176,13 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
 
                               final Widget body;
                               if (isLoading && pagedPosts.isEmpty) {
-                                body = const AppStatePanel.loading(
-                                  title: 'Loading provider posts',
+                                body = const SizedBox(
+                                  height: 320,
+                                  child: Center(
+                                    child: AppStatePanel.loading(
+                                      title: 'Loading provider posts',
+                                    ),
+                                  ),
                                 );
                               } else if (filtered.isEmpty) {
                                 body = AppStatePanel.empty(

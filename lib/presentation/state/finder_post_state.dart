@@ -114,6 +114,53 @@ class FinderPostState {
     pagination.value = _withAdjustedTotalItems(pagination.value, delta: 1);
   }
 
+  static Future<void> updateFinderRequest({
+    required String postId,
+    required String category,
+    required List<String> services,
+    required String location,
+    required String message,
+    required DateTime preferredDate,
+  }) async {
+    final updated = await _repository.updateFinderRequest(
+      postId: postId,
+      category: category,
+      services: services,
+      location: location,
+      message: message,
+      preferredDate: preferredDate,
+    );
+    final nextPosts = posts.value
+        .map((item) => item.id == updated.id ? updated : item)
+        .toList(growable: false);
+    final hasUpdatedInAll = allPosts.value.any((item) => item.id == updated.id);
+    final nextAll = hasUpdatedInAll
+        ? allPosts.value
+              .map((item) => item.id == updated.id ? updated : item)
+              .toList(growable: false)
+        : <FinderPostItem>[updated, ...allPosts.value];
+    posts.value = nextPosts;
+    allPosts.value = nextAll;
+  }
+
+  static Future<void> deleteFinderRequest({required String postId}) async {
+    await _repository.deleteFinderRequest(postId: postId);
+    final beforeCurrentCount = posts.value.length;
+    final beforeAllCount = allPosts.value.length;
+    final nextCurrent = posts.value
+        .where((item) => item.id != postId)
+        .toList(growable: false);
+    final nextAll = allPosts.value
+        .where((item) => item.id != postId)
+        .toList(growable: false);
+    posts.value = nextCurrent;
+    allPosts.value = nextAll;
+    if (nextAll.length < beforeAllCount ||
+        nextCurrent.length < beforeCurrentCount) {
+      pagination.value = _withAdjustedTotalItems(pagination.value, delta: -1);
+    }
+  }
+
   static Future<void> refreshAllForLookup({
     int limit = _pageSize,
     int maxPages = 5,

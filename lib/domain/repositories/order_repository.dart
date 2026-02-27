@@ -20,6 +20,8 @@ abstract class OrderRepository {
   });
   Future<List<HomeAddress>> fetchSavedAddresses();
   Future<HomeAddress> createSavedAddress({required HomeAddress address});
+  Future<HomeAddress> updateSavedAddress({required HomeAddress address});
+  Future<void> deleteSavedAddress({required String addressId});
   Future<KhqrPaymentSession> createKhqrPaymentSession({
     required String orderId,
   });

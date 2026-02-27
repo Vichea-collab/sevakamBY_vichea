@@ -125,8 +125,13 @@ class _ProviderFinderSearchPageState extends State<ProviderFinderSearchPage> {
 
                               final Widget body;
                               if (isLoading && pagedPosts.isEmpty) {
-                                body = const AppStatePanel.loading(
-                                  title: 'Loading finder requests',
+                                body = const SizedBox(
+                                  height: 320,
+                                  child: Center(
+                                    child: AppStatePanel.loading(
+                                      title: 'Loading finder requests',
+                                    ),
+                                  ),
                                 );
                               } else if (posts.isEmpty) {
                                 body = AppStatePanel.empty(

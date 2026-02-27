@@ -62,6 +62,17 @@ class BackendApiClient {
     return _decodeResponse(response);
   }
 
+  Future<Map<String, dynamic>> deleteJson(
+    String path, {
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final response = await _http
+        .delete(uri, headers: _headers())
+        .timeout(timeout);
+    return _decodeResponse(response);
+  }
+
   Map<String, String> _headers() {
     final headers = <String, String>{
       'Content-Type': 'application/json',

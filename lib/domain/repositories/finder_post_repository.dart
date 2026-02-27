@@ -16,4 +16,15 @@ abstract class FinderPostRepository {
     required String message,
     required DateTime preferredDate,
   });
+
+  Future<FinderPostItem> updateFinderRequest({
+    required String postId,
+    required String category,
+    required List<String> services,
+    required String location,
+    required String message,
+    required DateTime preferredDate,
+  });
+
+  Future<void> deleteFinderRequest({required String postId});
 }

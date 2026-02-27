@@ -92,6 +92,21 @@ class OrderRemoteDataSource {
     return _safeMap(response['data']);
   }
 
+  Future<Map<String, dynamic>> updateSavedAddress({
+    required String addressId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final response = await _apiClient.putJson(
+      '/api/users/addresses/$addressId',
+      payload,
+    );
+    return _safeMap(response['data']);
+  }
+
+  Future<void> deleteSavedAddress({required String addressId}) async {
+    await _apiClient.deleteJson('/api/users/addresses/$addressId');
+  }
+
   Future<Map<String, dynamic>> createKhqrPaymentSession({
     required String orderId,
   }) async {

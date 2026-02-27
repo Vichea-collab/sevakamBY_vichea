@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_calendar_picker.dart';
 import '../../../core/utils/app_toast.dart';
+import '../../../domain/entities/provider_portal.dart';
+import '../../state/auth_state.dart';
 import '../../state/catalog_state.dart';
 import '../../state/finder_post_state.dart';
 import '../../state/profile_settings_state.dart';
@@ -28,6 +32,7 @@ class _ClientPostPageState extends State<ClientPostPage> {
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _detailsController = TextEditingController();
   DateTime _preferredDate = DateTime.now().add(const Duration(days: 1));
+  String? _editingPostId;
   bool _submitting = false;
 
   InputDecoration _fieldDecoration({required String hintText}) {
@@ -58,6 +63,7 @@ class _ClientPostPageState extends State<ClientPostPage> {
     CatalogState.services.addListener(_syncSelectionFromCatalog);
     ProfileSettingsState.finderProfile.addListener(_syncLocationFromProfile);
     _syncSelectionFromCatalog();
+    unawaited(FinderPostState.refreshAllForLookup(maxPages: 5));
   }
 
   @override
@@ -159,77 +165,113 @@ class _ClientPostPageState extends State<ClientPostPage> {
                 title: 'Post',
                 showBack: true,
                 onBack: () => Navigator.pushReplacementNamed(context, '/home'),
+                actions: [
+                  TextButton.icon(
+                    onPressed: _openManageSheet,
+                    icon: const Icon(Icons.edit_note, size: 16),
+                    label: const Text('Manage'),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               Expanded(
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppColors.divider),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'What service do you need?',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'What service do you need?',
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Share details so providers can contact you with the right offer.',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 12),
+                              _FieldLabel(label: 'Category*'),
+                              _PickerField(
+                                label: _selectedCategory,
+                                onTap: _pickCategory,
+                              ),
+                              const SizedBox(height: 8),
+                              _FieldLabel(label: 'Service*'),
+                              _PickerField(
+                                label: _selectedServiceLabel,
+                                onTap: _pickService,
+                              ),
+                              const SizedBox(height: 8),
+                              _FieldLabel(label: 'Location*'),
+                              TextField(
+                                controller: _locationController,
+                                minLines: 1,
+                                maxLines: 2,
+                                decoration: _fieldDecoration(
+                                  hintText: 'Enter your area',
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              _FieldLabel(label: 'Preferred date*'),
+                              _PreferredDateField(
+                                value: _preferredDate,
+                                onTap: _pickPreferredDate,
+                              ),
+                              const SizedBox(height: 8),
+                              _FieldLabel(label: 'Describe your problem*'),
+                              TextField(
+                                controller: _detailsController,
+                                minLines: 4,
+                                maxLines: 6,
+                                decoration: _fieldDecoration(
+                                  hintText:
+                                      'Example: Pipe leaking under kitchen sink.',
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              if (_editingPostId != null)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: _submitting ? null : _cancelEdit,
+                                    child: const Text('Cancel edit'),
+                                  ),
+                                ),
+                              PrimaryButton(
+                                label: _submitting
+                                    ? (_editingPostId == null
+                                          ? 'Posting...'
+                                          : 'Updating...')
+                                    : (_editingPostId == null
+                                          ? 'Post'
+                                          : 'Update post'),
+                                onPressed: _submitting ? null : _submitPost,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Share details so providers can contact you with the right offer.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      _FieldLabel(label: 'Category*'),
-                      _PickerField(
-                        label: _selectedCategory,
-                        onTap: _pickCategory,
-                      ),
-                      const SizedBox(height: 8),
-                      _FieldLabel(label: 'Service*'),
-                      _PickerField(
-                        label: _selectedServiceLabel,
-                        onTap: _pickService,
-                      ),
-                      const SizedBox(height: 8),
-                      _FieldLabel(label: 'Location*'),
-                      TextField(
-                        controller: _locationController,
-                        minLines: 1,
-                        maxLines: 2,
-                        decoration: _fieldDecoration(
-                          hintText: 'Enter your area',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _FieldLabel(label: 'Preferred date*'),
-                      _PreferredDateField(
-                        value: _preferredDate,
-                        onTap: _pickPreferredDate,
-                      ),
-                      const SizedBox(height: 8),
-                      _FieldLabel(label: 'Describe your problem*'),
-                      TextField(
-                        controller: _detailsController,
-                        minLines: 4,
-                        maxLines: 6,
-                        decoration: _fieldDecoration(
-                          hintText: 'Example: Pipe leaking under kitchen sink.',
-                        ),
-                      ),
-                      const Spacer(),
-                      PrimaryButton(
-                        label: _submitting ? 'Posting...' : 'Post',
-                        onPressed: _submitting ? null : _submitPost,
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -256,28 +298,220 @@ class _ClientPostPageState extends State<ClientPostPage> {
     setState(() => _submitting = true);
     try {
       final services = _selectedServices.toList(growable: false)..sort();
-      await FinderPostState.createFinderRequest(
-        category: _selectedCategory,
-        services: services,
-        location: location,
-        message: details,
-        preferredDate: _preferredDate,
+      final editingPostId = _editingPostId;
+      if (editingPostId == null) {
+        await FinderPostState.createFinderRequest(
+          category: _selectedCategory,
+          services: services,
+          location: location,
+          message: details,
+          preferredDate: _preferredDate,
+        );
+      } else {
+        await FinderPostState.updateFinderRequest(
+          postId: editingPostId,
+          category: _selectedCategory,
+          services: services,
+          location: location,
+          message: details,
+          preferredDate: _preferredDate,
+        );
+      }
+      if (!mounted) return;
+      _editingPostId = null;
+      _detailsController.clear();
+      final successMessage = editingPostId == null
+          ? (services.length == 1
+                ? 'Your request for ${services.first} is now live in $location.'
+                : 'Your request for ${services.length} services is now live in $location.')
+          : 'Your post was updated successfully.';
+      await _showPostSubmitResultSheet(
+        success: true,
+        title: editingPostId == null ? 'Post Published' : 'Post Updated',
+        message: successMessage,
+        actionLabel: 'Go to Home',
       );
       if (!mounted) return;
-      _detailsController.clear();
-      AppToast.success(
-        context,
-        services.length == 1
-            ? 'Request posted for ${services.first} in $location.'
-            : 'Request posted for ${services.length} services in $location.',
-      );
+      Navigator.pushReplacementNamed(context, '/home');
     } catch (error) {
       if (!mounted) return;
-      AppToast.error(context, error.toString());
+      await _showPostSubmitResultSheet(
+        success: false,
+        title: 'Post Failed',
+        message: error.toString(),
+        actionLabel: 'Try Again',
+      );
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
       }
+    }
+  }
+
+  Future<void> _showPostSubmitResultSheet({
+    required bool success,
+    required String title,
+    required String message,
+    required String actionLabel,
+  }) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _PostSubmitResultSheet(
+        success: success,
+        title: title,
+        message: message,
+        actionLabel: actionLabel,
+      ),
+    );
+  }
+
+  Future<void> _openManageSheet() async {
+    await FinderPostState.refreshAllForLookup(maxPages: 5);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return ValueListenableBuilder<List<FinderPostItem>>(
+          valueListenable: FinderPostState.allPosts,
+          builder: (context, allPosts, _) {
+            final uid = AuthState.currentUser.value?.uid.trim() ?? '';
+            final ownPosts = allPosts
+                .where((item) => uid.isNotEmpty && item.finderUid.trim() == uid)
+                .toList(growable: false);
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Manage my posts',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: ownPosts.isEmpty
+                          ? const Center(
+                              child: Text('No posts available to edit yet.'),
+                            )
+                          : ListView.separated(
+                              itemCount: ownPosts.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 8),
+                              itemBuilder: (context, index) {
+                                final post = ownPosts[index];
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: const BorderSide(
+                                      color: AppColors.divider,
+                                    ),
+                                  ),
+                                  title: Text(post.serviceLabel),
+                                  subtitle: Text(
+                                    '${post.category} • ${post.location}',
+                                  ),
+                                  trailing: PopupMenuButton<String>(
+                                    onSelected: (action) async {
+                                      if (action == 'edit') {
+                                        Navigator.pop(sheetContext);
+                                        _beginEdit(post);
+                                        return;
+                                      }
+                                      if (action == 'delete') {
+                                        final deleted = await _deletePost(post);
+                                        if (!deleted) return;
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem<String>(
+                                        value: 'edit',
+                                        child: Text('Edit'),
+                                      ),
+                                      PopupMenuItem<String>(
+                                        value: 'delete',
+                                        child: Text('Delete'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _beginEdit(FinderPostItem post) {
+    final selectedServices = post.serviceList.toSet();
+    setState(() {
+      _editingPostId = post.id;
+      _selectedCategory = post.category;
+      _selectedServices
+        ..clear()
+        ..addAll(selectedServices);
+      _locationController.text = post.location;
+      _detailsController.text = post.message;
+      _preferredDate =
+          post.preferredDate ?? DateTime.now().add(const Duration(days: 1));
+    });
+  }
+
+  void _cancelEdit() {
+    setState(() => _editingPostId = null);
+  }
+
+  Future<bool> _deletePost(FinderPostItem post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete post'),
+        content: Text('Delete "${post.serviceLabel}" request?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    try {
+      await FinderPostState.deleteFinderRequest(postId: post.id);
+      if (!mounted) return false;
+      if (_editingPostId == post.id) {
+        setState(() => _editingPostId = null);
+      }
+      AppToast.success(context, 'Post deleted.');
+      return true;
+    } catch (error) {
+      if (!mounted) return false;
+      AppToast.error(context, error.toString());
+      return false;
     }
   }
 
@@ -683,6 +917,110 @@ class _PickerField extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PostSubmitResultSheet extends StatelessWidget {
+  final bool success;
+  final String title;
+  final String message;
+  final String actionLabel;
+
+  const _PostSubmitResultSheet({
+    required this.success,
+    required this.title,
+    required this.message,
+    required this.actionLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = success ? Icons.check_circle_rounded : Icons.error_rounded;
+    final accent = success ? AppColors.success : AppColors.danger;
+    final background = success
+        ? const Color(0xFFF0FFF4)
+        : const Color(0xFFFFF1F2);
+    final gradient = success
+        ? const [Color(0xFF059669), Color(0xFF10B981)]
+        : const [Color(0xFFDC2626), Color(0xFFEF4444)];
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x29000000),
+                blurRadius: 24,
+                offset: Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    color: background,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: accent.withValues(alpha: 0.2)),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, size: 34, color: accent),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: gradient),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Text(actionLabel),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

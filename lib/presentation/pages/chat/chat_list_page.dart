@@ -65,8 +65,10 @@ class _ChatListPageState extends State<ChatListPage> {
 
                 final Widget body;
                 if (isLoading && threads.isEmpty) {
-                  body = const AppStatePanel.loading(
-                    title: 'Loading conversations',
+                  body = const Center(
+                    child: AppStatePanel.loading(
+                      title: 'Loading conversations',
+                    ),
                   );
                 } else if (filtered.isEmpty) {
                   body = AppStatePanel.empty(
@@ -180,16 +182,23 @@ class _ChatThreadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PressableScale(
-      onTap: () => Navigator.push(
+    final hasUnread = thread.unreadCount > 0;
+
+    Future<void> openConversation() async {
+      await Navigator.push(
         context,
         slideFadeRoute(ChatConversationPage(thread: thread)),
-      ),
+      );
+      final currentPage = ChatState.threadPagination.value.page;
+      await ChatState.markThreadAsRead(thread.id);
+      await ChatState.refresh(page: currentPage < 1 ? 1 : currentPage);
+      await ChatState.refreshUnreadCount();
+    }
+
+    return PressableScale(
+      onTap: openConversation,
       child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          slideFadeRoute(ChatConversationPage(thread: thread)),
-        ),
+        onTap: openConversation,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
@@ -209,7 +218,11 @@ class _ChatThreadTile extends StatelessWidget {
                           child: Text(
                             thread.title,
                             style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                                ?.copyWith(
+                                  fontWeight: hasUnread
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                ),
                           ),
                         ),
                         Text(
@@ -223,13 +236,20 @@ class _ChatThreadTile extends StatelessWidget {
                       thread.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: hasUnread
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: hasUnread
+                            ? AppColors.textPrimary
+                            : AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              if (thread.unreadCount > 0)
+              if (hasUnread)
                 Container(
                   height: 20,
                   width: 20,

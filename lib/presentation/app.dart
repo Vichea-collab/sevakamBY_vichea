@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
+import '../core/firebase/firebase_bootstrap.dart';
 import '../core/theme/app_theme.dart';
 import '../domain/entities/provider.dart';
 import 'pages/splash_page.dart';
@@ -14,6 +17,7 @@ import 'pages/providers/provider_home_page.dart';
 import 'pages/providers/provider_posts_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/chat/chat_list_page.dart';
+import 'pages/chat/chat_conversation_page.dart';
 import 'pages/orders/orders_page.dart';
 import 'pages/post/client_post_page.dart';
 import 'pages/booking/booking_address_page.dart';
@@ -33,6 +37,7 @@ import 'pages/provider_portal/provider_profession_page.dart';
 import 'pages/provider_portal/provider_verification_page.dart';
 import 'state/booking_catalog_state.dart';
 import 'state/app_role_state.dart';
+import 'state/chat_state.dart';
 import 'state/user_notification_state.dart';
 
 class ServiceFinderApp extends StatefulWidget {
@@ -124,17 +129,22 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
   final Set<String> _seenNoticeIds = <String>{};
   OverlayEntry? _activeBannerEntry;
   Timer? _activeBannerTimer;
+  StreamSubscription<RemoteMessage>? _pushForegroundSubscription;
+  StreamSubscription<RemoteMessage>? _pushOpenSubscription;
   bool _primed = false;
 
   @override
   void initState() {
     super.initState();
     UserNotificationState.notices.addListener(_onNoticesChanged);
+    unawaited(_setupPushHandlers());
   }
 
   @override
   void dispose() {
     UserNotificationState.notices.removeListener(_onNoticesChanged);
+    _pushForegroundSubscription?.cancel();
+    _pushOpenSubscription?.cancel();
     _removeActiveBanner();
     super.dispose();
   }
@@ -176,7 +186,136 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
     });
   }
 
-  void _showTopBanner({required String title, required String message}) {
+  Future<void> _setupPushHandlers() async {
+    if (!FirebaseBootstrap.isConfigured) return;
+    try {
+      await FirebaseMessaging.instance.requestPermission();
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+    } catch (error) {
+      debugPrint('Push permission setup skipped: $error');
+    }
+
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null && token.trim().isNotEmpty) {
+        debugPrint('FCM token ready (${kIsWeb ? 'web' : 'mobile'}): $token');
+      }
+    } catch (error) {
+      debugPrint('FCM token fetch skipped: $error');
+    }
+
+    try {
+      _pushForegroundSubscription?.cancel();
+      _pushOpenSubscription?.cancel();
+
+      _pushForegroundSubscription = FirebaseMessaging.onMessage.listen(
+        _onForegroundPush,
+      );
+      _pushOpenSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
+        _onPushOpened,
+      );
+
+      final initialMessage = await FirebaseMessaging.instance
+          .getInitialMessage();
+      if (initialMessage != null) {
+        _onPushOpened(initialMessage);
+      }
+    } catch (error) {
+      debugPrint('Push listener setup skipped: $error');
+    }
+  }
+
+  void _onForegroundPush(RemoteMessage message) {
+    final notification = message.notification;
+    final title = (notification?.title ?? '').trim();
+    final body = (notification?.body ?? '').trim();
+    final fallbackSummary = body.isEmpty ? 'You have a new message.' : body;
+    _showTopBanner(
+      title: title.isEmpty ? 'New notification' : title,
+      message: fallbackSummary,
+      onView: () {
+        _removeActiveBanner();
+        unawaited(_openDeepLinkFromData(message.data));
+      },
+    );
+  }
+
+  void _onPushOpened(RemoteMessage message) {
+    unawaited(_openDeepLinkFromData(message.data));
+  }
+
+  Future<void> _openDeepLinkFromData(Map<String, dynamic> data) async {
+    final roleRaw = (data['role'] ?? '').toString().trim().toLowerCase();
+    if (roleRaw == 'provider') {
+      AppRoleState.setProvider(true);
+    } else if (roleRaw == 'finder') {
+      AppRoleState.setProvider(false);
+    }
+
+    final target = (data['target'] ?? data['type'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final threadId = (data['threadId'] ?? data['chatId'] ?? '')
+        .toString()
+        .trim();
+
+    if (threadId.isNotEmpty ||
+        target == 'chat' ||
+        target == 'message' ||
+        target == 'messages') {
+      await _openChatThread(threadId);
+      return;
+    }
+
+    final navigator = widget.navigatorKey.currentState;
+    if (navigator == null) return;
+    if (target == 'order' || target == 'orders') {
+      navigator.pushNamed(AppRoleState.orderRoute());
+      return;
+    }
+    if (target == 'home') {
+      navigator.pushNamed(AppRoleState.homeRoute());
+      return;
+    }
+    navigator.pushNamed(AppRoleState.notificationRoute());
+  }
+
+  Future<void> _openChatThread(String threadId) async {
+    final navigator = widget.navigatorKey.currentState;
+    if (navigator == null) return;
+    final id = threadId.trim();
+    if (id.isEmpty) {
+      navigator.pushNamed(ChatListPage.routeName);
+      return;
+    }
+    try {
+      final thread = await ChatState.fetchThreadById(id);
+      if (thread == null) {
+        navigator.pushNamed(ChatListPage.routeName);
+        return;
+      }
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => ChatConversationPage(thread: thread),
+        ),
+      );
+      unawaited(ChatState.markThreadAsRead(thread.id));
+    } catch (_) {
+      navigator.pushNamed(ChatListPage.routeName);
+    }
+  }
+
+  void _showTopBanner({
+    required String title,
+    required String message,
+    VoidCallback? onView,
+  }) {
     final overlay = widget.navigatorKey.currentState?.overlay;
     if (overlay == null) return;
     _removeActiveBanner();
@@ -190,11 +329,13 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
           child: _TopNoticeBanner(
             title: title.isEmpty ? 'Platform update' : title,
             message: message,
-            onView: () {
-              _removeActiveBanner();
-              final route = AppRoleState.notificationRoute();
-              widget.navigatorKey.currentState?.pushNamed(route);
-            },
+            onView:
+                onView ??
+                () {
+                  _removeActiveBanner();
+                  final route = AppRoleState.notificationRoute();
+                  widget.navigatorKey.currentState?.pushNamed(route);
+                },
             onDismiss: _removeActiveBanner,
           ),
         );

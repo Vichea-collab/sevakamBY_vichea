@@ -145,6 +145,55 @@ class ProviderPostState {
     pagination.value = _withAdjustedTotalItems(pagination.value, delta: 1);
   }
 
+  static Future<void> updateProviderPost({
+    required String postId,
+    required String category,
+    required List<String> services,
+    required String area,
+    required String details,
+    required double ratePerHour,
+    required bool availableNow,
+  }) async {
+    final updated = await _repository.updateProviderPost(
+      postId: postId,
+      category: category,
+      services: services,
+      area: area,
+      details: details,
+      ratePerHour: ratePerHour,
+      availableNow: availableNow,
+    );
+    final nextPosts = posts.value
+        .map((item) => item.id == updated.id ? updated : item)
+        .toList(growable: false);
+    final hasUpdatedInAll = allPosts.value.any((item) => item.id == updated.id);
+    final nextAll = hasUpdatedInAll
+        ? allPosts.value
+              .map((item) => item.id == updated.id ? updated : item)
+              .toList(growable: false)
+        : <ProviderPostItem>[updated, ...allPosts.value];
+    posts.value = nextPosts;
+    allPosts.value = nextAll;
+  }
+
+  static Future<void> deleteProviderPost({required String postId}) async {
+    await _repository.deleteProviderPost(postId: postId);
+    final beforeCurrentCount = posts.value.length;
+    final beforeAllCount = allPosts.value.length;
+    final nextCurrent = posts.value
+        .where((item) => item.id != postId)
+        .toList(growable: false);
+    final nextAll = allPosts.value
+        .where((item) => item.id != postId)
+        .toList(growable: false);
+    posts.value = nextCurrent;
+    allPosts.value = nextAll;
+    if (nextAll.length < beforeAllCount ||
+        nextCurrent.length < beforeCurrentCount) {
+      pagination.value = _withAdjustedTotalItems(pagination.value, delta: -1);
+    }
+  }
+
   static int _normalizedPage(int page) {
     if (page < 1) return 1;
     return page;

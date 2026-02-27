@@ -137,6 +137,26 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
+  Future<HomeAddress> updateSavedAddress({required HomeAddress address}) async {
+    final row = await _remoteDataSource.updateSavedAddress(
+      addressId: address.id,
+      payload: {
+        'label': address.label,
+        'mapLink': address.mapLink,
+        'street': address.street,
+        'city': address.city,
+        'isDefault': address.isDefault,
+      },
+    );
+    return _toHomeAddress(row);
+  }
+
+  @override
+  Future<void> deleteSavedAddress({required String addressId}) async {
+    await _remoteDataSource.deleteSavedAddress(addressId: addressId);
+  }
+
+  @override
   Future<KhqrPaymentSession> createKhqrPaymentSession({
     required String orderId,
   }) async {

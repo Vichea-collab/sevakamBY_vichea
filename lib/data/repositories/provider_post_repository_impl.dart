@@ -41,4 +41,30 @@ class ProviderPostRepositoryImpl implements ProviderPostRepository {
       availableNow: availableNow,
     );
   }
+
+  @override
+  Future<ProviderPostItem> updateProviderPost({
+    required String postId,
+    required String category,
+    required List<String> services,
+    required String area,
+    required String details,
+    required double ratePerHour,
+    required bool availableNow,
+  }) async {
+    return _remoteDataSource.updateProviderPost(
+      postId: postId,
+      category: category,
+      services: services,
+      area: area,
+      details: details,
+      ratePerHour: ratePerHour,
+      availableNow: availableNow,
+    );
+  }
+
+  @override
+  Future<void> deleteProviderPost({required String postId}) async {
+    await _remoteDataSource.deleteProviderPost(postId: postId);
+  }
 }

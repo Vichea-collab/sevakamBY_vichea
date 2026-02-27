@@ -27,17 +27,24 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
+  Timer? _pollTimer;
+  int _activePage = 1;
   bool _sending = false;
   bool _paging = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(ProfileSettingsState.refreshCurrentHelpTickets(page: 1));
+    _activePage = 1;
+    unawaited(
+      ProfileSettingsState.refreshCurrentHelpTickets(page: _activePage),
+    );
+    _startPolling();
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _titleController.dispose();
     _messageController.dispose();
     super.dispose();
@@ -166,8 +173,13 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                         builder: (context, pagination, _) {
                           final Widget ticketBody;
                           if (loading && tickets.isEmpty) {
-                            ticketBody = const AppStatePanel.loading(
-                              title: 'Loading support tickets',
+                            ticketBody = const SizedBox(
+                              height: 320,
+                              child: Center(
+                                child: AppStatePanel.loading(
+                                  title: 'Loading support tickets',
+                                ),
+                              ),
                             );
                           } else if (tickets.isEmpty) {
                             ticketBody = const AppStatePanel.empty(
@@ -242,7 +254,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         createdAt: DateTime.now(),
       ),
     );
-    await ProfileSettingsState.refreshCurrentHelpTickets(page: 1);
+    _activePage = 1;
+    await ProfileSettingsState.refreshCurrentHelpTickets(page: _activePage);
     if (!mounted) return;
     setState(() => _sending = false);
     _titleController.clear();
@@ -259,6 +272,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     if (_paging || targetPage == currentPage) return;
     setState(() => _paging = true);
     try {
+      _activePage = targetPage;
       await ProfileSettingsState.refreshCurrentHelpTickets(page: targetPage);
     } finally {
       if (mounted) {
@@ -375,6 +389,26 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         builder: (_) => HelpSupportChatPage(ticket: ticket),
       ),
     );
+    if (!mounted) return;
+    unawaited(
+      ProfileSettingsState.refreshCurrentHelpTickets(page: _activePage),
+    );
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
+      if (!mounted || _sending || _paging) return;
+      final isLoading = ProfileSettingsState.isProvider
+          ? ProfileSettingsState.providerHelpTicketsLoading.value
+          : ProfileSettingsState.finderHelpTicketsLoading.value;
+      if (isLoading) return;
+      try {
+        await ProfileSettingsState.refreshCurrentHelpTickets(page: _activePage);
+      } catch (_) {
+        // Background refresh failure should not interrupt typing.
+      }
+    });
   }
 
   String _formatDate(DateTime date) {

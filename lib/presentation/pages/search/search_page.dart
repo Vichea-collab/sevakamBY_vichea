@@ -166,9 +166,11 @@ class _SearchPageState extends State<SearchPage> {
     return Scaffold(
       body: SafeArea(
         child: _bootstrapping && providerPosts.isEmpty
-            ? const Padding(
-                padding: EdgeInsets.all(AppSpacing.lg),
-                child: AppStatePanel.loading(title: 'Loading search data'),
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(AppSpacing.lg),
+                  child: AppStatePanel.loading(title: 'Loading search data'),
+                ),
               )
             : Column(
                 children: [

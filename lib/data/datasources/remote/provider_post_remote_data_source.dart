@@ -57,6 +57,36 @@ class ProviderPostRemoteDataSource {
     return _mapToProviderPost(_safeMap(response['data']));
   }
 
+  Future<ProviderPostItem> updateProviderPost({
+    required String postId,
+    required String category,
+    required List<String> services,
+    required String area,
+    required String details,
+    required double ratePerHour,
+    required bool availableNow,
+  }) async {
+    final safeServices = services
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    final response = await _apiClient
+        .putJson('/api/posts/provider-offers/$postId', {
+          'category': category,
+          'service': safeServices.isNotEmpty ? safeServices.first : '',
+          'services': safeServices,
+          'area': area,
+          'details': details,
+          'ratePerHour': ratePerHour,
+          'availableNow': availableNow,
+        });
+    return _mapToProviderPost(_safeMap(response['data']));
+  }
+
+  Future<void> deleteProviderPost({required String postId}) async {
+    await _apiClient.deleteJson('/api/posts/provider-offers/$postId');
+  }
+
   ProviderPostItem _mapToProviderPost(Map<dynamic, dynamic> row) {
     final id = (row['id'] ?? '').toString();
     final createdAt = _parseDate(row['createdAt']);

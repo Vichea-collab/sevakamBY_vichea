@@ -17,4 +17,16 @@ abstract class ProviderPostRepository {
     required double ratePerHour,
     required bool availableNow,
   });
+
+  Future<ProviderPostItem> updateProviderPost({
+    required String postId,
+    required String category,
+    required List<String> services,
+    required String area,
+    required String details,
+    required double ratePerHour,
+    required bool availableNow,
+  });
+
+  Future<void> deleteProviderPost({required String postId});
 }

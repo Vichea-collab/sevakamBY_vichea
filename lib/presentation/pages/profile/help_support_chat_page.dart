@@ -25,6 +25,8 @@ class HelpSupportChatPage extends StatefulWidget {
 
 class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
   final TextEditingController _composerController = TextEditingController();
+  Timer? _pollTimer;
+  int _currentPage = 1;
   bool _sending = false;
   bool _paging = false;
 
@@ -32,17 +34,20 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
   void initState() {
     super.initState();
     if (widget.ticket.id.isNotEmpty) {
+      _currentPage = 1;
       unawaited(
         ProfileSettingsState.refreshCurrentHelpTicketMessages(
           ticketId: widget.ticket.id,
-          page: 1,
+          page: _currentPage,
         ),
       );
+      _startPolling();
     }
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _composerController.dispose();
     super.dispose();
   }
@@ -125,8 +130,10 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                               );
                             }
                             if (loading && messages.isEmpty) {
-                              return const AppStatePanel.loading(
-                                title: 'Loading support messages',
+                              return const Center(
+                                child: AppStatePanel.loading(
+                                  title: 'Loading support messages',
+                                ),
                               );
                             }
                             if (messages.isEmpty) {
@@ -277,11 +284,13 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
 
   Future<void> _goToPage(int page) async {
     if (_paging || widget.ticket.id.isEmpty) return;
+    final targetPage = _normalizedPage(page);
     setState(() => _paging = true);
     try {
+      _currentPage = targetPage;
       await ProfileSettingsState.refreshCurrentHelpTicketMessages(
         ticketId: widget.ticket.id,
-        page: _normalizedPage(page),
+        page: _currentPage,
       );
     } finally {
       if (mounted) {
@@ -304,9 +313,10 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
         text: text,
       );
       _composerController.clear();
+      _currentPage = 1;
       await ProfileSettingsState.refreshCurrentHelpTicketMessages(
         ticketId: widget.ticket.id,
-        page: 1,
+        page: _currentPage,
       );
     } catch (_) {
       if (!mounted) return;
@@ -321,6 +331,25 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
   int _normalizedPage(int page) {
     if (page < 1) return 1;
     return page;
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
+      if (!mounted || _sending || _paging || widget.ticket.id.isEmpty) return;
+      final isLoading = ProfileSettingsState.isProvider
+          ? ProfileSettingsState.providerHelpTicketMessagesLoading.value
+          : ProfileSettingsState.finderHelpTicketMessagesLoading.value;
+      if (isLoading) return;
+      try {
+        await ProfileSettingsState.refreshCurrentHelpTicketMessages(
+          ticketId: widget.ticket.id,
+          page: _currentPage,
+        );
+      } catch (_) {
+        // Ignore poll failures and keep the current chat view stable.
+      }
+    });
   }
 
   String _formatDate(DateTime value) {

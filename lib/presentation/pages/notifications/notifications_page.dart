@@ -177,8 +177,13 @@ class _NotificationsPageState extends State<NotificationsPage>
                         ],
                       )
                     : loading
-                    ? const AppStatePanel.loading(
-                        title: 'Loading notifications',
+                    ? const SizedBox(
+                        height: 320,
+                        child: Center(
+                          child: AppStatePanel.loading(
+                            title: 'Loading notifications',
+                          ),
+                        ),
                       )
                     : const AppStatePanel.empty(
                         title: 'No notifications yet',
@@ -199,7 +204,11 @@ class _NotificationsPageState extends State<NotificationsPage>
                         children: [
                           AppTopBar(
                             title: 'Notifications',
-                            showBack: false,
+                            showBack: true,
+                            onBack: () => Navigator.pushReplacementNamed(
+                              context,
+                              '/home',
+                            ),
                             actions: [
                               IconButton(
                                 onPressed: _openMessenger,

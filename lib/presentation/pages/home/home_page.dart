@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../core/constants/app_colors.dart';
@@ -6,6 +8,7 @@ import '../../../domain/entities/provider.dart';
 import '../../../domain/entities/profile_settings.dart';
 import '../../../domain/entities/provider_portal.dart';
 import '../../state/catalog_state.dart';
+import '../../state/chat_state.dart';
 import '../../state/profile_image_state.dart';
 import '../../state/profile_settings_state.dart';
 import '../../state/provider_post_state.dart';
@@ -63,8 +66,10 @@ class HomePage extends StatelessWidget {
                         valueListenable: CatalogState.categories,
                         builder: (context, categories, _) {
                           if (categories.isEmpty && catalogLoading) {
-                            return const AppStatePanel.loading(
-                              title: 'Loading categories',
+                            return const Center(
+                              child: AppStatePanel.loading(
+                                title: 'Loading categories',
+                              ),
                             );
                           }
                           if (categories.isEmpty) {
@@ -117,8 +122,10 @@ class HomePage extends StatelessWidget {
                             limit: 6,
                           );
                           if (popular.isEmpty && catalogLoading) {
-                            return const AppStatePanel.loading(
-                              title: 'Loading popular services',
+                            return const Center(
+                              child: AppStatePanel.loading(
+                                title: 'Loading popular services',
+                              ),
                             );
                           }
                           if (popular.isEmpty) {
@@ -152,10 +159,6 @@ class HomePage extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  const SectionTitle(title: 'For your home'),
-                  const SizedBox(height: AppSpacing.md),
-                  const _HomeGrid(),
                   const SizedBox(height: AppSpacing.lg),
                   Center(
                     child: PressableScale(
@@ -195,11 +198,43 @@ class HomePage extends StatelessWidget {
   }
 }
 
-class _TopHeader extends StatelessWidget {
+class _TopHeader extends StatefulWidget {
   const _TopHeader();
 
   @override
+  State<_TopHeader> createState() => _TopHeaderState();
+}
+
+class _TopHeaderState extends State<_TopHeader> {
+  Timer? _chatRefreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ChatState.refreshUnreadCount());
+    });
+    _chatRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      unawaited(ChatState.refreshUnreadCount());
+    });
+  }
+
+  @override
+  void dispose() {
+    _chatRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    Future<void> openChats() async {
+      await Navigator.push(context, slideFadeRoute(const ChatListPage()));
+      if (!mounted) return;
+      unawaited(ChatState.refreshUnreadCount());
+    }
+
     return ValueListenableBuilder<ProfileFormData>(
       valueListenable: ProfileSettingsState.finderProfile,
       builder: (context, profile, _) {
@@ -275,35 +310,75 @@ class _TopHeader extends StatelessWidget {
                     ),
                   ),
                   PressableScale(
-                    onTap: () => Navigator.push(
-                      context,
-                      slideFadeRoute(const ChatListPage()),
-                    ),
+                    onTap: openChats,
                     child: InkWell(
-                      onTap: () => Navigator.push(
-                        context,
-                        slideFadeRoute(const ChatListPage()),
-                      ),
+                      onTap: openChats,
                       borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        height: 34,
-                        width: 34,
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryDark,
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x20000000),
-                              blurRadius: 6,
-                              offset: Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.message_outlined,
-                          color: Colors.white,
-                          size: 18,
-                        ),
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: ChatState.unreadCount,
+                        builder: (context, unreadThreads, _) {
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                height: 34,
+                                width: 34,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryDark,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x20000000),
+                                      blurRadius: 6,
+                                      offset: Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.message_outlined,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ),
+                              if (unreadThreads > 0)
+                                Positioned(
+                                  top: -4,
+                                  right: -4,
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEF4444),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 1.2,
+                                      ),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      unreadThreads > 99
+                                          ? '99+'
+                                          : '$unreadThreads',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 9,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -496,8 +571,8 @@ class _ProviderPostSection extends StatelessWidget {
           valueListenable: ProviderPostState.posts,
           builder: (context, posts, _) {
             if (posts.isEmpty && postLoading) {
-              return const AppStatePanel.loading(
-                title: 'Loading provider posts',
+              return const Center(
+                child: AppStatePanel.loading(title: 'Loading provider posts'),
               );
             }
             if (posts.isEmpty) {
@@ -696,58 +771,6 @@ class _HomePostPill extends StatelessWidget {
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
           color: AppColors.primary,
           fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _HomeGrid extends StatelessWidget {
-  const _HomeGrid();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: const [
-        Expanded(
-          child: _ImageTile(
-            title: 'Interior painting',
-            color: Color(0xFF2563EB),
-          ),
-        ),
-        SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: _ImageTile(title: 'House Painting', color: Color(0xFF3B82F6)),
-        ),
-      ],
-    );
-  }
-}
-
-class _ImageTile extends StatelessWidget {
-  final String title;
-  final Color color;
-
-  const _ImageTile({required this.title, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 120,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          colors: [color.withValues(alpha: 217), color.withValues(alpha: 166)],
-        ),
-      ),
-      child: Align(
-        alignment: Alignment.bottomLeft,
-        child: Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(color: Colors.white),
         ),
       ),
     );

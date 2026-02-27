@@ -13,6 +13,7 @@ import '../../widgets/app_state_panel.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pagination_bar.dart';
 import '../../widgets/primary_button.dart';
+import 'provider_home_page.dart';
 import 'provider_order_detail_page.dart';
 
 enum ProviderOrderTab { incoming, active, completed }
@@ -89,9 +90,13 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       child: Column(
                         children: [
-                          const AppTopBar(
+                          AppTopBar(
                             title: 'Provider Orders',
-                            showBack: false,
+                            showBack: true,
+                            onBack: () => Navigator.pushReplacementNamed(
+                              context,
+                              ProviderPortalHomePage.routeName,
+                            ),
                           ),
                           const SizedBox(height: 12),
                           Row(
@@ -121,15 +126,15 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
                           const SizedBox(height: 14),
                           Expanded(
                             child: isLoading && allOrders.isEmpty
-                                ? ListView(
-                                    physics:
-                                        const AlwaysScrollableScrollPhysics(),
-                                    children: const [
-                                      SizedBox(height: 80),
-                                      AppStatePanel.loading(
+                                ? const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.md,
+                                      ),
+                                      child: AppStatePanel.loading(
                                         title: 'Loading provider orders',
                                       ),
-                                    ],
+                                    ),
                                   )
                                 : RefreshIndicator(
                                     onRefresh: () => _loadOrders(

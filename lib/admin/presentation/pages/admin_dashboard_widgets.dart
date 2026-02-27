@@ -27,6 +27,78 @@ InputDecoration _adminFieldDecoration({
   );
 }
 
+class _AdminLoadingPanel extends StatelessWidget {
+  final String title;
+  final String? message;
+
+  const _AdminLoadingPanel({this.title = 'Loading data...', this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFD8E3F6)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x120F172A),
+              blurRadius: 16,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF1FF),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.hourglass_top_rounded,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            if ((message ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                message!.trim(),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DashboardSidebar extends StatelessWidget {
   final String email;
   final _AdminSection section;
@@ -401,6 +473,7 @@ class _AdminTableCard<T> extends StatelessWidget {
               builder: (context, pageMeta, _) {
                 final filteredRows = filterRows(rows);
                 final summaries = summaryBuilder(rows);
+                final initialLoading = isLoading && rows.isEmpty;
 
                 return Container(
                   padding: const EdgeInsets.all(16),
@@ -441,7 +514,7 @@ class _AdminTableCard<T> extends StatelessWidget {
                               ],
                             ),
                           ),
-                          if (isLoading)
+                          if (isLoading && !initialLoading)
                             const SizedBox(
                               height: 18,
                               width: 18,
@@ -449,7 +522,7 @@ class _AdminTableCard<T> extends StatelessWidget {
                             ),
                         ],
                       ),
-                      if (isLoading)
+                      if (isLoading && !initialLoading)
                         const Padding(
                           padding: EdgeInsets.only(top: 10),
                           child: LinearProgressIndicator(minHeight: 2),
@@ -458,7 +531,7 @@ class _AdminTableCard<T> extends StatelessWidget {
                         const SizedBox(height: 12),
                         Wrap(spacing: 10, runSpacing: 8, children: controls),
                       ],
-                      if (summaries.isNotEmpty) ...[
+                      if (summaries.isNotEmpty && !initialLoading) ...[
                         const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
@@ -474,7 +547,18 @@ class _AdminTableCard<T> extends StatelessWidget {
                         ),
                       ],
                       const SizedBox(height: 10),
-                      if (filteredRows.isEmpty)
+                      if (initialLoading)
+                        const SizedBox(
+                          height: 280,
+                          child: Center(
+                            child: _AdminLoadingPanel(
+                              title: 'Loading records',
+                              message:
+                                  'Please wait while we fetch this section.',
+                            ),
+                          ),
+                        )
+                      else if (filteredRows.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           child: Text(
@@ -510,20 +594,21 @@ class _AdminTableCard<T> extends StatelessWidget {
                                 .toList(growable: false),
                           ),
                         ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Page ${pageMeta.page} • ${filteredRows.length}/${rows.length} visible • ${pageMeta.totalItems} total items',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
+                      if (!initialLoading) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Page ${pageMeta.page} • ${filteredRows.length}/${rows.length} visible • ${pageMeta.totalItems} total items',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textSecondary),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      _CompactPager(
-                        page: pageMeta.page,
-                        totalPages: pageMeta.totalPages,
-                        loading: isLoading,
-                        onPageSelected: onPageSelected,
-                      ),
+                        const SizedBox(height: 10),
+                        _CompactPager(
+                          page: pageMeta.page,
+                          totalPages: pageMeta.totalPages,
+                          loading: isLoading,
+                          onPageSelected: onPageSelected,
+                        ),
+                      ],
                     ],
                   ),
                 );
@@ -1339,13 +1424,23 @@ class _UndoHistoryCard extends StatelessWidget {
               context,
             ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           ),
-          if (loading)
+          if (loading && items.isNotEmpty)
             const Padding(
               padding: EdgeInsets.only(top: 10),
               child: LinearProgressIndicator(minHeight: 2),
             ),
           const SizedBox(height: 10),
-          if (items.isEmpty)
+          if (loading && items.isEmpty)
+            const SizedBox(
+              height: 260,
+              child: Center(
+                child: _AdminLoadingPanel(
+                  title: 'Loading undo history',
+                  message: 'Fetching recent reversible actions.',
+                ),
+              ),
+            )
+          else if (items.isEmpty)
             Text(
               'No undo actions found.',
               style: Theme.of(

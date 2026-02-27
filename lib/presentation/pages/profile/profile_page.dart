@@ -30,7 +30,11 @@ class ProfilePage extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: const AppTopBar(title: 'Profile', showBack: false),
+              child: AppTopBar(
+                title: 'Profile',
+                showBack: true,
+                onBack: () => Navigator.pushReplacementNamed(context, '/home'),
+              ),
             ),
             Expanded(
               child: SingleChildScrollView(

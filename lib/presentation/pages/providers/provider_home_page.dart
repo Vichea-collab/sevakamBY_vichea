@@ -160,8 +160,10 @@ class _ProviderHomePageState extends State<ProviderHomePage> {
                           if (isLoading && sections.isEmpty)
                             const Padding(
                               padding: EdgeInsets.only(bottom: 18),
-                              child: AppStatePanel.loading(
-                                title: 'Loading providers',
+                              child: Center(
+                                child: AppStatePanel.loading(
+                                  title: 'Loading providers',
+                                ),
                               ),
                             ),
                           if (!isLoading && sections.isEmpty)

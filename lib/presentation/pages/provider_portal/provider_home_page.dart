@@ -55,8 +55,13 @@ class _ProviderPortalHomePageState extends State<ProviderPortalHomePage> {
               builder: (context, pagination, _) {
                 final currentPage = _normalizedPage(pagination.page);
                 final listBody = isLoading && posts.isEmpty
-                    ? const AppStatePanel.loading(
-                        title: 'Loading finder requests',
+                    ? const SizedBox(
+                        height: 320,
+                        child: Center(
+                          child: AppStatePanel.loading(
+                            title: 'Loading finder requests',
+                          ),
+                        ),
                       )
                     : posts.isEmpty
                     ? const AppStatePanel.empty(
@@ -216,11 +221,43 @@ class _PreferredDatePill extends StatelessWidget {
   }
 }
 
-class _ProviderTopHeader extends StatelessWidget {
+class _ProviderTopHeader extends StatefulWidget {
   const _ProviderTopHeader();
 
   @override
+  State<_ProviderTopHeader> createState() => _ProviderTopHeaderState();
+}
+
+class _ProviderTopHeaderState extends State<_ProviderTopHeader> {
+  Timer? _chatRefreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ChatState.refreshUnreadCount());
+    });
+    _chatRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      unawaited(ChatState.refreshUnreadCount());
+    });
+  }
+
+  @override
+  void dispose() {
+    _chatRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    Future<void> openChats() async {
+      await Navigator.push(context, slideFadeRoute(const ChatListPage()));
+      if (!mounted) return;
+      unawaited(ChatState.refreshUnreadCount());
+    }
+
     return ValueListenableBuilder<ProfileFormData>(
       valueListenable: ProfileSettingsState.providerProfile,
       builder: (context, profile, _) {
@@ -299,35 +336,75 @@ class _ProviderTopHeader extends StatelessWidget {
                     ),
                   ),
                   PressableScale(
-                    onTap: () => Navigator.push(
-                      context,
-                      slideFadeRoute(const ChatListPage()),
-                    ),
+                    onTap: openChats,
                     child: InkWell(
-                      onTap: () => Navigator.push(
-                        context,
-                        slideFadeRoute(const ChatListPage()),
-                      ),
+                      onTap: openChats,
                       borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        height: 34,
-                        width: 34,
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryDark,
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x20000000),
-                              blurRadius: 6,
-                              offset: Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.message_outlined,
-                          color: Colors.white,
-                          size: 18,
-                        ),
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: ChatState.unreadCount,
+                        builder: (context, unreadThreads, _) {
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                height: 34,
+                                width: 34,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryDark,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x20000000),
+                                      blurRadius: 6,
+                                      offset: Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.message_outlined,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ),
+                              if (unreadThreads > 0)
+                                Positioned(
+                                  top: -4,
+                                  right: -4,
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEF4444),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 1.2,
+                                      ),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      unreadThreads > 99
+                                          ? '99+'
+                                          : '$unreadThreads',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 9,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ),

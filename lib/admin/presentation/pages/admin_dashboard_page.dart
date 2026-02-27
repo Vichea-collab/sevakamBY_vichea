@@ -756,6 +756,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     var currentPage = 1;
     var paging = false;
     var sending = false;
+    Timer? pollTimer;
     await _runAuthed(
       () => AdminDashboardState.refreshTicketMessages(
         userUid: uid,
@@ -763,7 +764,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         page: 1,
       ),
     );
-    if (!mounted) return;
+    if (!mounted) {
+      inputController.dispose();
+      return;
+    }
+    pollTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
+      if (paging || sending) return;
+      try {
+        await _runAuthed(
+          () => AdminDashboardState.refreshTicketMessages(
+            userUid: uid,
+            ticketId: ticketId,
+            page: currentPage,
+          ),
+        );
+      } catch (_) {
+        // Keep dialog stable if a background poll fails.
+      }
+    });
     await showDialog<void>(
       context: context,
       builder: (context) {
@@ -843,8 +861,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 return Column(
                                   children: [
                                     if (AdminDashboardState
-                                        .loadingTicketMessages
-                                        .value)
+                                            .loadingTicketMessages
+                                            .value &&
+                                        messages.isNotEmpty)
                                       const Padding(
                                         padding: EdgeInsets.only(bottom: 8),
                                         child: LinearProgressIndicator(
@@ -852,7 +871,20 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                         ),
                                       ),
                                     Expanded(
-                                      child: messages.isEmpty
+                                      child:
+                                          AdminDashboardState
+                                                  .loadingTicketMessages
+                                                  .value &&
+                                              messages.isEmpty
+                                          ? const Center(
+                                              child: _AdminLoadingPanel(
+                                                title:
+                                                    'Loading ticket messages',
+                                                message:
+                                                    'Syncing conversation with the user.',
+                                              ),
+                                            )
+                                          : messages.isEmpty
                                           ? const Center(
                                               child: Text(
                                                 'No messages yet in this ticket.',
@@ -1053,6 +1085,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         );
       },
     );
+    pollTimer.cancel();
+    inputController.dispose();
   }
 
   Widget _buildMainContent({required bool desktop}) {
@@ -1250,6 +1284,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   return haystack.contains(query);
                 })
                 .toList(growable: false);
+            final hasOverviewData =
+                row.kpis.isNotEmpty ||
+                row.orderStatus.isNotEmpty ||
+                row.recentOrders.isNotEmpty ||
+                row.recentUsers.isNotEmpty ||
+                row.recentPosts.isNotEmpty;
+
+            if (loading && !hasOverviewData) {
+              return const SizedBox(
+                height: 420,
+                child: Center(
+                  child: _AdminLoadingPanel(
+                    title: 'Loading overview',
+                    message: 'Preparing KPIs and recent activity feed.',
+                  ),
+                ),
+              );
+            }
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,

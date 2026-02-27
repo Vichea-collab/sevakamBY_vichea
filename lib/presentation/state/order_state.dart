@@ -393,6 +393,16 @@ class OrderState {
     return _repository.createSavedAddress(address: address);
   }
 
+  static Future<HomeAddress> updateSavedAddress({
+    required HomeAddress address,
+  }) {
+    return _repository.updateSavedAddress(address: address);
+  }
+
+  static Future<void> deleteSavedAddress({required String addressId}) {
+    return _repository.deleteSavedAddress(addressId: addressId);
+  }
+
   static Future<KhqrPaymentSession> createKhqrPaymentSession({
     required String orderId,
   }) {

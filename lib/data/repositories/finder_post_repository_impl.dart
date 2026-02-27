@@ -39,4 +39,28 @@ class FinderPostRepositoryImpl implements FinderPostRepository {
       preferredDate: preferredDate,
     );
   }
+
+  @override
+  Future<FinderPostItem> updateFinderRequest({
+    required String postId,
+    required String category,
+    required List<String> services,
+    required String location,
+    required String message,
+    required DateTime preferredDate,
+  }) async {
+    return _remoteDataSource.updateFinderRequest(
+      postId: postId,
+      category: category,
+      services: services,
+      location: location,
+      message: message,
+      preferredDate: preferredDate,
+    );
+  }
+
+  @override
+  Future<void> deleteFinderRequest({required String postId}) async {
+    await _remoteDataSource.deleteFinderRequest(postId: postId);
+  }
 }

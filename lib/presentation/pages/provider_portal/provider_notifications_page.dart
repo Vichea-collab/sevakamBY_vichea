@@ -12,6 +12,7 @@ import '../../widgets/app_state_panel.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../chat/chat_list_page.dart';
+import 'provider_home_page.dart';
 import 'provider_orders_page.dart';
 
 class ProviderNotificationsPage extends StatefulWidget {
@@ -219,8 +220,13 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                         ],
                       )
                     : loading
-                    ? const AppStatePanel.loading(
-                        title: 'Loading notifications',
+                    ? const SizedBox(
+                        height: 320,
+                        child: Center(
+                          child: AppStatePanel.loading(
+                            title: 'Loading notifications',
+                          ),
+                        ),
                       )
                     : const AppStatePanel.empty(
                         title: 'No notifications yet',
@@ -237,7 +243,11 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                         children: [
                           AppTopBar(
                             title: 'Notifications',
-                            showBack: false,
+                            showBack: true,
+                            onBack: () => Navigator.pushReplacementNamed(
+                              context,
+                              ProviderPortalHomePage.routeName,
+                            ),
                             actions: [
                               IconButton(
                                 onPressed: () => _openMessenger(context),

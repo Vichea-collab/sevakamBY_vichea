@@ -55,6 +55,34 @@ class FinderPostRemoteDataSource {
     return _mapToFinderPost(_safeMap(response['data']));
   }
 
+  Future<FinderPostItem> updateFinderRequest({
+    required String postId,
+    required String category,
+    required List<String> services,
+    required String location,
+    required String message,
+    required DateTime preferredDate,
+  }) async {
+    final safeServices = services
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    final response = await _apiClient
+        .putJson('/api/posts/finder-requests/$postId', {
+          'category': category,
+          'service': safeServices.isNotEmpty ? safeServices.first : '',
+          'services': safeServices,
+          'location': location,
+          'message': message,
+          'preferredDate': preferredDate.toIso8601String(),
+        });
+    return _mapToFinderPost(_safeMap(response['data']));
+  }
+
+  Future<void> deleteFinderRequest({required String postId}) async {
+    await _apiClient.deleteJson('/api/posts/finder-requests/$postId');
+  }
+
   FinderPostItem _mapToFinderPost(Map<dynamic, dynamic> row) {
     final id = (row['id'] ?? '').toString();
     final createdAt = _parseDate(row['createdAt']);
