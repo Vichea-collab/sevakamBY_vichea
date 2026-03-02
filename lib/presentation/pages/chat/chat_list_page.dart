@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/page_transition.dart';
@@ -185,12 +187,12 @@ class _ChatThreadTile extends StatelessWidget {
     final hasUnread = thread.unreadCount > 0;
 
     Future<void> openConversation() async {
+      final currentPage = ChatState.threadPagination.value.page;
+      unawaited(ChatState.markThreadAsRead(thread.id, syncThreads: true));
       await Navigator.push(
         context,
         slideFadeRoute(ChatConversationPage(thread: thread)),
       );
-      final currentPage = ChatState.threadPagination.value.page;
-      await ChatState.markThreadAsRead(thread.id);
       await ChatState.refresh(page: currentPage < 1 ? 1 : currentPage);
       await ChatState.refreshUnreadCount();
     }
@@ -251,15 +253,18 @@ class _ChatThreadTile extends StatelessWidget {
               const SizedBox(width: 10),
               if (hasUnread)
                 Container(
-                  height: 20,
-                  width: 20,
+                  constraints: const BoxConstraints(
+                    minWidth: 20,
+                    minHeight: 20,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
                   decoration: const BoxDecoration(
                     color: AppColors.primary,
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.all(Radius.circular(11)),
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    '${thread.unreadCount}',
+                    thread.unreadCount > 99 ? '99+' : '${thread.unreadCount}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 11,

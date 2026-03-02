@@ -83,6 +83,7 @@ class AuthState {
       }
 
       await ChatState.refresh();
+      await ChatState.refreshUnreadCount();
       await FinderPostState.refresh();
       await FinderPostState.refreshAllForLookup();
       await ProviderPostState.refresh();
@@ -333,6 +334,7 @@ class AuthState {
 
     AppRoleState.setProvider(toProvider);
     await ChatState.refresh();
+    await ChatState.refreshUnreadCount();
     await ProfileSettingsState.syncRoleProfileFromBackend(
       isProvider: toProvider,
     );
@@ -362,6 +364,7 @@ class AuthState {
     }
     AppRoleState.setProvider(isProvider);
     await ChatState.refresh();
+    await ChatState.refreshUnreadCount();
     await FinderPostState.refresh();
     await FinderPostState.refreshAllForLookup();
     await ProviderPostState.refresh();

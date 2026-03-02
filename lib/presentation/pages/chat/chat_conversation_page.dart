@@ -40,7 +40,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   @override
   void initState() {
     super.initState();
-    unawaited(ChatState.markThreadAsRead(widget.thread.id));
+    unawaited(ChatState.markThreadAsRead(widget.thread.id, syncThreads: true));
     unawaited(ChatState.flushQueuedMessages(threadId: widget.thread.id));
     unawaited(_loadInitial());
     unawaited(_bindRealtimeMessages());

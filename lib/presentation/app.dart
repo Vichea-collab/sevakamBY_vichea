@@ -305,7 +305,7 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
           builder: (_) => ChatConversationPage(thread: thread),
         ),
       );
-      unawaited(ChatState.markThreadAsRead(thread.id));
+      unawaited(ChatState.markThreadAsRead(thread.id, syncThreads: true));
     } catch (_) {
       navigator.pushNamed(ChatListPage.routeName);
     }

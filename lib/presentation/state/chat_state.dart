@@ -36,6 +36,7 @@ class ChatState {
   static final ValueNotifier<bool> loading = ValueNotifier(false);
   static final ValueNotifier<bool> realtimeActive = ValueNotifier(false);
   static final ValueNotifier<int> unreadCount = ValueNotifier(0);
+  static final ValueNotifier<int> unreadMessageCount = ValueNotifier(0);
   static final ValueNotifier<int> pendingOutboxCount = ValueNotifier(0);
 
   static final List<_QueuedOutgoingMessage> _outbox =
@@ -68,6 +69,7 @@ class ChatState {
       threadPagination.value = const PaginationMeta.initial(limit: _pageSize);
       realtimeActive.value = false;
       unreadCount.value = 0;
+      unreadMessageCount.value = 0;
       return;
     }
     _startUnreadSyncTimer();
@@ -95,6 +97,7 @@ class ChatState {
       }
       final result = await _loadThreadsFromApi(page: targetPage, limit: limit);
       threads.value = _applyPendingReadMask(result.items);
+      _syncUnreadCountersFromThreads(threads.value);
       threadPagination.value = result.pagination;
       realtimeActive.value = false;
       unawaited(refreshUnreadCount());
@@ -109,6 +112,7 @@ class ChatState {
         hasNextPage: false,
       );
       realtimeActive.value = false;
+      _syncUnreadCountersFromThreads(threads.value);
     } finally {
       loading.value = false;
     }
@@ -117,6 +121,7 @@ class ChatState {
   static Future<void> refreshUnreadCount() async {
     if (_apiClient.bearerToken.trim().isEmpty) {
       unreadCount.value = 0;
+      unreadMessageCount.value = 0;
       return;
     }
     if (_pendingReadThreadIds.isNotEmpty) {
@@ -125,9 +130,15 @@ class ChatState {
     try {
       final response = await _apiClient.getJson('/api/chats/unread-count');
       final row = _safeMap(response['data']);
-      final raw = row['unreadCount'];
-      final next = raw is num ? raw.toInt() : int.tryParse('$raw') ?? 0;
-      unreadCount.value = next < 0 ? 0 : next;
+      final nextThreads = _safeInt(row['unreadThreadCount'], fallback: -1);
+      final fallbackThreads = _safeInt(row['unreadCount'], fallback: 0);
+      final nextMessages = _safeInt(
+        row['unreadMessageCount'],
+        fallback: fallbackThreads,
+      );
+      final resolvedThreads = nextThreads >= 0 ? nextThreads : fallbackThreads;
+      unreadCount.value = resolvedThreads < 0 ? 0 : resolvedThreads;
+      unreadMessageCount.value = nextMessages < 0 ? 0 : nextMessages;
     } catch (_) {
       // Keep current unread count when request fails.
     }
@@ -183,6 +194,7 @@ class ChatState {
     if (_normalizedPage(threadPagination.value.page) == 1) {
       final nextThreads = updated.take(limit).toList(growable: false);
       threads.value = nextThreads;
+      _syncUnreadCountersFromThreads(nextThreads);
     }
     if (!existed) {
       final totalItems = threadPagination.value.totalItems + 1;
@@ -362,10 +374,17 @@ class ChatState {
     }
   }
 
-  static Future<void> markThreadAsRead(String threadId) async {
+  static Future<void> markThreadAsRead(
+    String threadId, {
+    bool syncThreads = false,
+  }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid.trim() ?? '';
     final id = threadId.trim();
     if (uid.isEmpty || id.isEmpty || _apiClient.bearerToken.isEmpty) {
+      return;
+    }
+    if (_pendingReadThreadIds.contains(id)) {
+      _markThreadReadLocallySafely(id);
       return;
     }
     _pendingReadThreadIds.add(id);
@@ -379,6 +398,10 @@ class ChatState {
       // Keep local seen state; next sync will reconcile.
     } finally {
       _pendingReadThreadIds.remove(id);
+      if (syncThreads) {
+        final currentPage = _normalizedPage(threadPagination.value.page);
+        unawaited(refresh(page: currentPage));
+      }
       unawaited(refreshUnreadCount());
     }
   }
@@ -662,6 +685,23 @@ class ChatState {
     return page;
   }
 
+  static int _safeInt(dynamic value, {int fallback = 0}) {
+    if (value is num) return value.toInt();
+    return int.tryParse('$value') ?? fallback;
+  }
+
+  static void _syncUnreadCountersFromThreads(List<ChatThread> source) {
+    var threadCount = 0;
+    var messageCount = 0;
+    for (final thread in source) {
+      if (thread.unreadCount <= 0) continue;
+      threadCount += 1;
+      messageCount += thread.unreadCount;
+    }
+    unreadCount.value = threadCount;
+    unreadMessageCount.value = messageCount;
+  }
+
   static ChatMessageType _messageTypeFromStorage(
     String raw, {
     required String imageUrl,
@@ -895,8 +935,10 @@ class ChatState {
         .toList(growable: false);
     threads.value = updated;
     if (unreadInThread > 0) {
-      final next = unreadCount.value - unreadInThread;
-      unreadCount.value = next < 0 ? 0 : next;
+      final nextThreads = unreadCount.value - 1;
+      unreadCount.value = nextThreads < 0 ? 0 : nextThreads;
+      final nextMessages = unreadMessageCount.value - unreadInThread;
+      unreadMessageCount.value = nextMessages < 0 ? 0 : nextMessages;
     }
   }
 
