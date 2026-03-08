@@ -353,13 +353,14 @@ class _ProviderHomePageState extends State<ProviderHomePage> {
           ? 'Service Provider'
           : item.providerName.trim(),
       role: role,
-      rating: 4.8,
+      rating: item.rating,
       imagePath: item.avatarPath,
       accentColor: _accentFromCategory(role),
       services: item.services.toList(growable: false)..sort(),
       providerType: item.providerType,
       companyName: item.providerCompanyName,
       maxWorkers: item.providerMaxWorkers,
+      blockedDates: item.blockedDates,
     );
   }
 
@@ -382,6 +383,8 @@ class _ProviderAggregate {
   String providerCompanyName;
   int providerMaxWorkers;
   final Set<String> services;
+  final List<DateTime> blockedDates;
+  double rating;
 
   _ProviderAggregate({
     required this.providerUid,
@@ -392,6 +395,8 @@ class _ProviderAggregate {
     required this.providerCompanyName,
     required this.providerMaxWorkers,
     required this.services,
+    this.blockedDates = const [],
+    this.rating = 0,
   });
 
   factory _ProviderAggregate.fromPost(ProviderPostItem post) {
@@ -409,6 +414,8 @@ class _ProviderAggregate {
           .map((item) => item.trim())
           .where((item) => item.isNotEmpty)
           .toSet(),
+      blockedDates: post.blockedDates,
+      rating: post.rating,
     );
   }
 
@@ -419,6 +426,9 @@ class _ProviderAggregate {
         services.add(normalized);
       }
     }
+    // Update rating
+    rating = post.rating;
+
     if (post.providerType.trim().toLowerCase() == 'company') {
       providerType = 'company';
       if (post.providerCompanyName.trim().isNotEmpty) {

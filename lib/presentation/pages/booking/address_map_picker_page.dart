@@ -70,6 +70,8 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   bool _hasLocationPermission = false;
   StreamSubscription<Position>? _positionSubscription;
 
+  bool _userInteracted = false;
+
   bool get _useOpenStreetMap {
     // Keep Android debug/emulator stable even when Google Maps SDK key
     // restrictions are not fully configured yet.
@@ -130,6 +132,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                       controller: _searchController,
                       textInputAction: TextInputAction.search,
                       onSubmitted: _searchLocationByName,
+                      onChanged: (_) => _userInteracted = true,
                       decoration: InputDecoration(
                         hintText: 'Search location name',
                         prefixIcon: const Icon(Icons.search),
@@ -178,7 +181,10 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
                     final city = _cambodiaCities.keys.elementAt(index);
                     return ActionChip(
                       label: Text(city),
-                      onPressed: () => _moveToCity(city),
+                      onPressed: () {
+                        _userInteracted = true;
+                        _moveToCity(city);
+                      },
                       backgroundColor: Colors.white,
                       side: const BorderSide(color: AppColors.divider),
                     );
@@ -265,6 +271,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       // Use the custom "current location" action so we can enforce Phnom Penh bounds.
       myLocationButtonEnabled: false,
       zoomControlsEnabled: false,
+      onCameraMove: (_) => _userInteracted = true,
       onMapCreated: (controller) {
         _googleMapController = controller;
         if (_selectedPoint != _phnomPenh) {
@@ -272,6 +279,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         }
       },
       onTap: (point) {
+        _userInteracted = true;
         if (!_isInsidePhnomPenh(point)) {
           _showMessage(
             'Please choose a location inside Phnom Penh.',
@@ -347,7 +355,11 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         initialZoom: 11.5,
         minZoom: 10.5,
         maxZoom: 18,
+        onPositionChanged: (pos, hasGesture) {
+          if (hasGesture) _userInteracted = true;
+        },
         onTap: (_, point) {
+          _userInteracted = true;
           final selected = LatLng(point.latitude, point.longitude);
           if (!_isInsidePhnomPenh(selected)) {
             _showMessage(
@@ -402,6 +414,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   Future<void> _searchLocationByName(String rawQuery) async {
     final query = rawQuery.trim();
     if (query.isEmpty) return;
+    _userInteracted = true;
 
     final quickCity = _matchCity(query);
     if (quickCity != null) {
@@ -496,7 +509,10 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   }
 
   Future<void> _useCurrentLocation({bool silent = false}) async {
-    if (!silent) setState(() => _locating = true);
+    if (!silent) {
+      setState(() => _locating = true);
+      _userInteracted = true;
+    }
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
@@ -535,7 +551,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
 
       _startLiveTracking();
 
-      final position = await _resolveBestCurrentPosition();
+      final position = await _resolveBestCurrentPosition(forceRefresh: !silent);
       if (position == null) {
         if (!silent) {
           _showMessage(
@@ -548,12 +564,19 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
 
       final point = LatLng(position.latitude, position.longitude);
 
-      if (!silent && kDebugMode && !kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-        final distFromGoogleHq = Geolocator.distanceBetween(
-          position.latitude, position.longitude, 37.422, -122.084);
-        if (distFromGoogleHq < 1000) {
+      if (!silent && kDebugMode && !kIsWeb) {
+        bool isSimulatorHq = false;
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          final dist = Geolocator.distanceBetween(position.latitude, position.longitude, 37.422, -122.084);
+          if (dist < 1000) isSimulatorHq = true;
+        } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+          final dist = Geolocator.distanceBetween(position.latitude, position.longitude, 37.332, -122.031);
+          if (dist < 1000) isSimulatorHq = true;
+        }
+
+        if (isSimulatorHq) {
            _showMessage(
-            'Simulator is at Google HQ (USA). Please set its location to Phnom Penh in emulator settings.',
+            'Simulator is at default HQ (USA). Please set its location to Phnom Penh in simulator settings.',
             type: AppToastType.warning,
           );
         }
@@ -611,22 +634,36 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       ),
     ).listen((position) {
       if (mounted) {
+        final point = LatLng(position.latitude, position.longitude);
         setState(() {
-          _currentLiveLocation = LatLng(position.latitude, position.longitude);
+          _currentLiveLocation = point;
         });
+
+        // If the user hasn't interacted yet, and we just got a valid PP location,
+        // automatically move the marker there for a "dynamic" feel.
+        if (!_userInteracted && _isInsidePhnomPenh(point)) {
+          if (_selectedPoint.latitude == _phnomPenh.latitude &&
+              _selectedPoint.longitude == _phnomPenh.longitude) {
+            setState(() => _selectedPoint = point);
+            _moveCamera(point, zoom: 15.0);
+            _reverseGeocode(point);
+          }
+        }
       }
     }, onError: (e) {
       debugPrint('Live tracking error: $e');
     });
   }
 
-  Future<Position?> _resolveBestCurrentPosition() async {
-    try {
-      final lastKnown = await Geolocator.getLastKnownPosition();
-      if (lastKnown != null && _isPositionFresh(lastKnown)) {
-        return lastKnown;
-      }
-    } catch (_) {}
+  Future<Position?> _resolveBestCurrentPosition({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      try {
+        final lastKnown = await Geolocator.getLastKnownPosition();
+        if (lastKnown != null && _isPositionFresh(lastKnown)) {
+          return lastKnown;
+        }
+      } catch (_) {}
+    }
 
     try {
       final LocationSettings highAccuracy =
@@ -664,7 +701,8 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     final nowUtc = DateTime.now().toUtc();
     final timestampUtc = position.timestamp.toUtc();
     final diff = nowUtc.difference(timestampUtc).abs();
-    return diff.inMinutes <= 30;
+    // Use 1 minute instead of 30 for better responsiveness in simulators
+    return diff.inMinutes <= 1;
   }
 
   Future<void> _prepareLocationPermissions() async {

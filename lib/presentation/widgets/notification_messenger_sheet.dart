@@ -307,6 +307,7 @@ class _NotificationMessengerSheetState
       subtitle: latest.text,
       avatarPath: thread.avatarPath,
       updatedAt: latest.sentAt,
+      lastActiveAt: thread.lastActiveAt,
       unreadCount: 0,
       messages: _activeMessages,
     );
@@ -318,18 +319,19 @@ class _NotificationMessengerSheetState
     _activeThread = updatedThread;
   }
 
-  ({String label, Color color}) _activityStatus(DateTime updatedAt) {
-    final delta = DateTime.now().difference(updatedAt.toLocal());
+  ({String label, Color color}) _activityStatus(DateTime lastActiveAt) {
+    final delta = DateTime.now().difference(lastActiveAt.toLocal());
     if (delta.inMinutes < 5) {
       return (label: 'Active now', color: AppColors.success);
     }
+    const inactiveColor = Color(0xFF94A3B8);
     if (delta.inHours < 1) {
-      return (label: 'Active ${delta.inMinutes}m ago', color: AppColors.danger);
+      return (label: 'Active ${delta.inMinutes}m ago', color: inactiveColor);
     }
     if (delta.inDays < 1) {
-      return (label: 'Active ${delta.inHours}h ago', color: AppColors.danger);
+      return (label: 'Active ${delta.inHours}h ago', color: inactiveColor);
     }
-    return (label: 'Active ${delta.inDays}d ago', color: AppColors.danger);
+    return (label: 'Active ${delta.inDays}d ago', color: inactiveColor);
   }
 }
 
@@ -346,7 +348,7 @@ class _MessengerThreadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isActive = DateTime.now().difference(thread.updatedAt.toLocal()).inMinutes < 5;
+    final isActive = DateTime.now().difference(thread.lastActiveAt.toLocal()).inMinutes < 5;
     return PressableScale(
       onTap: onTap,
       child: InkWell(
@@ -381,7 +383,7 @@ class _MessengerThreadTile extends StatelessWidget {
                       width: 12,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: isActive ? AppColors.success : AppColors.danger,
+                        color: isActive ? AppColors.success : const Color(0xFFCBD5E1),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
@@ -530,44 +532,18 @@ class _MessengerBubble extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _timeLabel(message.sentAt),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                    fontSize: 10,
-                  ),
-                ),
-                if (fromMe) ...[
-                  const SizedBox(width: 4),
-                  _buildStatusIcon(),
-                ],
-              ],
+            child: Text(
+              _timeLabel(message.sentAt),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 10,
+              ),
             ),
           ),
           const SizedBox(height: 8),
         ],
       ),
     );
-  }
-
-  Widget _buildStatusIcon() {
-    IconData icon;
-    Color color = AppColors.textSecondary;
-    switch (message.deliveryStatus) {
-      case ChatDeliveryStatus.sending:
-        icon = Icons.access_time_rounded;
-      case ChatDeliveryStatus.sent:
-        icon = Icons.check_rounded;
-      case ChatDeliveryStatus.delivered:
-        icon = Icons.done_all_rounded;
-      case ChatDeliveryStatus.seen:
-        icon = Icons.done_all_rounded;
-        color = accentColor;
-    }
-    return Icon(icon, size: 12, color: color);
   }
 
   String _timeLabel(DateTime time) {

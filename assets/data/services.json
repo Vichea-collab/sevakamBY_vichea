@@ -1,0 +1,58 @@
+[
+  {
+    "title": "Pipe Leak Repair",
+    "pricePerHour": 18,
+    "completedCount": 89,
+    "rating": 4.8,
+    "category": "Plumber",
+    "etaHours": 1
+  },
+  {
+    "title": "Drain Cleaning",
+    "pricePerHour": 16,
+    "completedCount": 58,
+    "rating": 4.6,
+    "category": "Plumber",
+    "etaHours": 2
+  },
+  {
+    "title": "Toilet Repair",
+    "pricePerHour": 11,
+    "completedCount": 51,
+    "rating": 4.6,
+    "category": "Plumber",
+    "etaHours": 2
+  },
+  {
+    "title": "Wiring Repair",
+    "pricePerHour": 20,
+    "completedCount": 93,
+    "rating": 4.8,
+    "category": "Electrician",
+    "etaHours": 2
+  },
+  {
+    "title": "House Cleaning",
+    "pricePerHour": 10,
+    "completedCount": 132,
+    "rating": 4.9,
+    "category": "Cleaner",
+    "etaHours": 2
+  },
+  {
+    "title": "Air Conditioner Repair",
+    "pricePerHour": 20,
+    "completedCount": 67,
+    "rating": 4.8,
+    "category": "Home Appliance",
+    "etaHours": 3
+  },
+  {
+    "title": "Furniture Fixing",
+    "pricePerHour": 18,
+    "completedCount": 46,
+    "rating": 4.6,
+    "category": "Home Maintenance",
+    "etaHours": 2
+  }
+]

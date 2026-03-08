@@ -31,17 +31,28 @@ class _ChatListPageState extends State<ChatListPage> {
   bool _isPaging = false;
   bool _refreshInProgress = false;
   DateTime? _lastPullAt;
+  Timer? _heartbeatTimer;
 
   @override
   void initState() {
     super.initState();
     ChatState.refresh(page: 1);
+    _startHeartbeat();
   }
 
   @override
   void dispose() {
+    _heartbeatTimer?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _startHeartbeat() {
+    ChatState.updateHeartbeat();
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      ChatState.updateHeartbeat();
+    });
   }
 
   @override
@@ -223,19 +234,23 @@ class _ChatThreadTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasUnread = thread.unreadCount > 0;
     final accentColor = AppRoleState.isProvider ? const Color(0xFF818CF8) : AppColors.primary;
-    final isActive = DateTime.now().difference(thread.updatedAt.toLocal()).inMinutes < 5;
+    final isActive = DateTime.now().difference(thread.lastActiveAt.toLocal()).inMinutes < 5;
 
-    Future<void> openConversation() async {
+    void openConversation() {
       final currentPage = ChatState.threadPagination.value.page;
-      await ChatState.markThreadAsRead(thread.id, syncThreads: true);
-      if (!context.mounted) return;
-      await Navigator.push(
+      
+      // Navigate immediately without awaiting
+      Navigator.push(
         context,
         slideFadeRoute(ChatConversationPage(thread: thread)),
-      );
-      if (!context.mounted) return;
-      await ChatState.refresh(page: currentPage < 1 ? 1 : currentPage);
-      await ChatState.refreshUnreadCount();
+      ).then((_) {
+        if (!context.mounted) return;
+        unawaited(ChatState.refresh(page: currentPage < 1 ? 1 : currentPage));
+        unawaited(ChatState.refreshUnreadCount());
+      });
+
+      // Sync read state in background
+      unawaited(ChatState.markThreadAsRead(thread.id, syncThreads: true));
     }
 
     return PressableScale(
@@ -262,7 +277,7 @@ class _ChatThreadTile extends StatelessWidget {
                       width: 14,
                       height: 14,
                       decoration: BoxDecoration(
-                        color: isActive ? AppColors.success : AppColors.danger,
+                        color: isActive ? AppColors.success : const Color(0xFFCBD5E1),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2.5),
                       ),

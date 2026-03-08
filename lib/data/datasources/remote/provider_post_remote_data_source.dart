@@ -94,6 +94,12 @@ class ProviderPostRemoteDataSource {
     final services = _parseServices(row['services']);
     final primaryService = (row['service'] ?? '').toString().trim();
     final avatarUrl = (row['providerAvatarUrl'] ?? '').toString().trim();
+    final blockedDates = (row['blockedDates'] as List? ?? [])
+        .map((e) => DateTime.tryParse(e.toString()))
+        .where((e) => e != null)
+        .cast<DateTime>()
+        .toList();
+
     return ProviderPostItem(
       id: id.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : id,
       providerUid: (row['providerUid'] ?? '').toString(),
@@ -115,8 +121,10 @@ class ProviderPostRemoteDataSource {
       availableNow: row['availableNow'] == true,
       timeLabel: _timeLabel(createdAt),
       avatarPath: avatarUrl.isNotEmpty ? avatarUrl : 'assets/images/profile.jpg',
+      rating: _toDouble(row['rating'], fallback: 0),
       createdAt: createdAt,
       updatedAt: updatedAt,
+      blockedDates: blockedDates,
     );
   }
 
@@ -132,6 +140,11 @@ class ProviderPostRemoteDataSource {
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value) ?? 0;
     return 0;
+  }
+
+  double _toDouble(dynamic value, {double fallback = 0}) {
+    if (value is num) return value.toDouble();
+    return double.tryParse((value ?? '').toString()) ?? fallback;
   }
 
   String _providerType(dynamic value) {

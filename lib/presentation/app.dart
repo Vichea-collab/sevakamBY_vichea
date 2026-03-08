@@ -94,7 +94,7 @@ class _ServiceFinderAppState extends State<ServiceFinderApp> {
                     provider: const ProviderItem(
                       name: 'Service Provider',
                       role: 'Cleaner',
-                      rating: 4.8,
+                      rating: 0,
                       imagePath: 'assets/images/profile.jpg',
                       accentColor: Color(0xFFEAF1FF),
                     ),

@@ -60,9 +60,8 @@ class OrderState {
   static AppRole? _streamRole;
   static String _streamUid = '';
   static Timer? _notificationRefreshDebounce;
-  static final Map<String, String> _finderRealtimeOrderStatuses =
-      <String, String>{};
-  static bool _finderRealtimePrimed = false;
+  static final Map<String, String> _realtimeOrderStatuses = <String, String>{};
+  static bool _realtimePrimed = false;
   static DateTime? _finderRoleForbiddenUntil;
   static DateTime? _providerRoleForbiddenUntil;
   static DateTime? _realtimeUnavailableUntil;
@@ -633,11 +632,6 @@ class OrderState {
     if (user == null) return false;
 
     final role = AppRoleState.role.value;
-    if (role == AppRole.provider) {
-      // Provider flow relies on backend aggregation (incoming + assigned orders).
-      // Firestore security rules commonly deny broad provider live queries.
-      return false;
-    }
     final uid = user.uid;
     final alreadyBound =
         _ordersSubscription != null && _streamRole == role && _streamUid == uid;
@@ -650,9 +644,10 @@ class OrderState {
     _streamRole = role;
     _streamUid = uid;
 
+    final filterField = role == AppRole.provider ? 'providerUid' : 'finderUid';
     final query = FirebaseFirestore.instance
         .collection('orders')
-        .where('finderUid', isEqualTo: uid)
+        .where(filterField, isEqualTo: uid)
         .limit(_pageSize)
         .snapshots();
 
@@ -666,25 +661,38 @@ class OrderState {
 
         final nextStatuses = _extractOrderStatuses(rows);
         final hasStatusDelta =
-            _finderRealtimePrimed &&
-            _hasFinderStatusChanges(
-              previous: _finderRealtimeOrderStatuses,
+            _realtimePrimed &&
+            _hasStatusChanges(
+              previous: _realtimeOrderStatuses,
               next: nextStatuses,
             );
-        _finderRealtimeOrderStatuses
+        _realtimeOrderStatuses
           ..clear()
           ..addAll(nextStatuses);
-        _finderRealtimePrimed = true;
+        _realtimePrimed = true;
 
-        finderOrders.value = rows.map(_toFinderOrder).toList();
-        finderPagination.value = PaginationMeta(
-          page: 1,
-          limit: _pageSize,
-          totalItems: rows.length,
-          totalPages: rows.isEmpty ? 0 : 1,
-          hasPrevPage: false,
-          hasNextPage: false,
-        );
+        if (role == AppRole.provider) {
+          providerOrders.value = rows.map(_toProviderOrder).toList();
+          providerPagination.value = PaginationMeta(
+            page: 1,
+            limit: _pageSize,
+            totalItems: rows.length,
+            totalPages: rows.isEmpty ? 0 : 1,
+            hasPrevPage: false,
+            hasNextPage: false,
+          );
+        } else {
+          finderOrders.value = rows.map(_toFinderOrder).toList();
+          finderPagination.value = PaginationMeta(
+            page: 1,
+            limit: _pageSize,
+            totalItems: rows.length,
+            totalPages: rows.isEmpty ? 0 : 1,
+            hasPrevPage: false,
+            hasNextPage: false,
+          );
+        }
+
         if (hasStatusDelta) {
           _scheduleNotificationRefresh();
         }
@@ -718,8 +726,8 @@ class OrderState {
     _ordersSubscription = null;
     _streamRole = null;
     _streamUid = '';
-    _finderRealtimeOrderStatuses.clear();
-    _finderRealtimePrimed = false;
+    _realtimeOrderStatuses.clear();
+    _realtimePrimed = false;
     realtimeActive.value = false;
   }
 
@@ -749,7 +757,7 @@ class OrderState {
     return mapped;
   }
 
-  static bool _hasFinderStatusChanges({
+  static bool _hasStatusChanges({
     required Map<String, String> previous,
     required Map<String, String> next,
   }) {
@@ -820,6 +828,84 @@ class OrderState {
     return 0;
   }
 
+  static ProviderOrderItem _toProviderOrder(Map<String, dynamic> row) {
+    final preferredDate = _toDateTime(row['preferredDate']);
+    final timeline = _timelineFromRow(
+      row,
+      fallbackBookedAt: _toDateTimeOrNull(row['createdAt']),
+    );
+    final inputs = <String, String>{};
+    final rawInputs = row['serviceFields'];
+    if (rawInputs is Map) {
+      for (final entry in rawInputs.entries) {
+        inputs[entry.key.toString()] = (entry.value ?? '').toString();
+      }
+    }
+    final address =
+        '${(row['addressStreet'] ?? '').toString()}, ${(row['addressCity'] ?? '').toString()}'
+            .trim();
+    return ProviderOrderItem(
+      id: (row['id'] ?? '').toString(),
+      clientName: (row['finderName'] ?? 'Finder').toString(),
+      clientPhone: (row['finderPhone'] ?? '').toString(),
+      category: (row['categoryName'] ?? '').toString(),
+      serviceName: (row['serviceName'] ?? '').toString(),
+      address: address.replaceAll(RegExp(r'^,\s*|\s*,\s*$'), ''),
+      addressLink: (row['addressMapLink'] ?? '').toString(),
+      scheduleDate: _formatDate(preferredDate),
+      scheduleTime: (row['preferredTimeSlot'] ?? '').toString(),
+      workers: _toInt(row['workers'], fallback: 1),
+      hours: _toInt(row['hours'], fallback: 1),
+      homeType: (row['homeType'] ?? '').toString(),
+      paymentMethod: (row['paymentMethod'] ?? '').toString(),
+      additionalService: (row['additionalService'] ?? '').toString(),
+      finderNote: (row['finderNote'] ?? '').toString(),
+      serviceInputs: inputs,
+      subtotal: _toDouble(row['subtotal']),
+      processingFee: _toDouble(row['processingFee']),
+      discount: _toDouble(row['discount']),
+      total: _toDouble(row['total']),
+      state: _providerOrderStateFromStorage((row['status'] ?? '').toString()),
+      timeline: timeline,
+    );
+  }
+
+  static String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  static ProviderOrderState _providerOrderStateFromStorage(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'on_the_way':
+        return ProviderOrderState.onTheWay;
+      case 'started':
+        return ProviderOrderState.started;
+      case 'completed':
+        return ProviderOrderState.completed;
+      case 'declined':
+        return ProviderOrderState.declined;
+      case 'cancelled':
+        return ProviderOrderState.declined;
+      case 'booked':
+      default:
+        return ProviderOrderState.incoming;
+    }
+  }
+
   static OrderItem _toFinderOrder(Map<String, dynamic> row) {
     final provider = ProviderItem(
       uid: (row['providerUid'] ?? '').toString(),
@@ -838,6 +924,11 @@ class OrderState {
         row['providerMaxWorkers'],
         _providerType((row['providerType'] ?? '').toString()),
       ),
+      blockedDates: (row['providerBlockedDates'] as List? ?? [])
+          .map((e) => DateTime.tryParse(e.toString()))
+          .where((e) => e != null)
+          .cast<DateTime>()
+          .toList(),
     );
     final address = HomeAddress(
       id: (row['id'] ?? '').toString(),

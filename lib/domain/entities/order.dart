@@ -48,6 +48,35 @@ class BookingFieldDef {
     this.required = false,
     this.options = const [],
   });
+
+  factory BookingFieldDef.fromMap(Map<String, dynamic> map) {
+    return BookingFieldDef(
+      key: map['key'].toString(),
+      label: map['label'].toString(),
+      type: _parseFieldType(map['type'].toString()),
+      required: map['required'] == true,
+      options: (map['options'] as List?)?.map((e) => e.toString()).toList() ??
+          const [],
+    );
+  }
+
+  static BookingFieldType _parseFieldType(String value) {
+    switch (value.toLowerCase()) {
+      case 'number':
+        return BookingFieldType.number;
+      case 'dropdown':
+        return BookingFieldType.dropdown;
+      case 'toggle':
+        return BookingFieldType.toggle;
+      case 'photo':
+        return BookingFieldType.photo;
+      case 'multiline':
+        return BookingFieldType.multiline;
+      case 'text':
+      default:
+        return BookingFieldType.text;
+    }
+  }
 }
 
 class HomeAddress {

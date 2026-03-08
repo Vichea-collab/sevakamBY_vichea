@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../state/app_role_state.dart';
+import '../../state/app_state.dart';
 import '../../state/auth_state.dart';
 import '../../state/order_state.dart';
 import '../../state/profile_image_state.dart';
@@ -34,10 +35,29 @@ class ProviderProfilePage extends StatefulWidget {
 }
 
 class _ProviderProfilePageState extends State<ProviderProfilePage> {
+  double _providerRating = 0.0;
+
   @override
   void initState() {
     super.initState();
     unawaited(_syncCompletedOrders());
+    unawaited(_fetchRating());
+  }
+
+  Future<void> _fetchRating() async {
+    final providerUid = AuthState.currentUser.value?.uid.trim() ?? '';
+    if (providerUid.isEmpty) return;
+    try {
+      final summary = await OrderState.fetchProviderReviewSummary(
+        providerUid: providerUid,
+        limit: 1,
+      );
+      if (mounted) {
+        setState(() {
+          _providerRating = summary.averageRating;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _syncCompletedOrders() async {
@@ -77,7 +97,7 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
               ),
             ),
             const SizedBox(height: 10),
-            const _ProviderHero(),
+            _ProviderHero(rating: _providerRating),
             const SizedBox(height: 16),
             Text(
               'Profile information',
@@ -158,6 +178,50 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
               onTap: () => Navigator.push(
                 context,
                 slideFadeRoute(const HelpSupportPage()),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Theme.of(context).dividerColor),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    height: 34,
+                    width: 34,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.dark_mode_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Dark Mode',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ),
+                  ValueListenableBuilder<ThemeMode>(
+                    valueListenable: AppState.themeMode,
+                    builder: (context, themeMode, _) {
+                      return Switch(
+                        value: themeMode == ThemeMode.dark,
+                        onChanged: (value) => AppState.toggleTheme(),
+                        activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                        activeThumbColor: Theme.of(context).colorScheme.primary,
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 14),
@@ -267,7 +331,8 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
 }
 
 class _ProviderHero extends StatelessWidget {
-  const _ProviderHero();
+  final double rating;
+  const _ProviderHero({required this.rating});
 
   @override
   Widget build(BuildContext context) {
@@ -367,7 +432,7 @@ class _ProviderHero extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '3.9',
+                          rating.toStringAsFixed(1),
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
                                 color: Colors.white,

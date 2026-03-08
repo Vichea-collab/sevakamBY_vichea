@@ -29,7 +29,6 @@ enum _FinderOrderTab { pending, inProgress, completed }
 
 class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
   _FinderOrderTab _activeTab = _FinderOrderTab.pending;
-  String _filter = 'all';
   bool _isPaging = false;
 
   @override
@@ -67,9 +66,7 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
               valueListenable: OrderState.finderPagination,
               builder: (context, pagination, _) {
                 final sourceOrders = _ordersForTab(_activeTab, allOrders);
-                final visibleOrders = sourceOrders
-                    .where((order) => _matchesFilter(order))
-                    .toList();
+                final visibleOrders = sourceOrders;
                 return Scaffold(
                   body: SafeArea(
                     child: Padding(
@@ -78,62 +75,11 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
                         children: [
                           AppTopBar(
                             title: 'Orders',
-                            subtitle: 'Track booking progress and history',
                             showBack: true,
                             onBack: () => Navigator.pushReplacementNamed(
                               context,
                               '/home',
                             ),
-                            actions: [
-                              PopupMenuButton<String>(
-                                initialValue: _filter,
-                                onSelected: (value) =>
-                                    setState(() => _filter = value),
-                                color: Colors.white,
-                                elevation: 8,
-                                offset: const Offset(0, 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: const BorderSide(
-                                    color: AppColors.divider,
-                                  ),
-                                ),
-                                itemBuilder: (context) => const [
-                                  PopupMenuItem(
-                                    value: 'all',
-                                    child: Text('All'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'today',
-                                    child: Text('Today'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'upcoming',
-                                    child: Text('Upcoming'),
-                                  ),
-                                ],
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: AppColors.divider,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Text(_filterLabel(_filter)),
-                                      const SizedBox(width: 4),
-                                      const Icon(Icons.expand_more, size: 16),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
                           ),
                           const SizedBox(height: 12),
                           Row(
@@ -186,7 +132,7 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
                                       child: visibleOrders.isEmpty
                                           ? ListView(
                                               key: ValueKey<String>(
-                                                'empty_orders_${_activeTab.name}_$_filter',
+                                                'empty_orders_${_activeTab.name}',
                                               ),
                                               physics:
                                                   const AlwaysScrollableScrollPhysics(),
@@ -204,7 +150,7 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
                                             )
                                           : ListView.separated(
                                             key: ValueKey<String>(
-                                              'orders_${visibleOrders.length}_${pagination.page}_${_activeTab.name}_$_filter',
+                                              'orders_${visibleOrders.length}_${pagination.page}_${_activeTab.name}',
                                             ),
                                             physics:
                                                 const AlwaysScrollableScrollPhysics(),
@@ -305,8 +251,6 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
         status: OrderStatus.completed,
       );
       setState(() => _activeTab = _FinderOrderTab.completed);
-      if (!mounted) return;
-      AppToast.success(context, 'Order marked as completed.');
     } catch (_) {
       if (!mounted) return;
       AppToast.error(context, 'Failed to update order status.');
@@ -417,36 +361,6 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
         return 'Orders in progress will appear here.';
       case _FinderOrderTab.completed:
         return 'Completed, cancelled, and declined orders appear here.';
-    }
-  }
-
-  bool _matchesFilter(OrderItem order) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final orderDay = DateTime(
-      order.scheduledAt.year,
-      order.scheduledAt.month,
-      order.scheduledAt.day,
-    );
-
-    switch (_filter) {
-      case 'today':
-        return orderDay == today;
-      case 'upcoming':
-        return orderDay.isAfter(today);
-      default:
-        return true;
-    }
-  }
-
-  String _filterLabel(String value) {
-    switch (value) {
-      case 'today':
-        return 'Today';
-      case 'upcoming':
-        return 'Upcoming';
-      default:
-        return 'All';
     }
   }
 
@@ -571,7 +485,7 @@ class _OrderCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: PrimaryButton(
-                      label: 'Mark as completed',
+                      label: 'Mark Complete',
                       icon: Icons.task_alt_rounded,
                       tone: PrimaryButtonTone.success,
                       onPressed: onMarkCompleted,

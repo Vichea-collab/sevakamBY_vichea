@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_calendar_picker.dart';
+import '../../../core/utils/category_utils.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../core/utils/safe_image_provider.dart';
 import '../../../domain/entities/order.dart';
 import '../../../domain/entities/provider.dart';
 import '../../state/booking_catalog_state.dart';
+import '../../state/provider_post_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
@@ -30,24 +32,92 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   late String _preferredTime;
   late String _selectedService;
   String? _serviceError;
+  bool _refreshingProvider = false;
+  late ProviderItem _currentProvider;
 
   @override
   void initState() {
     super.initState();
+    _currentProvider = widget.draft.provider;
     _hours = widget.draft.hours;
     _homeType = widget.draft.homeType;
     _workers = widget.draft.workers;
-    _preferredDate = widget.draft.preferredDate;
+    _preferredDate = _findFirstAvailableDate(
+      widget.draft.preferredDate,
+      _currentProvider.blockedDates,
+    );
     _preferredTime = widget.draft.preferredTimeSlot;
     _selectedService = widget.draft.serviceName;
     _applyGeneralDetailDefaultsForService();
     _validateService();
+    _refreshProviderData();
+  }
+
+  Future<void> _refreshProviderData() async {
+    final uid = _currentProvider.uid.trim();
+    if (uid.isEmpty) return;
+
+    setState(() => _refreshingProvider = true);
+    try {
+      final latest = await ProviderPostState.findLatestByUid(uid);
+      if (latest != null && mounted) {
+        setState(() {
+          _currentProvider = ProviderItem(
+            uid: latest.providerUid,
+            name: latest.providerName,
+            role: latest.category,
+            rating: latest.rating,
+            imagePath: latest.avatarPath,
+            accentColor: accentForCategory(latest.category),
+            services: latest.serviceList,
+            providerType: latest.providerType,
+            companyName: latest.providerCompanyName,
+            maxWorkers: latest.providerMaxWorkers,
+            blockedDates: latest.blockedDates,
+          );
+          // Re-validate preferred date against fresh blocked dates
+          _preferredDate = _findFirstAvailableDate(
+            _preferredDate,
+            _currentProvider.blockedDates,
+          );
+        });
+      }
+    } catch (_) {
+      // Keep existing data on failure
+    } finally {
+      if (mounted) {
+        setState(() => _refreshingProvider = false);
+      }
+    }
+  }
+
+  DateTime _findFirstAvailableDate(DateTime start, List<DateTime> blocked) {
+    if (blocked.isEmpty) return start;
+    
+    var candidate = DateTime(start.year, start.month, start.day);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    if (candidate.isBefore(today)) {
+      candidate = today;
+    }
+
+    // Try up to 60 days to find an open slot
+    for (int i = 0; i < 60; i++) {
+      final check = candidate.add(Duration(days: i));
+      final isBlocked = blocked.any((d) => 
+        d.year == check.year && d.month == check.month && d.day == check.day);
+      if (!isBlocked) return check;
+    }
+    
+    return candidate;
   }
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final draft = widget.draft.copyWith(
+      provider: _currentProvider,
       hours: _hours,
       homeType: _homeType,
       workers: _workers,
@@ -58,7 +128,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
         _selectedService,
       ),
     );
-    final categoryServices = _servicesForProvider(provider: draft.provider);
+    final categoryServices = _servicesForProvider(provider: _currentProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -75,7 +145,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
               const SizedBox(height: 12),
               const BookingStepProgress(currentStep: BookingFlowStep.details),
               const SizedBox(height: 12),
-              _ProviderCard(draft: draft),
+              _ProviderCard(draft: draft, loading: _refreshingProvider),
               const SizedBox(height: 16),
               Text(
                 'Service',
@@ -299,12 +369,22 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
+    final blockedDates = _currentProvider.blockedDates;
+    
     final picked = await showAppCalendarDatePicker(
       context,
       initialDate: _preferredDate,
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 2, 12, 31),
       helpText: 'Choose booking date',
+      selectableDayPredicate: (date) {
+        if (blockedDates.isEmpty) return true;
+        return !blockedDates.any((blocked) => 
+          blocked.year == date.year && 
+          blocked.month == date.month && 
+          blocked.day == date.day
+        );
+      },
     );
     if (picked == null) return;
     setState(() => _preferredDate = picked);
@@ -529,8 +609,9 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
 
 class _ProviderCard extends StatelessWidget {
   final BookingDraft draft;
+  final bool loading;
 
-  const _ProviderCard({required this.draft});
+  const _ProviderCard({required this.draft, this.loading = false});
 
   @override
   Widget build(BuildContext context) {
@@ -543,9 +624,20 @@ class _ProviderCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundImage: safeImageProvider(draft.provider.imagePath),
+          Stack(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundImage: safeImageProvider(draft.provider.imagePath),
+              ),
+              if (loading)
+                const Positioned.fill(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 10),
           Expanded(

@@ -1,0 +1,7 @@
+[
+  { "name": "Cleaner", "icon": "cleaner" },
+  { "name": "Plumber", "icon": "plumber" },
+  { "name": "Electrician", "icon": "electrician" },
+  { "name": "Home Appliance", "icon": "appliance" },
+  { "name": "Home Maintenance", "icon": "maintenance" }
+]

@@ -17,7 +17,7 @@ import 'app_role_state.dart';
 import 'profile_settings_state.dart';
 
 class ChatState {
-  static const int _pageSize = 10;
+  static const int _pageSize = 15;
   static const String _outboxStorageKey = 'chat_outbox_v1';
   static const Duration _outboxFlushInterval = Duration(seconds: 8);
   static const Duration _unreadSyncInterval = Duration(seconds: 6);
@@ -130,7 +130,20 @@ class ChatState {
     }
     try {
       final response = await _apiClient.getJson('/api/chats/unread-count');
-      final row = _safeMap(response['data']);
+      _applyUnreadCounters(response['data']);
+    } catch (_) {}
+  }
+
+  static Future<void> updateHeartbeat() async {
+    if (_apiClient.bearerToken.trim().isEmpty) return;
+    try {
+      await _apiClient.postJson('/api/chats/heartbeat', const <String, dynamic>{});
+    } catch (_) {}
+  }
+
+  static void _applyUnreadCounters(dynamic data) {
+    try {
+      final row = _safeMap(data);
       final nextThreads = _safeInt(row['unreadThreadCount'], fallback: -1);
       final fallbackThreads = _safeInt(row['unreadCount'], fallback: 0);
       final nextMessages = _safeInt(
@@ -594,6 +607,7 @@ class ChatState {
     final updatedAt = _toDateTime(
       row['updatedAt'] ?? row['lastMessageAt'] ?? row['createdAt'],
     );
+    final lastActiveAt = _toDateTime(row['lastActiveAt'] ?? row['updatedAt']);
 
     return ChatThread(
       id: id,
@@ -601,8 +615,9 @@ class ChatState {
       subtitle: subtitle.isEmpty
           ? (fallbackSubtitle.isEmpty ? 'Start conversation' : fallbackSubtitle)
           : subtitle,
-      avatarPath: _safeAvatarPath(),
+      avatarPath: _safeAvatarPath(row, currentUid),
       updatedAt: updatedAt,
+      lastActiveAt: lastActiveAt,
       unreadCount: unreadCount,
       messages: const <ChatMessage>[],
     );
@@ -651,6 +666,7 @@ class ChatState {
   }
 
   static DateTime _toDateTime(dynamic value) {
+    if (value == null) return DateTime.fromMillisecondsSinceEpoch(0);
     if (value is DateTime) return value.toLocal();
     if (value is String) {
       final parsed = DateTime.tryParse(value);
@@ -660,7 +676,7 @@ class ChatState {
       final seconds = value['_seconds'] as num;
       return DateTime.fromMillisecondsSinceEpoch((seconds * 1000).round());
     }
-    return DateTime.now();
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   static Map<String, dynamic> _safeMap(dynamic value) {
@@ -679,7 +695,29 @@ class ChatState {
     return AppRoleState.isProvider ? 'Service Provider' : 'Service Finder';
   }
 
-  static String _safeAvatarPath() => 'assets/images/profile.jpg';
+  static String _safeAvatarPath(Map<String, dynamic> row, String currentUid) {
+    final participantMetaRaw = row['participantMeta'];
+    if (participantMetaRaw is Map) {
+      final participants = (row['participants'] is List)
+          ? (row['participants'] as List)
+                .map((e) => e.toString().trim())
+                .where((e) => e.isNotEmpty)
+                .toList()
+          : <String>[];
+      final peerUid = participants.firstWhere(
+        (uid) => uid != currentUid,
+        orElse: () => '',
+      );
+      if (peerUid.isNotEmpty) {
+        final raw = participantMetaRaw[peerUid];
+        if (raw is Map) {
+          final avatar = (raw['avatarPath'] ?? '').toString().trim();
+          if (avatar.isNotEmpty) return avatar;
+        }
+      }
+    }
+    return 'assets/images/profile.jpg';
+  }
 
   static int _normalizedPage(int page) {
     if (page < 1) return 1;
@@ -928,6 +966,7 @@ class ChatState {
                   subtitle: thread.subtitle,
                   avatarPath: thread.avatarPath,
                   updatedAt: thread.updatedAt,
+                  lastActiveAt: thread.lastActiveAt,
                   unreadCount: 0,
                   messages: thread.messages,
                 )
@@ -954,6 +993,7 @@ class ChatState {
                   subtitle: thread.subtitle,
                   avatarPath: thread.avatarPath,
                   updatedAt: thread.updatedAt,
+                  lastActiveAt: thread.lastActiveAt,
                   unreadCount: 0,
                   messages: thread.messages,
                 )

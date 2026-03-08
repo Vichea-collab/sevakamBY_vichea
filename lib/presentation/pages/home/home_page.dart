@@ -786,13 +786,14 @@ class _ProviderPostTile extends StatelessWidget {
           ? 'Service Provider'
           : seed.providerName.trim(),
       role: role,
-      rating: 4.8,
+      rating: seed.rating,
       imagePath: seed.avatarPath,
       accentColor: accentForCategory(role),
       services: services,
       providerType: seed.providerType,
       companyName: seed.providerCompanyName.trim(),
       maxWorkers: seed.providerMaxWorkers < 1 ? 1 : seed.providerMaxWorkers,
+      blockedDates: seed.blockedDates,
     );
   }
 

@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../../core/config/app_env.dart';
 import '../../core/firebase/firebase_bootstrap.dart';
 import '../../domain/entities/profile_settings.dart';
 import 'app_sync_state.dart';
@@ -23,8 +22,11 @@ class AuthState {
   static const Duration _authOperationTimeout = Duration(seconds: 18);
 
   static bool _initialized = false;
-  static bool _googleInitialized = false;
   static StreamSubscription<User?>? _idTokenSubscription;
+
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: <String>['email', 'profile'],
+  );
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -32,20 +34,25 @@ class AuthState {
 
     final configured = await FirebaseBootstrap.initializeIfConfigured();
     if (!configured) {
+      debugPrint('AuthState: Firebase not configured, skipping initialize');
       ready.value = true;
       return;
     }
 
     final auth = FirebaseAuth.instance;
     currentUser.value = auth.currentUser;
+    debugPrint('AuthState: Initial user is ${auth.currentUser?.email ?? 'null'}');
+
     if (auth.currentUser != null) {
       await _syncSignedInUser(auth.currentUser!);
     } else {
       await AppSyncState.setSignedIn(false);
     }
+
     await _idTokenSubscription?.cancel();
     _idTokenSubscription = auth.idTokenChanges().listen(
       (user) async {
+        debugPrint('AuthState: idTokenChanges emitted for ${user?.email ?? 'null'}');
         currentUser.value = user;
         if (user == null) {
           _applyBackendTokenToStates('');
@@ -62,6 +69,7 @@ class AuthState {
   }
 
   static Future<void> _syncSignedInUser(User user) async {
+    debugPrint('AuthState: Syncing signed in user ${user.email}');
     String token = '';
     try {
       token = await user.getIdToken() ?? '';
@@ -70,18 +78,35 @@ class AuthState {
     }
     _applyBackendTokenToStates(token);
     if (token.trim().isEmpty) {
+      debugPrint('AuthState: Empty token, signing out sync');
       await AppSyncState.setSignedIn(false);
       return;
     }
 
     try {
-      await _alignRoleToRegisteredProfile();
+      final roleResolved = await _alignRoleToRegisteredProfile();
+      debugPrint('AuthState: Role resolution result: $roleResolved');
+
+      if (!roleResolved) {
+         debugPrint('AuthState: No role found during sync. Attempting default finder initialization...');
+         try {
+           await ProfileSettingsState.initUserRoleOnBackend(isProvider: false);
+           final newToken = await user.getIdToken(true);
+           _applyBackendTokenToStates(newToken ?? '');
+           debugPrint('AuthState: Default finder initialization successful');
+         } catch (e) {
+           debugPrint('AuthState: Default initialization failed: $e');
+         }
+      }
+
       final isAdmin = await _isAdminSession(user);
       if (isAdmin) {
+        debugPrint('AuthState: Admin session detected, signing out sync');
         await AppSyncState.setSignedIn(false);
         return;
       }
 
+      debugPrint('AuthState: Refreshing states for user');
       await ChatState.refresh();
       await ChatState.refreshUnreadCount();
       await FinderPostState.refresh();
@@ -90,6 +115,7 @@ class AuthState {
       await ProviderPostState.refreshAllForLookup();
       await OrderState.refreshCurrentRole();
       await AppSyncState.setSignedIn(true);
+      debugPrint('AuthState: Sync complete');
     } catch (error) {
       debugPrint('AuthState._syncSignedInUser failed: $error');
       await AppSyncState.setSignedIn(false);
@@ -102,44 +128,66 @@ class AuthState {
     required bool isProvider,
     bool registerIfMissing = true,
   }) async {
+    debugPrint('AuthState: signInWithGoogle(isProvider: $isProvider, register: $registerIfMissing)');
     final configured = await FirebaseBootstrap.initializeIfConfigured();
     if (!configured) return FirebaseBootstrap.setupHint();
 
     try {
       final UserCredential result;
-      final provider = GoogleAuthProvider()..addScope('email');
-      provider.setCustomParameters({'prompt': 'select_account'});
       if (kIsWeb) {
+        final provider = GoogleAuthProvider()..addScope('email');
+        provider.setCustomParameters({'prompt': 'select_account'});
         result = await _runAuthOperation(
           operation: 'Google sign-in',
           action: () => FirebaseAuth.instance.signInWithPopup(provider),
         );
       } else {
-        await _ensureGoogleInitialized();
-        final account = await _runAuthOperation(
+        final GoogleSignInAccount? account = await _runAuthOperation(
           operation: 'Google account selection',
-          action: GoogleSignIn.instance.authenticate,
+          action: () => _googleSignIn.signIn(),
           enforceTimeout: false,
         );
-        final authentication = account.authentication;
-        final idToken = authentication.idToken?.trim() ?? '';
-        if (idToken.isEmpty) {
+        if (account == null) {
+          debugPrint('AuthState: Google sign-in canceled by user');
+          return 'Google sign-in was canceled.';
+        }
+
+        debugPrint('AuthState: Google account selected: ${account.email}');
+        final GoogleSignInAuthentication authentication = await account.authentication;
+        final String? idToken = authentication.idToken;
+        final String? accessToken = authentication.accessToken;
+
+        if (idToken == null || idToken.isEmpty) {
+          debugPrint('AuthState: Google idToken is missing');
           return 'Google sign-in token is missing. Check Firebase Google provider and Android OAuth SHA setup.';
         }
-        final credential = GoogleAuthProvider.credential(idToken: idToken);
+
+        final AuthCredential credential = GoogleAuthProvider.credential(
+          idToken: idToken,
+          accessToken: accessToken,
+        );
         result = await _runAuthOperation(
           operation: 'Google sign-in',
           action: () => FirebaseAuth.instance.signInWithCredential(credential),
         );
       }
+
       final user = result.user;
-      if (user == null) return 'Google sign-in failed.';
+      if (user == null) {
+        debugPrint('AuthState: Firebase user is null after Google sign-in');
+        return 'Google sign-in failed.';
+      }
+
+      debugPrint('AuthState: Google sign-in success for ${user.email}, applying session...');
       final sessionError = await _applyAuthenticatedSession(
         user,
         isProvider: isProvider,
         registerRoleIfMissing: registerIfMissing,
       );
-      if (sessionError != null) return sessionError;
+      if (sessionError != null) {
+        debugPrint('AuthState: Session application failed: $sessionError');
+        return sessionError;
+      }
 
       if (registerIfMissing) {
         final fullName = user.displayName?.trim().isNotEmpty == true
@@ -157,19 +205,13 @@ class AuthState {
           isProvider: isProvider,
         );
       }
+      debugPrint('AuthState: Google sign-in flow complete');
       return null;
     } on FirebaseAuthException catch (error) {
-      debugPrint(
-        'FirebaseAuthException (google credential): code=${error.code}, message=${error.message}',
-      );
+      debugPrint('AuthState: FirebaseAuthException: code=${error.code}, message=${error.message}');
       return _friendlyAuthError(error, googleFlow: true);
-    } on GoogleSignInException catch (error) {
-      debugPrint(
-        'GoogleSignInException: code=${error.code}, desc=${error.description}, details=${error.details}',
-      );
-      return _friendlyGoogleSignInError(error);
     } catch (error) {
-      debugPrint('Google sign-in unexpected error: $error');
+      debugPrint('AuthState: Google sign-in unexpected error: $error');
       return _friendlyUnknownGoogleError(error);
     }
   }
@@ -179,6 +221,7 @@ class AuthState {
     required String email,
     required String password,
   }) async {
+    debugPrint('AuthState: signInWithEmailPassword(email: $email, isProvider: $isProvider)');
     final configured = await FirebaseBootstrap.initializeIfConfigured();
     if (!configured) return FirebaseBootstrap.setupHint();
 
@@ -192,19 +235,28 @@ class AuthState {
       );
       final user = result.user;
       if (user == null) return 'Sign-in failed.';
+
+      debugPrint('AuthState: Email sign-in success for ${user.email}, applying session...');
       final sessionError = await _applyAuthenticatedSession(
         user,
         isProvider: isProvider,
         registerRoleIfMissing: false,
       );
-      if (sessionError != null) return sessionError;
+      if (sessionError != null) {
+        debugPrint('AuthState: Session application failed: $sessionError');
+        return sessionError;
+      }
+
       await ProfileSettingsState.syncRoleProfileFromBackend(
         isProvider: isProvider,
       );
+      debugPrint('AuthState: Email sign-in flow complete');
       return null;
     } on FirebaseAuthException catch (error) {
+      debugPrint('AuthState: FirebaseAuthException: code=${error.code}, message=${error.message}');
       return _friendlyAuthError(error);
     } catch (error) {
+      debugPrint('AuthState: Email sign-in unexpected error: $error');
       return _friendlyUnknownAuthError(error);
     }
   }
@@ -241,6 +293,7 @@ class AuthState {
     String dateOfBirth = '',
     String bio = '',
   }) async {
+    debugPrint('AuthState: signUpWithEmailPassword(email: $email, isProvider: $isProvider)');
     final configured = await FirebaseBootstrap.initializeIfConfigured();
     if (!configured) return FirebaseBootstrap.setupHint();
 
@@ -257,6 +310,7 @@ class AuthState {
         user = result.user;
       } on FirebaseAuthException catch (error) {
         if (error.code != 'email-already-in-use') rethrow;
+        debugPrint('AuthState: Email already in use, attempting sign-in as fallback');
         final existing = await _runAuthOperation(
           operation: 'Existing account sign-in',
           action: () => FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -267,16 +321,26 @@ class AuthState {
         user = existing.user;
       }
 
-      if (user == null) return 'Sign-up failed.';
+      if (user == null) {
+        debugPrint('AuthState: User is null after registration/sign-in');
+        return 'Sign-up failed.';
+      }
+
       if (fullName.trim().isNotEmpty) {
         await user.updateDisplayName(fullName.trim());
       }
+
+      debugPrint('AuthState: Registration success for ${user.email}, applying session...');
       final sessionError = await _applyAuthenticatedSession(
         user,
         isProvider: isProvider,
         registerRoleIfMissing: true,
       );
-      if (sessionError != null) return sessionError;
+      if (sessionError != null) {
+        debugPrint('AuthState: Session application failed: $sessionError');
+        return sessionError;
+      }
+
       await _seedProfileAfterRegistration(
         isProvider: isProvider,
         fullName: fullName.trim(),
@@ -288,34 +352,28 @@ class AuthState {
         bio: bio.trim(),
       );
       ProfileImageState.useDefaultAvatar(isProvider: isProvider);
+      debugPrint('AuthState: Sign-up flow complete');
       return null;
     } on FirebaseAuthException catch (error) {
+      debugPrint('AuthState: FirebaseAuthException: code=${error.code}, message=${error.message}');
       return _friendlyAuthError(error);
     } catch (error) {
+      debugPrint('AuthState: Sign-up unexpected error: $error');
       return _friendlyUnknownAuthError(error);
     }
   }
 
   static Future<void> signOut() async {
+    debugPrint('AuthState: signing out');
     if (!FirebaseBootstrap.isConfigured) return;
     await FirebaseAuth.instance.signOut();
     try {
       if (!kIsWeb) {
-        await _ensureGoogleInitialized();
-        await GoogleSignIn.instance.signOut();
+        await _googleSignIn.signOut();
       }
     } catch (_) {}
     _applyBackendTokenToStates('');
     await AppSyncState.setSignedIn(false);
-  }
-
-  static Future<void> _ensureGoogleInitialized() async {
-    if (_googleInitialized) return;
-    final webClientId = AppEnv.firebaseWebClientId().trim();
-    await GoogleSignIn.instance.initialize(
-      serverClientId: webClientId.isEmpty ? null : webClientId,
-    );
-    _googleInitialized = true;
   }
 
   static Future<String?> switchRole({required bool toProvider}) async {
@@ -351,17 +409,52 @@ class AuthState {
     required bool isProvider,
     required bool registerRoleIfMissing,
   }) async {
-    final token = await user.getIdToken(true);
+    debugPrint('AuthState: Applying session (isProvider: $isProvider, register: $registerRoleIfMissing)');
+    var token = await user.getIdToken(true);
     _applyBackendTokenToStates(token ?? '');
+
+    bool initPerformed = false;
     if (registerRoleIfMissing) {
-      await ProfileSettingsState.initUserRoleOnBackend(isProvider: isProvider);
+      try {
+        debugPrint('AuthState: Initializing role on backend...');
+        await ProfileSettingsState.initUserRoleOnBackend(isProvider: isProvider);
+        initPerformed = true;
+      } catch (e) {
+        debugPrint('AuthState: Backend initialization failed: $e');
+        return 'Backend registration failed. Check server connectivity and try again.';
+      }
     }
-    final hasRole = await ProfileSettingsState.hasRoleRegisteredOnBackend(
+
+    var hasRole = await ProfileSettingsState.hasRoleRegisteredOnBackend(
       isProvider: isProvider,
     );
+    debugPrint('AuthState: Role registered on backend? $hasRole');
+
+    if (!hasRole && !registerRoleIfMissing) {
+      debugPrint('AuthState: Role missing during sign-in. Attempting auto-initialization...');
+      try {
+        await ProfileSettingsState.initUserRoleOnBackend(isProvider: isProvider);
+        initPerformed = true;
+        hasRole = await ProfileSettingsState.hasRoleRegisteredOnBackend(
+          isProvider: isProvider,
+        );
+        debugPrint('AuthState: Auto-initialization result: $hasRole');
+      } catch (e) {
+        debugPrint('AuthState: Auto-initialization failed: $e');
+      }
+    }
+
     if (!hasRole) {
+      debugPrint('AuthState: Final role check failed');
       return _missingRoleMessage(isProvider);
     }
+
+    if (initPerformed) {
+      debugPrint('AuthState: Forcing token refresh after initialization');
+      token = await user.getIdToken(true);
+      _applyBackendTokenToStates(token ?? '');
+    }
+
     AppRoleState.setProvider(isProvider);
     await ChatState.refresh();
     await ChatState.refreshUnreadCount();
@@ -401,13 +494,13 @@ class AuthState {
     );
   }
 
-  static Future<void> _alignRoleToRegisteredProfile() async {
+  static Future<bool> _alignRoleToRegisteredProfile() async {
     final currentIsProvider = AppRoleState.isProvider;
     final hasCurrentRole =
         await ProfileSettingsState.hasRoleRegisteredOnBackend(
           isProvider: currentIsProvider,
         );
-    if (hasCurrentRole) return;
+    if (hasCurrentRole) return true;
 
     final fallbackIsProvider = !currentIsProvider;
     final hasFallbackRole =
@@ -416,7 +509,9 @@ class AuthState {
         );
     if (hasFallbackRole) {
       AppRoleState.setProvider(fallbackIsProvider);
+      return true;
     }
+    return false;
   }
 
   static void _applyBackendTokenToStates(String token) {
@@ -532,59 +627,6 @@ class AuthState {
     return raw.isEmpty ? 'Google sign-in failed.' : raw;
   }
 
-  static String _friendlyGoogleSignInError(GoogleSignInException error) {
-    final details = error.details?.toString().trim() ?? '';
-    final description = error.description?.trim() ?? '';
-    final signal = '$description $details'.toLowerCase();
-    String withDetails(String message) {
-      if (details.isEmpty) return message;
-      return '$message ($details)';
-    }
-
-    if (signal.contains('network') ||
-        signal.contains('failed to resolve name') ||
-        signal.contains('unable to resolve host') ||
-        signal.contains('unknown host') ||
-        signal.contains('timeout')) {
-      return withDetails(_networkAuthHint());
-    }
-    if (signal.contains('apiexception: 10') ||
-        signal.contains('developer_error') ||
-        signal.contains('sha-1') ||
-        signal.contains('sha1') ||
-        signal.contains('google-services.json')) {
-      return withDetails(
-        'Google sign-in is not configured correctly. Check Firebase Android SHA keys and google-services.json.',
-      );
-    }
-
-    switch (error.code) {
-      case GoogleSignInExceptionCode.clientConfigurationError:
-        return withDetails(
-          'Google sign-in is not configured correctly. Check Firebase Android SHA keys and google-services.json.',
-        );
-      case GoogleSignInExceptionCode.providerConfigurationError:
-        return withDetails(
-          'Google provider configuration failed. Verify Google sign-in is enabled in Firebase Authentication.',
-        );
-      case GoogleSignInExceptionCode.canceled:
-        return withDetails(
-          'Google sign-in was canceled. Please select a Google account and try again.',
-        );
-      case GoogleSignInExceptionCode.interrupted:
-        return withDetails('Google sign-in was interrupted. Please try again.');
-      case GoogleSignInExceptionCode.uiUnavailable:
-        return withDetails('Google sign-in UI is unavailable on this device.');
-      case GoogleSignInExceptionCode.userMismatch:
-        return withDetails(
-          'Google account mismatch detected. Please sign out and retry.',
-        );
-      case GoogleSignInExceptionCode.unknownError:
-        return withDetails(
-          description.isEmpty ? 'Google sign-in failed.' : description,
-        );
-    }
-  }
 
   static String _friendlyUnknownAuthError(Object error) {
     final raw = error.toString().trim();

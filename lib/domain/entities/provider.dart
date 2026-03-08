@@ -14,6 +14,7 @@ class ProviderItem {
   final bool isVerified;
   final double? latitude;
   final double? longitude;
+  final List<DateTime> blockedDates;
 
   const ProviderItem({
     this.uid = '',
@@ -29,6 +30,7 @@ class ProviderItem {
     this.isVerified = false,
     this.latitude,
     this.longitude,
+    this.blockedDates = const [],
   });
 
   bool get isCompany => providerType.trim().toLowerCase() == 'company';

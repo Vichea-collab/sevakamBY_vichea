@@ -54,11 +54,13 @@ class ProviderPostItem {
   final bool availableNow;
   final String timeLabel;
   final String avatarPath;
+  final double rating;
   final bool isVerified;
   final double? latitude;
   final double? longitude;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final List<DateTime> blockedDates;
 
   const ProviderPostItem({
     required this.id,
@@ -76,11 +78,13 @@ class ProviderPostItem {
     required this.availableNow,
     required this.timeLabel,
     required this.avatarPath,
+    this.rating = 0,
     this.isVerified = false,
     this.latitude,
     this.longitude,
     this.createdAt,
     this.updatedAt,
+    this.blockedDates = const [],
   });
 
   List<String> get serviceList => _serviceList(service, services);

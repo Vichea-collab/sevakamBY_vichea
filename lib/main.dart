@@ -9,6 +9,7 @@ import 'presentation/state/order_state.dart';
 import 'presentation/state/provider_post_state.dart';
 import 'presentation/state/profile_settings_state.dart';
 import 'presentation/state/catalog_state.dart';
+import 'presentation/state/booking_catalog_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +21,7 @@ Future<void> main() async {
       ProfileSettingsState.initialize,
     ),
     _runSafe('CatalogState.initialize', CatalogState.initialize),
+    _runSafe('BookingCatalogState.initialize', BookingCatalogState.initialize),
     _runSafe('ChatState.initialize', ChatState.initialize),
     _runSafe('FinderPostState.initialize', FinderPostState.initialize),
     _runSafe('ProviderPostState.initialize', ProviderPostState.initialize),

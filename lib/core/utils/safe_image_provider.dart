@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 ImageProvider safeImageProvider(String? source) {
   if (source == null) {
@@ -43,7 +44,7 @@ ImageProvider safeImageProvider(String? source) {
     if (url.startsWith('//')) {
       url = 'https:$url';
     }
-    return NetworkImage(url);
+    return CachedNetworkImageProvider(url);
   }
 
   // Check if it looks like a URL even if it doesn't start with http (e.g. ui-avatars.com)
@@ -51,7 +52,7 @@ ImageProvider safeImageProvider(String? source) {
      try {
        final uri = Uri.tryParse(trimmed);
        if (uri != null && uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https')) {
-         return NetworkImage(trimmed);
+         return CachedNetworkImageProvider(trimmed);
        }
      } catch (_) {}
   }
@@ -134,28 +135,16 @@ class SafeImage extends StatelessWidget {
       if (url.startsWith('//')) {
         url = 'https:$url';
       }
-      return Image.network(
-        url,
+      return CachedNetworkImage(
+        imageUrl: url,
         width: width,
         height: height,
         fit: fit,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return placeholder ??
-              Container(
-                width: width,
-                height: height,
-                color: Colors.black12,
-                child: const Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-              );
-        },
-        errorBuilder: (context, error, stackTrace) => _errorWidget(),
+        placeholder: (context, url) => placeholder ?? _loadingWidget(),
+        errorWidget: (context, url, error) => _errorWidget(),
+        // Fade in is smoother than immediate replacement
+        fadeInDuration: const Duration(milliseconds: 250),
+        fadeOutDuration: const Duration(milliseconds: 200),
       );
     }
 
@@ -166,6 +155,21 @@ class SafeImage extends StatelessWidget {
       height: height,
       fit: fit,
       errorBuilder: (context, error, stackTrace) => _errorWidget(),
+    );
+  }
+
+  Widget _loadingWidget() {
+    return Container(
+      width: width,
+      height: height,
+      color: Colors.black12,
+      child: const Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
     );
   }
 

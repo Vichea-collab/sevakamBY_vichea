@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,14 +7,19 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/app_toast.dart';
+import '../../../core/utils/page_transition.dart';
 import '../../../core/utils/safe_image_provider.dart';
+import '../../../core/utils/category_utils.dart';
 import '../../../data/network/backend_api_client.dart';
 import '../../../domain/entities/chat.dart';
 import '../../../domain/entities/pagination.dart';
+import '../../../domain/entities/provider.dart';
 import '../../state/chat_state.dart';
 import '../../state/app_role_state.dart';
+import '../../state/provider_post_state.dart';
 import '../../widgets/app_state_panel.dart';
 import '../../widgets/pressable_scale.dart';
+import '../providers/provider_detail_page.dart';
 
 class ChatConversationPage extends StatefulWidget {
   final ChatThread thread;
@@ -38,6 +44,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
   _messagesSubscription;
   Timer? _fallbackRefreshTimer;
+  Timer? _heartbeatTimer;
   bool _realtimeActive = false;
 
   @override
@@ -45,13 +52,20 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     super.initState();
     unawaited(_syncReadState(syncThreads: true));
     unawaited(ChatState.flushQueuedMessages(threadId: widget.thread.id));
-    unawaited(_loadInitial());
-    unawaited(_bindRealtimeMessages());
-    _startFallbackRefreshTimer();
+    
+    // Delay heavy data loading slightly to ensure smooth route transition
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      unawaited(_loadInitial());
+      unawaited(_bindRealtimeMessages());
+      _startFallbackRefreshTimer();
+      _startHeartbeat();
+    });
   }
 
   @override
   void dispose() {
+    _heartbeatTimer?.cancel();
     final subscription = _messagesSubscription;
     _messagesSubscription = null;
     if (subscription != null) {
@@ -63,13 +77,24 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     super.dispose();
   }
 
+  void _startHeartbeat() {
+    ChatState.updateHeartbeat();
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      ChatState.updateHeartbeat();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            _ChatHeader(thread: widget.thread),
+            _ChatHeader(
+              thread: widget.thread,
+              onProfileLinkTap: AppRoleState.isProvider ? _sendProfileLink : null,
+            ),
             Expanded(
               child: Container(
                 color: const Color(0xFFEAF1FF),
@@ -98,6 +123,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     }
     final messages = _mergedMessages();
     final hasOlder = _loadedPages < _pagination.totalPages;
+    
     if (messages.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(16),
@@ -107,48 +133,55 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         ),
       );
     }
-    return Column(
-      children: [
-        if (hasOlder)
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: TextButton.icon(
-              onPressed: _loadingOlder ? null : _loadOlder,
-              icon: _loadingOlder
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.expand_less_rounded),
-              label: Text(_loadingOlder ? 'Loading...' : 'Load older messages'),
+
+    // PROFESSIONAL CHAT UI: Use reverse list for sticky bottom behavior
+    // and to prevent scroll jumping when new messages arrive.
+    final reversedMessages = messages.reversed.toList();
+
+    return ListView.builder(
+      controller: _scrollController,
+      reverse: true,
+      padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
+      itemCount: reversedMessages.length + (hasOlder ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == reversedMessages.length) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: TextButton.icon(
+                onPressed: _loadingOlder ? null : _loadOlder,
+                icon: _loadingOlder
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.expand_less_rounded),
+                label: Text(_loadingOlder ? 'Loading...' : 'Load older messages'),
+              ),
             ),
-          ),
-        Expanded(
-          child: ListView.builder(
-            controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
-            itemCount: messages.length,
-            itemBuilder: (context, index) {
-              final message = messages[index];
-              final previous = index > 0 ? messages[index - 1] : null;
-              final showDateHeader =
-                  previous == null ||
-                  !_isSameCalendarDay(previous.sentAt, message.sentAt);
-              return Column(
-                children: [
-                  if (showDateHeader)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _ChatDateChip(label: _dateLabel(message.sentAt)),
-                    ),
-                  _MessageBubble(message: message),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
+          );
+        }
+
+        final message = reversedMessages[index];
+        final next = index < reversedMessages.length - 1 ? reversedMessages[index + 1] : null;
+        
+        final showDateHeader =
+            next == null ||
+            !_isSameCalendarDay(next.sentAt, message.sentAt);
+
+        return Column(
+          key: ValueKey('msg_${message.id}'),
+          children: [
+            if (showDateHeader)
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 10),
+                child: _ChatDateChip(label: _dateLabel(message.sentAt)),
+              ),
+            _MessageBubble(message: message),
+          ],
+        );
+      },
     );
   }
 
@@ -562,10 +595,16 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       }
       final localId = 'local_${DateTime.now().microsecondsSinceEpoch}';
       pendingLocalId = localId;
+      
+      final extension = _extensionFromName(picked.name);
+      final mimeType = _mimeTypeFromExtension(extension);
+      final dataUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
+
       final pending = ChatMessage(
         id: localId,
         text: '',
         type: ChatMessageType.image,
+        imageUrl: dataUrl,
         fromMe: true,
         sentAt: DateTime.now(),
         deliveryStatus: ChatDeliveryStatus.sending,
@@ -611,6 +650,70 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     }
   }
 
+  static String _extensionFromName(String fileName) {
+    final trimmed = fileName.trim();
+    final dot = trimmed.lastIndexOf('.');
+    if (dot <= 0 || dot >= trimmed.length - 1) return '.jpg';
+    return '.${trimmed.substring(dot + 1).toLowerCase()}';
+  }
+
+  static String _mimeTypeFromExtension(String extension) {
+    switch (extension.toLowerCase()) {
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      case '.gif':
+        return 'image/gif';
+      case '.heic':
+        return 'image/heic';
+      case '.jpg':
+      case '.jpeg':
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  Future<void> _sendProfileLink() async {
+    if (!AppRoleState.isProvider) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final text = 'PROTOCOL:VIEW_PROFILE:$uid';
+    final localId = 'local_${DateTime.now().microsecondsSinceEpoch}';
+    final pending = ChatMessage(
+      id: localId,
+      text: text,
+      fromMe: true,
+      sentAt: DateTime.now(),
+      deliveryStatus: ChatDeliveryStatus.sending,
+    );
+    setState(() {
+      _latestMessages = _dedupeAndSort(<ChatMessage>[
+        ..._latestMessages,
+        pending,
+      ]);
+    });
+    _scheduleScrollToLatest(animated: true);
+    try {
+      final sent = await ChatState.sendMessage(
+        threadId: widget.thread.id,
+        text: text,
+        clientMessageId: localId,
+      );
+      if (!mounted) return;
+      _replaceLocalMessage(localId, sent);
+      _scheduleScrollToLatest(animated: true);
+      if (!_realtimeActive) {
+        await _refreshLatest();
+      }
+    } catch (_) {
+      if (mounted) {
+        _removeLocalMessage(localId);
+        AppToast.error(context, 'Unable to send profile link.');
+      }
+    }
+  }
+
   void _replaceLocalMessage(String localId, ChatMessage remote) {
     setState(() {
       _latestMessages = _dedupeAndSort(
@@ -644,28 +747,30 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   void _scheduleScrollToLatest({required bool animated}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
-      final target = _scrollController.position.maxScrollExtent;
+      // With reverse: true, the bottom of the chat is offset 0.0
       if (animated) {
         _scrollController.animateTo(
-          target,
+          0.0,
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
         );
         return;
       }
-      _scrollController.jumpTo(target);
+      _scrollController.jumpTo(0.0);
     });
   }
 }
 
 class _ChatHeader extends StatelessWidget {
   final ChatThread thread;
+  final VoidCallback? onProfileLinkTap;
 
-  const _ChatHeader({required this.thread});
+  const _ChatHeader({required this.thread, this.onProfileLinkTap});
 
   @override
   Widget build(BuildContext context) {
-    final status = _activityStatus(thread.updatedAt);
+    final status = _activityStatus(thread.lastActiveAt);
+    final isProvider = AppRoleState.isProvider;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -729,9 +834,13 @@ class _ChatHeader extends StatelessWidget {
             ),
           ),
           _HeaderAction(
-            icon: Icons.info_outline_rounded,
+            icon: isProvider ? Icons.assignment_turned_in_rounded : Icons.info_outline_rounded,
             onTap: () {
-              // Show context info
+              if (isProvider && onProfileLinkTap != null) {
+                onProfileLinkTap!();
+              } else {
+                // Show context info for finder
+              }
             },
           ),
         ],
@@ -739,18 +848,19 @@ class _ChatHeader extends StatelessWidget {
     );
   }
 
-  ({String label, Color color}) _activityStatus(DateTime updatedAt) {
-    final delta = DateTime.now().difference(updatedAt.toLocal());
+  ({String label, Color color}) _activityStatus(DateTime lastActiveAt) {
+    final delta = DateTime.now().difference(lastActiveAt.toLocal());
     if (delta.inMinutes < 5) {
       return (label: 'Active now', color: AppColors.success);
     }
+    const inactiveColor = Color(0xFF94A3B8);
     if (delta.inHours < 1) {
-      return (label: 'Active ${delta.inMinutes}m ago', color: AppColors.danger);
+      return (label: 'Active ${delta.inMinutes}m ago', color: inactiveColor);
     }
     if (delta.inDays < 1) {
-      return (label: 'Active ${delta.inHours}h ago', color: AppColors.danger);
+      return (label: 'Active ${delta.inHours}h ago', color: inactiveColor);
     }
-    return (label: 'Active ${delta.inDays}d ago', color: AppColors.danger);
+    return (label: 'Active ${delta.inDays}d ago', color: inactiveColor);
   }
 }
 
@@ -815,7 +925,8 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fromMe = message.fromMe;
-    final accentColor = AppRoleState.isProvider ? const Color(0xFF818CF8) : AppColors.primary;
+    final accentColor =
+        AppRoleState.isProvider ? const Color(0xFF818CF8) : AppColors.primary;
     final bubbleColor = fromMe ? accentColor : Colors.white;
     final textColor = fromMe ? Colors.white : const Color(0xFF0F172A);
 
@@ -823,6 +934,10 @@ class _MessageBubble extends StatelessWidget {
         message.type == ChatMessageType.image &&
         message.imageUrl.trim().isNotEmpty;
     final hasText = message.text.trim().isNotEmpty;
+
+    final isProfileLink = message.text.startsWith('PROTOCOL:VIEW_PROFILE:');
+    final providerUid =
+        isProfileLink ? message.text.split(':').last.trim() : null;
 
     return Align(
       alignment: fromMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -833,14 +948,23 @@ class _MessageBubble extends StatelessWidget {
           Container(
             margin: const EdgeInsets.only(bottom: 4),
             constraints: const BoxConstraints(maxWidth: 280),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            padding: EdgeInsets.symmetric(
+              horizontal: isProfileLink ? 0 : 14,
+              vertical: isProfileLink ? 0 : 11,
+            ),
             decoration: BoxDecoration(
-              color: bubbleColor,
-              gradient: fromMe ? LinearGradient(
-                colors: [accentColor, accentColor.withValues(alpha: 0.9)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ) : null,
+              color: isProfileLink ? Colors.transparent : bubbleColor,
+              gradient:
+                  (fromMe && !isProfileLink)
+                      ? LinearGradient(
+                        colors: [
+                          accentColor,
+                          accentColor.withValues(alpha: 0.9),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                      : null,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(20),
                 topRight: const Radius.circular(20),
@@ -848,19 +972,21 @@ class _MessageBubble extends StatelessWidget {
                 bottomRight: Radius.circular(fromMe ? 4 : 20),
               ),
               boxShadow: [
-                BoxShadow(
-                  color: fromMe
-                      ? accentColor.withValues(alpha: 0.2)
-                      : const Color(0x080F172A),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
+                if (!isProfileLink)
+                  BoxShadow(
+                    color:
+                        fromMe
+                            ? accentColor.withValues(alpha: 0.2)
+                            : const Color(0x080F172A),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
               ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (hasImage)
+                if (hasImage && !isProfileLink)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: ClipRRect(
@@ -872,7 +998,13 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     ),
                   ),
-                if (hasText)
+                if (isProfileLink && providerUid != null)
+                  _ProfileLinkCard(
+                    uid: providerUid,
+                    fromMe: fromMe,
+                    accentColor: accentColor,
+                  )
+                else if (hasText)
                   Text(
                     message.text,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -913,6 +1045,7 @@ class _MessageBubble extends StatelessWidget {
   Widget _buildStatusIcon(Color accentColor) {
     IconData icon;
     Color color = const Color(0xFF94A3B8);
+    String label = '';
     switch (message.deliveryStatus) {
       case ChatDeliveryStatus.sending:
         icon = Icons.access_time_rounded;
@@ -923,8 +1056,25 @@ class _MessageBubble extends StatelessWidget {
       case ChatDeliveryStatus.seen:
         icon = Icons.done_all_rounded;
         color = accentColor;
+        label = 'Seen';
     }
-    return Icon(icon, size: 12, color: color);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (label.isNotEmpty) ...[
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+        Icon(icon, size: 12, color: color),
+      ],
+    );
   }
 
   String _timeLabel(DateTime time) {
@@ -932,6 +1082,191 @@ class _MessageBubble extends StatelessWidget {
     final minute = time.minute.toString().padLeft(2, '0');
     final suffix = time.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $suffix';
+  }
+}
+
+class _ProfileLinkCard extends StatefulWidget {
+  final String uid;
+  final bool fromMe;
+  final Color accentColor;
+
+  const _ProfileLinkCard({
+    required this.uid,
+    required this.fromMe,
+    required this.accentColor,
+  });
+
+  @override
+  State<_ProfileLinkCard> createState() => _ProfileLinkCardState();
+}
+
+class _ProfileLinkCardState extends State<_ProfileLinkCard> {
+  ProviderItem? _provider;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProvider();
+  }
+
+  Future<void> _fetchProvider() async {
+    try {
+      final post = await ProviderPostState.findLatestByUid(widget.uid);
+      if (post != null && mounted) {
+        setState(() {
+          final role = post.category.trim().isEmpty ? 'Cleaner' : post.category;
+          _provider = ProviderItem(
+            uid: post.providerUid.trim(),
+            name:
+                post.providerName.trim().isEmpty
+                    ? 'Service Provider'
+                    : post.providerName.trim(),
+            role: role,
+            rating: post.rating,
+            imagePath: post.avatarPath,
+            accentColor: accentForCategory(role),
+            services: post.serviceList,
+            providerType: post.providerType,
+            companyName: post.providerCompanyName.trim(),
+            maxWorkers:
+                post.providerMaxWorkers < 1 ? 1 : post.providerMaxWorkers,
+            blockedDates: post.blockedDates,
+            latitude: post.latitude,
+            longitude: post.longitude,
+            isVerified: post.isVerified,
+          );
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Container(
+        width: 200,
+        height: 80,
+        alignment: Alignment.center,
+        child: const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    final p = _provider;
+    if (p == null) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: Text('Profile link unavailable'),
+      );
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        Navigator.push(
+          context,
+          slideFadeRoute(ProviderDetailPage(provider: p)),
+        );
+      },
+      child: PressableScale(
+        onTap: () {
+          Navigator.push(
+            context,
+            slideFadeRoute(ProviderDetailPage(provider: p)),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: widget.accentColor.withValues(alpha: 0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: widget.accentColor.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundImage: safeImageProvider(p.imagePath),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Professional ${p.role}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (p.isVerified)
+                    const Icon(
+                      Icons.verified_rounded,
+                      color: AppColors.primary,
+                      size: 18,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: widget.accentColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Check Information',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: widget.accentColor,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 12,
+                      color: widget.accentColor,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

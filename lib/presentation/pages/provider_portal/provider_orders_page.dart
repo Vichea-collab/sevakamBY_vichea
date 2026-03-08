@@ -527,7 +527,7 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, bg) = switch (state) {
       ProviderOrderState.incoming => ('Incoming', const Color(0xFFD97706)),
-      ProviderOrderState.onTheWay => ('On the way', AppColors.primary),
+      ProviderOrderState.onTheWay => ('Booked', const Color(0xFFD97706)),
       ProviderOrderState.started => ('Started', const Color(0xFF7C6EF2)),
       ProviderOrderState.completed => ('Completed', AppColors.success),
       ProviderOrderState.declined => ('Declined', AppColors.danger),

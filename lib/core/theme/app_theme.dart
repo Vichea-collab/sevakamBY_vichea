@@ -7,6 +7,7 @@ class AppTheme {
     final base = ThemeData.light();
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.background,
+      cardColor: Colors.white,
       dividerColor: AppColors.divider,
       colorScheme: base.colorScheme.copyWith(
         primary: AppColors.primary,

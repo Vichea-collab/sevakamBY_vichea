@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../core/utils/safe_image_provider.dart';
@@ -102,23 +103,30 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                           const BookingStepProgress(
                             currentStep: BookingFlowStep.confirmation,
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 12),
                           Center(
-                            child: Container(
-                              height: 64,
-                              width: 64,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF16A34A),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.check_rounded,
-                                color: Colors.white,
-                                size: 40,
-                              ),
+                            child: Lottie.network(
+                              'https://assets10.lottiefiles.com/packages/lf20_awSQu9.json',
+                              height: 120,
+                              repeat: false,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  height: 64,
+                                  width: 64,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF16A34A),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 40,
+                                  ),
+                                );
+                              },
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 12),
                           Text(
                             'Thanks, your booking has been confirmed.',
                             textAlign: TextAlign.center,

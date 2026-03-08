@@ -66,9 +66,14 @@ class FavoritesPage extends StatelessWidget {
                       return _providerFromPost(post);
                     }).toList();
 
-                    return ListView.separated(
+                    return GridView.builder(
                       itemCount: favProviders.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 16),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: 0.64,
+                      ),
                       itemBuilder: (context, index) {
                         final provider = favProviders[index];
                         return ProviderCard(
@@ -97,13 +102,14 @@ class FavoritesPage extends StatelessWidget {
       uid: value.providerUid,
       name: value.providerName,
       role: role,
-      rating: 4.8,
+      rating: value.rating,
       imagePath: value.avatarPath,
       accentColor: accentForCategory(role),
       services: value.serviceList,
       providerType: value.providerType,
       companyName: value.providerCompanyName,
       maxWorkers: value.providerMaxWorkers,
+      blockedDates: value.blockedDates,
     );
   }
 }

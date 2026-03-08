@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
@@ -16,10 +17,13 @@ class ProviderAvailabilityPage extends StatefulWidget {
 class _ProviderAvailabilityPageState extends State<ProviderAvailabilityPage> {
   late List<DateTime> _blockedDates;
   bool _saving = false;
+  DateTime _focusedDay = DateTime.now();
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _focusedDay = DateTime(now.year, now.month, now.day);
     _blockedDates = List<DateTime>.from(
       ProfileSettingsState.providerProfession.value.blockedDates,
     );
@@ -28,8 +32,9 @@ class _ProviderAvailabilityPageState extends State<ProviderAvailabilityPage> {
   void _toggleDate(DateTime date) {
     final normalized = DateTime(date.year, date.month, date.day);
     setState(() {
-      if (_blockedDates.any((d) => d.year == normalized.year && d.month == normalized.month && d.day == normalized.day)) {
-        _blockedDates.removeWhere((d) => d.year == normalized.year && d.month == normalized.month && d.day == normalized.day);
+      final index = _blockedDates.indexWhere((d) => isSameDay(d, normalized));
+      if (index >= 0) {
+        _blockedDates.removeAt(index);
       } else {
         _blockedDates.add(normalized);
       }
@@ -66,17 +71,36 @@ class _ProviderAvailabilityPageState extends State<ProviderAvailabilityPage> {
               const AppTopBar(title: 'Availability'),
               const SizedBox(height: 16),
               Text(
-                'Select dates to block your availability. Customers won\'t be able to book you on these days.',
+                'Tap dates to block or unblock them. Blocked dates (RED) will be hidden from customers.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 20),
               Expanded(
-                child: CalendarDatePicker(
-                  initialDate: DateTime.now(),
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime.now().add(const Duration(days: 365)),
-                  onDateChanged: _toggleDate,
-                  selectableDayPredicate: (date) => true,
+                child: TableCalendar(
+                  firstDay: DateTime(_focusedDay.year, _focusedDay.month, _focusedDay.day),
+                  lastDay: DateTime(_focusedDay.year + 1, _focusedDay.month, _focusedDay.day),
+                  focusedDay: _focusedDay,
+                  onDaySelected: (selectedDay, focusedDay) {
+                    setState(() => _focusedDay = focusedDay);
+                    _toggleDate(selectedDay);
+                  },
+                  selectedDayPredicate: (day) => _blockedDates.any((d) => isSameDay(d, day)),
+                  calendarStyle: CalendarStyle(
+                    selectedDecoration: const BoxDecoration(
+                      color: AppColors.danger,
+                      shape: BoxShape.circle,
+                    ),
+                    selectedTextStyle: const TextStyle(color: Colors.white),
+                    todayDecoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    todayTextStyle: const TextStyle(color: AppColors.primary),
+                  ),
+                  headerStyle: const HeaderStyle(
+                    formatButtonVisible: false,
+                    titleCentered: true,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),

@@ -50,6 +50,21 @@ class _LottieSuccessDialog extends StatelessWidget {
                   'https://assets10.lottiefiles.com/packages/lf20_awSQu9.json',
               height: 150,
               repeat: false,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  height: 150,
+                  width: 150,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFECFDF3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF10B981),
+                    size: 80,
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 16),
             Text(

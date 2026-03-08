@@ -1710,7 +1710,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 _ActionMenuItem(
                   label: 'Mark completed',
                   onTap: () => _runSafeAction(
-                    dialogTitle: 'Mark order ${item.id} as completed?',
+                    dialogTitle: 'Mark order ${item.id} complete?',
                     actionLabel: 'Complete',
                     run: (reason) => AdminDashboardState.updateOrderStatus(
                       orderId: item.id,

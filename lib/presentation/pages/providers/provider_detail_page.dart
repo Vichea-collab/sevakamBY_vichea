@@ -291,6 +291,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       providerType: provider.providerType,
       companyName: provider.companyName,
       maxWorkers: provider.maxWorkers,
+      blockedDates: provider.blockedDates,
     );
 
     return ProviderProfile(

@@ -1,4 +1,6 @@
-import 'package:flutter/foundation.dart' show ValueNotifier;
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show ValueNotifier, debugPrint;
+import 'package:flutter/services.dart' show rootBundle;
 
 import '../../core/config/app_env.dart';
 import '../../data/network/backend_api_client.dart';
@@ -47,19 +49,63 @@ class CatalogState {
       final loadedCategories = await _loadCategories();
       final loadedServices = await _loadServices(loadedCategories);
 
-      categories.value = loadedCategories.isEmpty
-          ? _fallbackCategories
-          : loadedCategories;
-      services.value = loadedServices.isEmpty
-          ? _fallbackServices
-          : loadedServices;
+      if (loadedCategories.isNotEmpty) {
+        categories.value = loadedCategories;
+      } else {
+        categories.value = await _loadCategoriesFromAssets();
+      }
+
+      if (loadedServices.isNotEmpty) {
+        services.value = loadedServices;
+      } else {
+        services.value = await _loadServicesFromAssets();
+      }
+      
       _lastHydratedAt = DateTime.now();
     } catch (_) {
-      categories.value = _fallbackCategories;
-      services.value = _fallbackServices;
+      categories.value = await _loadCategoriesFromAssets();
+      services.value = await _loadServicesFromAssets();
       _lastHydratedAt = DateTime.now();
     } finally {
       loading.value = false;
+    }
+  }
+
+  static Future<List<Category>> _loadCategoriesFromAssets() async {
+    try {
+      final String response = await rootBundle.loadString('assets/data/categories.json');
+      final List<dynamic> data = json.decode(response);
+      return data.map((json) => Category(
+        name: json['name'].toString(),
+        icon: json['icon'].toString(),
+      )).toList();
+    } catch (e) {
+      debugPrint('Error loading categories from assets: $e');
+      return const <Category>[];
+    }
+  }
+
+  static Future<List<ServiceItem>> _loadServicesFromAssets() async {
+    try {
+      final String response = await rootBundle.loadString('assets/data/services.json');
+      final List<dynamic> data = json.decode(response);
+      return data.map((json) {
+        final rate = _toDouble(json['pricePerHour'], fallback: 12);
+        return ServiceItem(
+          title: json['title'].toString(),
+          subtitle: 'Starts in \$${rate.toStringAsFixed(0)}/hr',
+          badge: _toInt(json['completedCount']) >= 80 ? 'Popular' : 'Pro',
+          imagePath: _imageForCategory(json['category'].toString()),
+          rating: _toDouble(json['rating'], fallback: 4.6),
+          category: json['category'].toString(),
+          location: 'Phnom Penh, Cambodia',
+          available: true,
+          etaHours: _etaHoursFromCategory(json['category'].toString()),
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('Error loading services from assets: $e');
+      return const <ServiceItem>[];
     }
   }
 
@@ -100,78 +146,86 @@ class CatalogState {
   }
 
   static Future<List<Category>> _loadCategories() async {
-    final rows = await _loadAllPagedRows('/api/categories/allCategories');
-    if (rows.isEmpty) return const <Category>[];
+    try {
+      final rows = await _loadAllPagedRows('/api/categories/allCategories');
+      if (rows.isEmpty) return const <Category>[];
 
-    final mapped = rows
-        .map((raw) {
-          final row = raw;
-          final name = (row['name'] ?? row['title'] ?? '').toString().trim();
-          if (name.isEmpty) return null;
-          final iconRaw = (row['icon'] ?? row['iconKey'] ?? '')
-              .toString()
-              .trim();
-          return Category(
-            name: name,
-            icon: iconRaw.isEmpty ? _iconKeyForCategory(name) : iconRaw,
-          );
-        })
-        .whereType<Category>()
-        .toList(growable: false);
+      final mapped = rows
+          .map((raw) {
+            final row = raw;
+            final name = (row['name'] ?? row['title'] ?? '').toString().trim();
+            if (name.isEmpty) return null;
+            final iconRaw = (row['icon'] ?? row['iconKey'] ?? '')
+                .toString()
+                .trim();
+            return Category(
+              name: name,
+              icon: iconRaw.isEmpty ? _iconKeyForCategory(name) : iconRaw,
+            );
+          })
+          .whereType<Category>()
+          .toList(growable: false);
 
-    return mapped;
+      return mapped;
+    } catch (_) {
+      return const <Category>[];
+    }
   }
 
   static Future<List<ServiceItem>> _loadServices(
     List<Category> loadedCategories,
   ) async {
-    final rows = await _loadAllPagedRows('/api/services');
-    if (rows.isEmpty) return const <ServiceItem>[];
+    try {
+      final rows = await _loadAllPagedRows('/api/services');
+      if (rows.isEmpty) return const <ServiceItem>[];
 
-    final categoriesById = <String, Category>{};
-    for (final category in loadedCategories) {
-      categoriesById[_idKey(category.name)] = category;
+      final categoriesById = <String, Category>{};
+      for (final category in loadedCategories) {
+        categoriesById[_idKey(category.name)] = category;
+      }
+
+      final mapped = rows
+          .map((raw) {
+            final row = raw;
+            final title =
+                (row['name'] ?? row['serviceName'] ?? row['title'] ?? '')
+                    .toString()
+                    .trim();
+            if (title.isEmpty) return null;
+
+            final categoryName = _resolveCategoryName(row, categoriesById);
+            final rate = _toDouble(
+              row['pricePerHour'] ?? row['ratePerHour'] ?? row['price'],
+              fallback: 12,
+            );
+            final completedCount = _toInt(row['completedCount'], fallback: 0);
+            final rating = _toDouble(row['rating'], fallback: 4.6);
+            final available = row['available'] != false;
+            final badge = completedCount >= 80
+                ? 'Popular'
+                : completedCount >= 40
+                ? 'Trusted'
+                : 'Pro';
+
+            return ServiceItem(
+              title: title,
+              subtitle: 'Starts in \$${rate.toStringAsFixed(0)}/hr',
+              badge: badge,
+              imagePath: _imageForCategory(categoryName),
+              rating: rating,
+              category: categoryName,
+              location: 'Phnom Penh, Cambodia',
+              available: available,
+              etaHours: _etaHoursFromCategory(categoryName),
+            );
+          })
+          .whereType<ServiceItem>()
+          .toList(growable: false);
+
+      return mapped;
+    } catch (_) {
+      return const <ServiceItem>[];
     }
-
-    final mapped = rows
-        .map((raw) {
-          final row = raw;
-          final title =
-              (row['name'] ?? row['serviceName'] ?? row['title'] ?? '')
-                  .toString()
-                  .trim();
-          if (title.isEmpty) return null;
-
-          final categoryName = _resolveCategoryName(row, categoriesById);
-          final rate = _toDouble(
-            row['pricePerHour'] ?? row['ratePerHour'] ?? row['price'],
-            fallback: 12,
-          );
-          final completedCount = _toInt(row['completedCount'], fallback: 0);
-          final rating = _toDouble(row['rating'], fallback: 4.6);
-          final available = row['available'] != false;
-          final badge = completedCount >= 80
-              ? 'Popular'
-              : completedCount >= 40
-              ? 'Trusted'
-              : 'Pro';
-
-          return ServiceItem(
-            title: title,
-            subtitle: 'Starts in \$${rate.toStringAsFixed(0)}/hr',
-            badge: badge,
-            imagePath: _imageForCategory(categoryName),
-            rating: rating,
-            category: categoryName,
-            location: 'Phnom Penh, Cambodia',
-            available: available,
-            etaHours: _etaHoursFromCategory(categoryName),
-          );
-        })
-        .whereType<ServiceItem>()
-        .toList(growable: false);
-
-    return mapped;
   }
 
   static Future<List<Map<String, dynamic>>> _loadAllPagedRows(
@@ -275,151 +329,5 @@ class CatalogState {
     'Wiring Repair',
     'Air Conditioner Repair',
     'Door & Window Repair',
-  ];
-
-  static const List<Category> _fallbackCategories = <Category>[
-    Category(name: 'Plumber', icon: 'plumber'),
-    Category(name: 'Electrician', icon: 'electrician'),
-    Category(name: 'Cleaner', icon: 'cleaner'),
-    Category(name: 'Home Appliance', icon: 'appliance'),
-    Category(name: 'Home Maintenance', icon: 'maintenance'),
-  ];
-
-  static const List<ServiceItem> _fallbackServices = <ServiceItem>[
-    ServiceItem(
-      title: 'Pipe Leak Repair',
-      subtitle: 'Starts in \$12/hr',
-      badge: 'Popular',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.8,
-      category: 'Plumber',
-      etaHours: 1,
-    ),
-    ServiceItem(
-      title: 'Toilet Repair',
-      subtitle: 'Starts in \$11/hr',
-      badge: 'Trusted',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.6,
-      category: 'Plumber',
-      etaHours: 2,
-    ),
-    ServiceItem(
-      title: 'Water Installation',
-      subtitle: 'Starts in \$14/hr',
-      badge: 'Trusted',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.5,
-      category: 'Plumber',
-      etaHours: 2,
-    ),
-    ServiceItem(
-      title: 'Wiring Repair',
-      subtitle: 'Starts in \$16/hr',
-      badge: 'Popular',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.7,
-      category: 'Electrician',
-      etaHours: 2,
-    ),
-    ServiceItem(
-      title: 'Light / Fan Installation',
-      subtitle: 'Starts in \$14/hr',
-      badge: 'Trusted',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.5,
-      category: 'Electrician',
-      etaHours: 2,
-    ),
-    ServiceItem(
-      title: 'Power Outage Fixes',
-      subtitle: 'Starts in \$15/hr',
-      badge: 'Trusted',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.6,
-      category: 'Electrician',
-      etaHours: 1,
-    ),
-    ServiceItem(
-      title: 'House Cleaning',
-      subtitle: 'Starts in \$10/hr',
-      badge: 'Popular',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.9,
-      category: 'Cleaner',
-      etaHours: 2,
-    ),
-    ServiceItem(
-      title: 'Office Cleaning',
-      subtitle: 'Starts in \$13/hr',
-      badge: 'Pro',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.4,
-      category: 'Cleaner',
-      etaHours: 3,
-    ),
-    ServiceItem(
-      title: 'Move-in / Move-out Cleaning',
-      subtitle: 'Starts in \$15/hr',
-      badge: 'Trusted',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.7,
-      category: 'Cleaner',
-      etaHours: 3,
-    ),
-    ServiceItem(
-      title: 'Air Conditioner Repair',
-      subtitle: 'Starts in \$20/hr',
-      badge: 'Popular',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.8,
-      category: 'Home Appliance',
-      etaHours: 3,
-    ),
-    ServiceItem(
-      title: 'Washing Machine Repair',
-      subtitle: 'Starts in \$19/hr',
-      badge: 'Trusted',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.5,
-      category: 'Home Appliance',
-      etaHours: 3,
-    ),
-    ServiceItem(
-      title: 'Refrigerator Repair',
-      subtitle: 'Starts in \$18/hr',
-      badge: 'Trusted',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.6,
-      category: 'Home Appliance',
-      etaHours: 3,
-    ),
-    ServiceItem(
-      title: 'Door & Window Repair',
-      subtitle: 'Starts in \$17/hr',
-      badge: 'Trusted',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.4,
-      category: 'Home Maintenance',
-      etaHours: 2,
-    ),
-    ServiceItem(
-      title: 'Furniture Fixing',
-      subtitle: 'Starts in \$18/hr',
-      badge: 'Pro',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.6,
-      category: 'Home Maintenance',
-      etaHours: 2,
-    ),
-    ServiceItem(
-      title: 'Shelf / Curtain Installation',
-      subtitle: 'Starts in \$16/hr',
-      badge: 'Pro',
-      imagePath: 'assets/images/plumber_category.jpg',
-      rating: 4.5,
-      category: 'Home Maintenance',
-      etaHours: 2,
-    ),
   ];
 }

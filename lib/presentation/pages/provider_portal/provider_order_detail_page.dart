@@ -264,7 +264,6 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
       );
       if (!mounted) return;
       setState(() => _order = updated);
-      AppToast.success(context, 'Status updated: ${_statusLabel(next)}');
     } on BackendApiException catch (error) {
       await OrderState.refreshProviderOrders(
         page: OrderState.providerPagination.value.page,
@@ -286,21 +285,6 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
       if (mounted) {
         setState(() => _updatingStatus = false);
       }
-    }
-  }
-
-  String _statusLabel(ProviderOrderState status) {
-    switch (status) {
-      case ProviderOrderState.incoming:
-        return 'Incoming';
-      case ProviderOrderState.onTheWay:
-        return 'On the way';
-      case ProviderOrderState.started:
-        return 'Started';
-      case ProviderOrderState.completed:
-        return 'Completed';
-      case ProviderOrderState.declined:
-        return 'Declined';
     }
   }
 
@@ -417,7 +401,7 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
     if (timeline.onTheWayAt != null) {
       entries.add(
         StatusTimelineEntry(
-          label: 'On the way',
+          label: 'Booked',
           at: timeline.onTheWayAt!,
           icon: Icons.delivery_dining_rounded,
           color: AppColors.primary,
@@ -565,20 +549,43 @@ class _ActionPanel extends StatelessWidget {
               tone: PrimaryButtonTone.primary,
               onPressed: busy ? null : onMarkStarted,
             ),
-            const SizedBox(height: 10),
-            PrimaryButton(
-              label: 'Mark Complete',
-              icon: Icons.task_alt_rounded,
-              isOutlined: true,
-              tone: PrimaryButtonTone.success,
-              onPressed: busy ? null : onMarkCompleted,
-            ),
           ] else if (status == ProviderOrderState.started) ...[
-            PrimaryButton(
-              label: 'Mark Complete',
-              icon: Icons.task_alt_rounded,
-              tone: PrimaryButtonTone.success,
-              onPressed: busy ? null : onMarkCompleted,
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1ECFF),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFDED4FF)),
+              ),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.handyman_rounded,
+                    color: Color(0xFF7C6EF2),
+                    size: 26,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Service in progress',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: const Color(0xFF7C6EF2),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'The client will mark the order as complete once you finish the work.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF7C6EF2).withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ],
@@ -594,7 +601,7 @@ class _StatusStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = ['Booked', 'On the way', 'Started', 'Completed'];
+    final steps = ['Booked', 'Started', 'Completed'];
     final index = _statusIndex(status);
     return Row(
       children: List.generate(steps.length, (i) {
@@ -668,11 +675,11 @@ class _StatusStepper extends StatelessWidget {
       case ProviderOrderState.incoming:
         return 0;
       case ProviderOrderState.onTheWay:
-        return 1;
+        return 0;
       case ProviderOrderState.started:
-        return 2;
+        return 1;
       case ProviderOrderState.completed:
-        return 3;
+        return 2;
       case ProviderOrderState.declined:
         return 0;
     }
@@ -694,7 +701,7 @@ class _ProviderStatusBanner extends StatelessWidget {
         const Color(0xFFD97706),
       ),
       ProviderOrderState.onTheWay => (
-        'You accepted and are on the way',
+        'Booking accepted and kept as booked',
         Icons.delivery_dining_rounded,
         const Color(0xFFEAF1FF),
         AppColors.primary,
@@ -753,7 +760,7 @@ class _ProviderStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
       ProviderOrderState.incoming => ('Incoming', const Color(0xFFD97706)),
-      ProviderOrderState.onTheWay => ('On the way', AppColors.primary),
+      ProviderOrderState.onTheWay => ('Booked', const Color(0xFFD97706)),
       ProviderOrderState.started => ('Started', const Color(0xFF7C6EF2)),
       ProviderOrderState.completed => ('Completed', AppColors.success),
       ProviderOrderState.declined => ('Declined', AppColors.danger),

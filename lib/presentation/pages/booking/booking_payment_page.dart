@@ -9,7 +9,6 @@ import '../../../core/utils/safe_image_provider.dart';
 import '../../../data/network/backend_api_client.dart';
 import '../../../domain/entities/order.dart';
 import '../../state/order_state.dart';
-import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
@@ -259,14 +258,6 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
         }
         order = verified;
       }
-
-      if (!mounted) return;
-      await showLottieSuccessDialog(
-        context: context,
-        title: 'Booking Successful!',
-        message:
-            'Your booking for ${order.serviceName} has been placed successfully.',
-      );
 
       if (!mounted) return;
       Navigator.pushReplacement(

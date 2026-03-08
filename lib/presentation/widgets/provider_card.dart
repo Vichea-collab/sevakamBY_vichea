@@ -39,10 +39,14 @@ class ProviderCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Stack(
+                fit: StackFit.expand,
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: SafeImage(source: provider.imagePath, fit: BoxFit.cover),
+                    child: SafeImage(
+                      source: provider.imagePath,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                   Positioned(
                     top: 8,
@@ -111,17 +115,18 @@ class ProviderCard extends StatelessWidget {
                 provider.rating.toStringAsFixed(1),
                 style: Theme.of(
                   context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
               ),
               const Spacer(),
               SizedBox(
-                height: 34,
+                height: 30,
                 child: ElevatedButton(
                   onPressed: onDetails,
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   child: const Text('Details'),
@@ -142,7 +147,7 @@ class ProviderCard extends StatelessWidget {
         .toList(growable: false);
     if (values.isEmpty) return const <Widget>[];
 
-    const maxVisible = 2;
+    const maxVisible = 1;
     final visible = values.take(maxVisible).toList(growable: false);
     final remaining = values.length - visible.length;
 

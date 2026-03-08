@@ -22,11 +22,7 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
 
   @override
   Future<void> initUserRole({required bool isProvider}) async {
-    try {
-      await _remoteDataSource.initUserRole(isProvider: isProvider);
-    } catch (_) {
-      // Keep local experience available even when backend role init is unavailable.
-    }
+    await _remoteDataSource.initUserRole(isProvider: isProvider);
   }
 
   @override

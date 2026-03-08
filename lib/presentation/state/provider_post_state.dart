@@ -197,6 +197,30 @@ class ProviderPostState {
     allPosts.value = _sortProviderPosts(nextAll);
   }
 
+  static Future<ProviderPostItem?> findLatestByUid(String uid) async {
+    final targetUid = uid.trim().toLowerCase();
+    if (targetUid.isEmpty) return null;
+
+    // First check in-memory cache
+    final cached = allPosts.value.where((p) => p.providerUid.trim().toLowerCase() == targetUid).toList();
+    if (cached.isNotEmpty) {
+      // Still refresh in background or return latest
+    }
+
+    try {
+      // We don't have a direct "get by uid" API yet, so we refresh the lookup list
+      // which is usually small enough (3-5 pages of posts).
+      await refreshAllForLookup(maxPages: 3);
+      final updated = allPosts.value.firstWhere(
+        (p) => p.providerUid.trim().toLowerCase() == targetUid,
+      );
+      return updated;
+    } catch (_) {
+      // If refresh fails, return cached if available
+      return cached.isNotEmpty ? cached.first : null;
+    }
+  }
+
   static Future<void> deleteProviderPost({required String postId}) async {
     await _repository.deleteProviderPost(postId: postId);
     final beforeCurrentCount = posts.value.length;

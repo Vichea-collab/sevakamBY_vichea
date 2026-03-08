@@ -28,6 +28,7 @@ class ChatThread {
   final String subtitle;
   final String avatarPath;
   final DateTime updatedAt;
+  final DateTime lastActiveAt;
   final int unreadCount;
   final List<ChatMessage> messages;
 
@@ -37,6 +38,7 @@ class ChatThread {
     required this.subtitle,
     required this.avatarPath,
     required this.updatedAt,
+    required this.lastActiveAt,
     required this.unreadCount,
     required this.messages,
   });

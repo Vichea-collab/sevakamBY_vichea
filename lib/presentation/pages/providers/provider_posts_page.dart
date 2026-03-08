@@ -211,13 +211,14 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
           ? 'Service Provider'
           : post.providerName.trim(),
       role: role,
-      rating: 4.8,
+      rating: post.rating,
       imagePath: post.avatarPath,
       accentColor: accentForCategory(role),
       services: services,
       providerType: post.providerType,
       companyName: post.providerCompanyName.trim(),
       maxWorkers: post.providerMaxWorkers < 1 ? 1 : post.providerMaxWorkers,
+      blockedDates: post.blockedDates,
     );
   }
 

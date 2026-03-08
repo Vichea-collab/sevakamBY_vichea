@@ -297,6 +297,11 @@ class OrderRepositoryImpl implements OrderRepository {
         row['providerMaxWorkers'],
         _providerType((row['providerType'] ?? '').toString()),
       ),
+      blockedDates: (row['providerBlockedDates'] as List? ?? [])
+          .map((e) => DateTime.tryParse(e.toString()))
+          .where((e) => e != null)
+          .cast<DateTime>()
+          .toList(),
     );
     final address = HomeAddress(
       id: (row['id'] ?? '').toString(),
