@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../core/constants/app_colors.dart';
 import '../core/firebase/firebase_bootstrap.dart';
 import '../core/theme/app_theme.dart';
+import '../core/utils/page_transition.dart';
 import '../domain/entities/provider.dart';
 import 'pages/splash_page.dart';
 import 'pages/welcome_page.dart';
@@ -38,6 +39,7 @@ import 'pages/provider_portal/provider_profile_page.dart';
 import 'pages/provider_portal/provider_profession_page.dart';
 import 'pages/provider_portal/provider_verification_page.dart';
 import 'pages/provider_portal/provider_availability_page.dart';
+import 'pages/main_shell_page.dart';
 import 'state/booking_catalog_state.dart';
 import 'state/app_role_state.dart';
 import 'state/app_state.dart';
@@ -73,23 +75,59 @@ class _ServiceFinderAppState extends State<ServiceFinderApp> {
               child: child ?? const SizedBox.shrink(),
             );
           },
-          routes: {
-            SplashPage.routeName: (_) => const SplashPage(),
-            WelcomePage.routeName: (_) => const WelcomePage(),
-            OnboardingPage.routeName: (_) => const OnboardingPage(),
-            CustomerAuthPage.routeName: (_) => const CustomerAuthPage(),
-            ProviderAuthPage.routeName: (_) => const ProviderAuthPage(),
-            ForgotPasswordFlow.routeName: (_) => const ForgotPasswordFlow(),
-            HomePage.routeName: (_) => const HomePage(),
-            ProviderHomePage.routeName: (_) => const ProviderHomePage(),
-            ProviderPostsPage.routeName: (_) => const ProviderPostsPage(),
-            SearchPage.routeName: (_) => const SearchPage(),
-            ChatListPage.routeName: (_) => const ChatListPage(),
-            OrdersPage.routeName: (_) => const OrdersPage(),
-            ClientPostPage.routeName: (_) => const ClientPostPage(),
-            NotificationsPage.routeName: (_) => const NotificationsPage(),
-            FavoritesPage.routeName: (_) => const FavoritesPage(),
-            '/booking/address': (_) => BookingAddressPage(
+          onGenerateRoute: (settings) {
+            Widget page;
+            switch (settings.name) {
+              case SplashPage.routeName:
+                page = const SplashPage();
+                break;
+              case MainShellPage.routeName:
+                page = const MainShellPage();
+                break;
+              case WelcomePage.routeName:
+                page = const WelcomePage();
+                break;
+              case OnboardingPage.routeName:
+                page = const OnboardingPage();
+                break;
+              case CustomerAuthPage.routeName:
+                page = const CustomerAuthPage();
+                break;
+              case ProviderAuthPage.routeName:
+                page = const ProviderAuthPage();
+                break;
+              case ForgotPasswordFlow.routeName:
+                page = const ForgotPasswordFlow();
+                break;
+              case HomePage.routeName:
+                page = const HomePage();
+                break;
+              case ProviderHomePage.routeName:
+                page = const ProviderHomePage();
+                break;
+              case ProviderPostsPage.routeName:
+                page = const ProviderPostsPage();
+                break;
+              case SearchPage.routeName:
+                page = const SearchPage();
+                break;
+              case ChatListPage.routeName:
+                page = const ChatListPage();
+                break;
+              case OrdersPage.routeName:
+                page = const OrdersPage();
+                break;
+              case ClientPostPage.routeName:
+                page = const ClientPostPage();
+                break;
+              case NotificationsPage.routeName:
+                page = const NotificationsPage();
+                break;
+              case FavoritesPage.routeName:
+                page = const FavoritesPage();
+                break;
+              case '/booking/address':
+                page = BookingAddressPage(
                   draft: BookingCatalogState.defaultBookingDraft(
                     provider: const ProviderItem(
                       name: 'Service Provider',
@@ -99,27 +137,54 @@ class _ServiceFinderAppState extends State<ServiceFinderApp> {
                       accentColor: Color(0xFFEAF1FF),
                     ),
                   ),
-                ),
-            ProfilePage.routeName: (_) => const ProfilePage(),
-            EditProfilePage.routeName: (_) => const EditProfilePage(),
-            ProfileNotificationPage.routeName: (_) =>
-                const ProfileNotificationPage(),
-            PaymentPage.routeName: (_) => const PaymentPage(),
-            HelpSupportPage.routeName: (_) => const HelpSupportPage(),
-            ProviderPortalHomePage.routeName: (_) =>
-                const ProviderPortalHomePage(),
-            ProviderFinderSearchPage.routeName: (_) =>
-                const ProviderFinderSearchPage(),
-            ProviderNotificationsPage.routeName: (_) =>
-                const ProviderNotificationsPage(),
-            ProviderPostPage.routeName: (_) => const ProviderPostPage(),
-            ProviderOrdersPage.routeName: (_) => const ProviderOrdersPage(),
-            ProviderProfilePage.routeName: (_) => const ProviderProfilePage(),
-            ProviderProfessionPage.routeName: (_) =>
-                const ProviderProfessionPage(),
-            ProviderVerificationPage.routeName: (_) =>
-                const ProviderVerificationPage(),
-            '/provider/availability': (_) => const ProviderAvailabilityPage(),
+                );
+                break;
+              case ProfilePage.routeName:
+                page = const ProfilePage();
+                break;
+              case EditProfilePage.routeName:
+                page = const EditProfilePage();
+                break;
+              case ProfileNotificationPage.routeName:
+                page = const ProfileNotificationPage();
+                break;
+              case PaymentPage.routeName:
+                page = const PaymentPage();
+                break;
+              case HelpSupportPage.routeName:
+                page = const HelpSupportPage();
+                break;
+              case ProviderPortalHomePage.routeName:
+                page = const ProviderPortalHomePage();
+                break;
+              case ProviderFinderSearchPage.routeName:
+                page = const ProviderFinderSearchPage();
+                break;
+              case ProviderNotificationsPage.routeName:
+                page = const ProviderNotificationsPage();
+                break;
+              case ProviderPostPage.routeName:
+                page = const ProviderPostPage();
+                break;
+              case ProviderOrdersPage.routeName:
+                page = const ProviderOrdersPage();
+                break;
+              case ProviderProfilePage.routeName:
+                page = const ProviderProfilePage();
+                break;
+              case ProviderProfessionPage.routeName:
+                page = const ProviderProfessionPage();
+                break;
+              case ProviderVerificationPage.routeName:
+                page = const ProviderVerificationPage();
+                break;
+              case '/provider/availability':
+                page = const ProviderAvailabilityPage();
+                break;
+              default:
+                return null;
+            }
+            return slideFadeRoute(page);
           },
         );
       },

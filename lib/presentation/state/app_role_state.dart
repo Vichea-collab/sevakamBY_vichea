@@ -11,10 +11,9 @@ class AppRoleState {
     role.value = enabled ? AppRole.provider : AppRole.finder;
   }
 
-  static String homeRoute() => isProvider ? '/provider/home' : '/home';
-  static String notificationRoute() =>
-      isProvider ? '/provider/notifications' : '/notifications';
-  static String postRoute() => isProvider ? '/provider/post' : '/post';
-  static String orderRoute() => isProvider ? '/provider/orders' : '/orders';
-  static String profileRoute() => isProvider ? '/provider/profile' : '/profile';
+  static String homeRoute() => '/main';
+  static String notificationRoute() => '/main';
+  static String postRoute() => '/main';
+  static String orderRoute() => '/main';
+  static String profileRoute() => '/main';
 }

@@ -3,6 +3,8 @@ import '../../core/constants/app_colors.dart';
 import '../../domain/entities/onboarding_step.dart';
 import '../widgets/step_indicator.dart';
 import 'auth/customer_auth_page.dart';
+import 'main_shell_page.dart';
+import '../state/auth_state.dart';
 
 class OnboardingPage extends StatefulWidget {
   static const String routeName = '/onboarding';
@@ -54,6 +56,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
         curve: Curves.easeOut,
       );
     } else {
+      _finishOnboarding();
+    }
+  }
+
+  void _finishOnboarding() {
+    if (AuthState.isSignedIn) {
+      Navigator.pushReplacementNamed(context, MainShellPage.routeName);
+    } else {
       Navigator.pushReplacementNamed(context, CustomerAuthPage.routeName);
     }
   }
@@ -87,10 +97,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () => Navigator.pushReplacementNamed(
-                      context,
-                      CustomerAuthPage.routeName,
-                    ),
+                    onPressed: _finishOnboarding,
                     child: const Text('Skip'),
                   ),
                 ],

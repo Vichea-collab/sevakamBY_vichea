@@ -8,7 +8,7 @@ import '../../widgets/app_text_field.dart';
 import '../../widgets/primary_button.dart';
 import 'forgot_password_flow.dart';
 import 'provider_auth_page.dart';
-import '../home/home_page.dart';
+import '../main_shell_page.dart';
 
 class CustomerAuthPage extends StatefulWidget {
   static const String routeName = '/auth/customer';
@@ -216,7 +216,7 @@ class _CustomerAuthPageState extends State<CustomerAuthPage> {
                       const SizedBox(height: AppSpacing.md),
                       _SocialButton(
                         label: 'Continue with Google',
-                        borderColor: Color(0xFFE8EAED),
+                        borderColor: const Color(0xFFE8EAED),
                         iconAsset: 'assets/images/google_icon.png',
                         onPressed: _googleLoading ? null : _continueWithGoogle,
                       ),
@@ -265,7 +265,7 @@ class _CustomerAuthPageState extends State<CustomerAuthPage> {
 
     AppRoleState.setProvider(false);
     AppToast.success(context, 'Signed in successfully.');
-    Navigator.pushReplacementNamed(context, HomePage.routeName);
+    Navigator.pushReplacementNamed(context, MainShellPage.routeName);
   }
 
   Future<void> _submitEmailAuth() async {
@@ -306,7 +306,7 @@ class _CustomerAuthPageState extends State<CustomerAuthPage> {
       context,
       _isSignUp ? 'Account created successfully.' : 'Signed in successfully.',
     );
-    Navigator.pushReplacementNamed(context, HomePage.routeName);
+    Navigator.pushReplacementNamed(context, MainShellPage.routeName);
   }
 
   String _fullName() {
@@ -400,13 +400,13 @@ class _AuthToggle extends StatelessWidget {
   final String leftLabel;
   final String rightLabel;
   final bool isLeftActive;
-  final VoidCallback onTapRight;
+  final VoidCallback? onTapRight;
 
   const _AuthToggle({
     required this.leftLabel,
     required this.rightLabel,
     required this.isLeftActive,
-    required this.onTapRight,
+    this.onTapRight,
   });
 
   @override

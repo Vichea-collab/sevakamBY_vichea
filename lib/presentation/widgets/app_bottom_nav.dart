@@ -6,29 +6,38 @@ enum AppBottomTab { home, notification, post, order, profile }
 
 class AppBottomNav extends StatelessWidget {
   final AppBottomTab current;
+  final ValueChanged<AppBottomTab>? onTabChanged;
 
-  const AppBottomNav({super.key, required this.current});
+  const AppBottomNav({
+    super.key,
+    required this.current,
+    this.onTabChanged,
+  });
 
   bool _isCurrent(AppBottomTab tab) => current == tab;
 
   void _goTo(BuildContext context, AppBottomTab tab) {
     if (_isCurrent(tab)) return;
-    switch (tab) {
-      case AppBottomTab.home:
-        Navigator.pushReplacementNamed(context, AppRoleState.homeRoute());
-        break;
-      case AppBottomTab.notification:
-        Navigator.pushReplacementNamed(context, AppRoleState.notificationRoute());
-        break;
-      case AppBottomTab.post:
-        Navigator.pushReplacementNamed(context, AppRoleState.postRoute());
-        break;
-      case AppBottomTab.order:
-        Navigator.pushReplacementNamed(context, AppRoleState.orderRoute());
-        break;
-      case AppBottomTab.profile:
-        Navigator.pushReplacementNamed(context, AppRoleState.profileRoute());
-        break;
+    if (onTabChanged != null) {
+      onTabChanged!(tab);
+    } else {
+      switch (tab) {
+        case AppBottomTab.home:
+          Navigator.pushReplacementNamed(context, AppRoleState.homeRoute());
+          break;
+        case AppBottomTab.notification:
+          Navigator.pushReplacementNamed(context, AppRoleState.notificationRoute());
+          break;
+        case AppBottomTab.post:
+          Navigator.pushReplacementNamed(context, AppRoleState.postRoute());
+          break;
+        case AppBottomTab.order:
+          Navigator.pushReplacementNamed(context, AppRoleState.orderRoute());
+          break;
+        case AppBottomTab.profile:
+          Navigator.pushReplacementNamed(context, AppRoleState.profileRoute());
+          break;
+      }
     }
   }
 

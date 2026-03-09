@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../state/auth_state.dart';
-import '../state/app_role_state.dart';
 import 'onboarding_page.dart';
-import 'home/home_page.dart';
-import 'provider_portal/provider_home_page.dart';
+import 'main_shell_page.dart';
 
 class SplashPage extends StatefulWidget {
   static const String routeName = '/';
@@ -68,10 +66,7 @@ class _SplashPageState extends State<SplashPage>
     if (!mounted) return;
 
     if (AuthState.ready.value && AuthState.isSignedIn) {
-      final route = AppRoleState.isProvider
-          ? ProviderPortalHomePage.routeName
-          : HomePage.routeName;
-      Navigator.pushReplacementNamed(context, route);
+      Navigator.pushReplacementNamed(context, MainShellPage.routeName);
     } else {
       Navigator.pushReplacementNamed(context, OnboardingPage.routeName);
     }

@@ -8,7 +8,7 @@ import '../../widgets/app_text_field.dart';
 import '../../widgets/primary_button.dart';
 import 'forgot_password_flow.dart';
 import 'customer_auth_page.dart';
-import '../provider_portal/provider_home_page.dart';
+import '../main_shell_page.dart';
 
 class ProviderAuthPage extends StatefulWidget {
   static const String routeName = '/auth/provider';
@@ -282,7 +282,7 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
                       const SizedBox(height: AppSpacing.md),
                       _SocialButton(
                         label: 'Continue with Google',
-                        borderColor: Color(0xFFE8EAED),
+                        borderColor: const Color(0xFFE8EAED),
                         iconAsset: 'assets/images/google_icon.png',
                         onPressed: _googleLoading ? null : _continueWithGoogle,
                       ),
@@ -331,7 +331,7 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
 
     AppRoleState.setProvider(true);
     AppToast.success(context, 'Signed in successfully.');
-    Navigator.pushReplacementNamed(context, ProviderPortalHomePage.routeName);
+    Navigator.pushReplacementNamed(context, MainShellPage.routeName);
   }
 
   Future<void> _submitEmailAuth() async {
@@ -373,7 +373,7 @@ class _ProviderAuthPageState extends State<ProviderAuthPage> {
       context,
       _isSignUp ? 'Account created successfully.' : 'Signed in successfully.',
     );
-    Navigator.pushReplacementNamed(context, ProviderPortalHomePage.routeName);
+    Navigator.pushReplacementNamed(context, MainShellPage.routeName);
   }
 
   String _fullName() {
@@ -549,13 +549,13 @@ class _AuthToggle extends StatelessWidget {
   final String leftLabel;
   final String rightLabel;
   final bool isLeftActive;
-  final VoidCallback onTapLeft;
+  final VoidCallback? onTapLeft;
 
   const _AuthToggle({
     required this.leftLabel,
     required this.rightLabel,
     required this.isLeftActive,
-    required this.onTapLeft,
+    this.onTapLeft,
   });
 
   @override

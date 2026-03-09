@@ -1,54 +1,3 @@
-Based on the current architecture and features of Sevakam (a service marketplace app), you have a very solid foundation with
-  Roles, Booking, Chat, KHQR Payments, and Real-time Notifications.
-
-  To take this application to the next level—making it more engaging for users and more profitable for providers—here are my top
-  recommendations for improvements and new features, broken down by category:
-
-implement
-  1. Trust & Safety (Crucial for Service Apps)
-   * Provider Verification (KYC): Add a flow for providers to upload their National ID or Passport. Once verified by an admin, they
-     receive a blue "Verified" badge on their profile. This drastically increases customer trust.
-   * Photo Reviews: Allow customers to attach photos to their reviews when a job is completed (e.g., a photo of a repaired AC unit
-     or a clean room).
-   * Dispute/Resolution Center: Enhance the "Help & Support" chat into a formal ticketing system where admins can mediate disputes
-     between Finders and Providers, hold funds, or issue refunds.
-
-
-  2. Location & Map Features
-  (I noticed you have google_maps_flutter and geolocator in your project)
-   * Map-Based Search: Add a "Map View" toggle on the Search Page so Finders can visually see Providers scattered around their
-     current location in Phnom Penh.
-   * Live Provider Tracking: Once an order is marked as "On the Way", show the provider's live GPS location on a map to the
-     customer, similar to ride-hailing apps.
-
-
-  3. Enhancing the Finder (Customer) Experience
-   * Favorites / Wishlist: Allow users to "Heart" or save their favorite providers. Add a "Favorites" tab so they can easily rebook
-     someone they liked without searching again.
-   * Multi-Language Support (L10n): Since the app uses Bakong KHQR, targeting the Cambodian market with a seamless toggle between
-     English and Khmer is essential.
-   * Dark Mode Support: Ensure AppTheme.dark() is fully implemented so users can toggle between Light and Dark modes for better
-     nighttime viewing.
-
-
-  4. Enhancing the Provider Portal
-   * Earnings Dashboard & Analytics: Create a visual dashboard for providers showing their daily/weekly/monthly earnings using bar
-     charts (fl_chart is great for this), along with their completion rate and average response time.
-   * Advanced Calendar / Availability Blocking: Allow providers to block out specific days or hours when they are on vacation or
-     busy, so they don't receive booking requests they have to decline.
-   * Job Bidding System: Instead of just direct booking, allow Finders to post a "Job Request" (e.g., "Need my whole house
-     painted"). Providers can then browse these open jobs and submit competitive bids/quotes.
-
-
-  5. UX / Polish (Quick Wins)
-   * Lottie Animations: Integrate Lottie files for empty states (e.g., an animated sleeping cat for "No messages yet") and success
-     states (e.g., an animated confetti checkmark when a KHQR payment is successful).
-   * Automated Review Prompts: Automatically send a push notification to the Finder 1 hour after a Provider marks an order as
-     "Completed," prompting them to leave a 1-5 star rating.
-
-
-
-
 implement
   1. Trust & Safety (Crucial for Service Apps)
    * Provider Verification (KYC): Add a flow for providers to upload their National ID or Passport. Once verified by an admin, they
@@ -72,6 +21,7 @@ implement
      states (e.g., an animated confetti checkmark when a KHQR payment is successful).
    * Automated Review Prompts: Automatically send a push notification to the Finder 1 hour after a Provider marks an order as
      "Completed," prompting them to leave a 1-5 star rating.
+
 
 
 
