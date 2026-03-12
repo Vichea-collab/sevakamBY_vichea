@@ -5,6 +5,7 @@ import 'provider_portal.dart';
 class ProviderItem {
   final String uid;
   final String name;
+  final String bio;
   final String role;
   final double rating;
   final String imagePath;
@@ -18,6 +19,7 @@ class ProviderItem {
   const ProviderItem({
     this.uid = '',
     required this.name,
+    this.bio = '',
     required this.role,
     required this.rating,
     required this.imagePath,
@@ -34,6 +36,7 @@ class ProviderItem {
     return ProviderItem(
       uid: post.providerUid,
       name: post.providerName.trim().isEmpty ? 'Service Provider' : post.providerName,
+      bio: post.providerBio,
       role: role,
       rating: post.rating,
       imagePath: post.avatarPath,

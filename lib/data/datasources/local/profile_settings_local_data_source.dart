@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../domain/entities/order.dart';
 import '../../../domain/entities/profile_settings.dart';
 
 class ProfileSettingsLocalDataSource {
@@ -10,8 +9,6 @@ class ProfileSettingsLocalDataSource {
 
   String _profileKey(bool isProvider) =>
       'profile.form.${isProvider ? 'provider' : 'finder'}';
-  String _paymentKey(bool isProvider) =>
-      'profile.payment.${isProvider ? 'provider' : 'finder'}';
   String _notificationKey(bool isProvider) =>
       'profile.notification.${isProvider ? 'provider' : 'finder'}';
   String _helpKey(bool isProvider) =>
@@ -58,22 +55,6 @@ class ProfileSettingsLocalDataSource {
     await (await _prefs).setString(
       _professionKey(),
       jsonEncode(profession.toMap()),
-    );
-  }
-
-  Future<PaymentMethod> loadPaymentMethod({required bool isProvider}) async {
-    final value = (await _prefs).getString(_paymentKey(isProvider));
-    if (value == null || value.isEmpty) return PaymentMethod.creditCard;
-    return paymentMethodFromStorageValue(value);
-  }
-
-  Future<void> savePaymentMethod({
-    required bool isProvider,
-    required PaymentMethod method,
-  }) async {
-    await (await _prefs).setString(
-      _paymentKey(isProvider),
-      paymentMethodToStorageValue(method),
     );
   }
 

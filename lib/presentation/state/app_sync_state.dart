@@ -12,6 +12,7 @@ import 'user_notification_state.dart';
 class AppSyncState with WidgetsBindingObserver {
   // Spark-friendly cadence to reduce Firestore reads.
   static const Duration _syncInterval = Duration(minutes: 10);
+  static const Duration _fastSyncInterval = Duration(seconds: 15);
   static const Duration _forceFullSyncInterval = Duration(minutes: 30);
   static const Duration _catalogRefreshInterval = Duration(hours: 6);
   static const Duration _lookupRefreshInterval = Duration(hours: 4);
@@ -19,7 +20,9 @@ class AppSyncState with WidgetsBindingObserver {
   static bool _initialized = false;
   static bool _signedIn = false;
   static bool _syncing = false;
+  static bool _fastSyncing = false;
   static Timer? _timer;
+  static Timer? _fastTimer;
   static DateTime? _lastCatalogSyncedAt;
   static DateTime? _lastFullSyncedAt;
   static DateTime? _lastFinderLookupSyncedAt;
@@ -70,11 +73,55 @@ class AppSyncState with WidgetsBindingObserver {
     _timer = Timer.periodic(_syncInterval, (_) {
       unawaited(_syncNow());
     });
+    _fastTimer = Timer.periodic(_fastSyncInterval, (_) {
+      unawaited(_fastSyncNow());
+    });
   }
 
   static void _stopTimer() {
     _timer?.cancel();
     _timer = null;
+    _fastTimer?.cancel();
+    _fastTimer = null;
+  }
+
+  static Future<void> _fastSyncNow() async {
+    if (!_signedIn || _fastSyncing) return;
+    _fastSyncing = true;
+    try {
+      final tasks = <Future<void>>[];
+      
+      // Fast poll for new notifications without full payload
+      if (!UserNotificationState.loading.value) {
+        tasks.add(_safeRun(() => UserNotificationState.refreshUnreadStatus()));
+      }
+
+      // Fast poll for new chats and unread count
+      if (!ChatState.loading.value) {
+        tasks.add(_safeRun(ChatState.refreshUnreadCount));
+        
+        // Also update heartbeat to keep user online status fresh
+        tasks.add(_safeRun(ChatState.updateHeartbeat));
+        
+        // If there's an active thread being viewed or just checking for new messages in general
+        if (!ChatState.realtimeActive.value) {
+           tasks.add(_safeRun(() => ChatState.refresh(limit: 5)));
+        }
+      }
+
+      // Important to also pull order state as new matches appear there
+      if (!OrderState.loading.value && !OrderState.realtimeActive.value) {
+         tasks.add(_safeRun(() => OrderState.refreshCurrentRole(forceNetwork: false)));
+      }
+
+      if (tasks.isNotEmpty) {
+        await Future.wait(tasks);
+      }
+    } catch (_) {
+      // Ignore transient errors on fast poll
+    } finally {
+      _fastSyncing = false;
+    }
   }
 
   static Future<void> _syncNow({bool forceFull = false}) async {

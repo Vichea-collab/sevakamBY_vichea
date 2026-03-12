@@ -38,7 +38,6 @@ class ProviderPostRemoteDataSource {
     required List<String> services,
     required String area,
     required String details,
-    required double ratePerHour,
     required bool availableNow,
   }) async {
     final safeServices = services
@@ -51,7 +50,6 @@ class ProviderPostRemoteDataSource {
       'services': safeServices,
       'area': area,
       'details': details,
-      'ratePerHour': ratePerHour,
       'availableNow': availableNow,
     });
     return _mapToProviderPost(_safeMap(response['data']));
@@ -63,7 +61,6 @@ class ProviderPostRemoteDataSource {
     required List<String> services,
     required String area,
     required String details,
-    required double ratePerHour,
     required bool availableNow,
   }) async {
     final safeServices = services
@@ -77,7 +74,6 @@ class ProviderPostRemoteDataSource {
           'services': safeServices,
           'area': area,
           'details': details,
-          'ratePerHour': ratePerHour,
           'availableNow': availableNow,
         });
     return _mapToProviderPost(_safeMap(response['data']));
@@ -110,7 +106,6 @@ class ProviderPostRemoteDataSource {
       services: services,
       area: (row['area'] ?? '').toString(),
       details: (row['details'] ?? '').toString(),
-      ratePerHour: _toRate(row['ratePerHour']),
       availableNow: row['availableNow'] == true,
       timeLabel: _timeLabel(createdAt),
       avatarPath: avatarUrl.isNotEmpty ? avatarUrl : '',
@@ -125,12 +120,6 @@ class ProviderPostRemoteDataSource {
       return value.map((key, item) => MapEntry(key.toString(), item));
     }
     return const <String, dynamic>{};
-  }
-
-  double _toRate(dynamic value) {
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0;
-    return 0;
   }
 
   double _toDouble(dynamic value, {double fallback = 0}) {

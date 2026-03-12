@@ -5,7 +5,6 @@ import '../../data/datasources/local/profile_settings_local_data_source.dart';
 import '../../data/datasources/remote/profile_remote_data_source.dart';
 import '../../data/network/backend_api_client.dart';
 import '../../data/repositories/profile_settings_repository_impl.dart';
-import '../../domain/entities/order.dart';
 import '../../domain/entities/pagination.dart';
 import '../../domain/entities/profile_settings.dart';
 import '../../domain/repositories/profile_settings_repository.dart';
@@ -37,12 +36,6 @@ class ProfileSettingsState {
       ValueNotifier(ProviderProfessionData.defaults());
   static final ValueNotifier<int> providerCompletedOrders = ValueNotifier(0);
   static final ValueNotifier<bool> providerVerified = ValueNotifier(false);
-
-  static final ValueNotifier<PaymentMethod> finderPaymentMethod = ValueNotifier(
-    PaymentMethod.creditCard,
-  );
-  static final ValueNotifier<PaymentMethod> providerPaymentMethod =
-      ValueNotifier(PaymentMethod.creditCard);
 
   static final ValueNotifier<NotificationPreference> finderNotification =
       ValueNotifier(NotificationPreference.defaults());
@@ -90,10 +83,6 @@ class ProfileSettingsState {
   static ProfileFormData get currentProfile =>
       isProvider ? providerProfile.value : finderProfile.value;
 
-  static PaymentMethod get currentPaymentMethod => _normalizePaymentMethod(
-    isProvider ? providerPaymentMethod.value : finderPaymentMethod.value,
-  );
-
   static NotificationPreference get currentNotification =>
       isProvider ? providerNotification.value : finderNotification.value;
 
@@ -105,27 +94,7 @@ class ProfileSettingsState {
     providerProfile.value = await _repository.loadProfile(isProvider: true);
     _applyAvatarForRole(profile: finderProfile.value, isProvider: false);
     _applyAvatarForRole(profile: providerProfile.value, isProvider: true);
-    final finderLoaded = await _repository.loadPaymentMethod(isProvider: false);
-    final finderNormalized = _normalizePaymentMethod(finderLoaded);
-    finderPaymentMethod.value = finderNormalized;
-    if (finderLoaded != finderNormalized) {
-      await _repository.savePaymentMethod(
-        isProvider: false,
-        method: finderNormalized,
-      );
-    }
 
-    final providerLoaded = await _repository.loadPaymentMethod(
-      isProvider: true,
-    );
-    final providerNormalized = _normalizePaymentMethod(providerLoaded);
-    providerPaymentMethod.value = providerNormalized;
-    if (providerLoaded != providerNormalized) {
-      await _repository.savePaymentMethod(
-        isProvider: true,
-        method: providerNormalized,
-      );
-    }
     finderNotification.value = await _repository.loadNotifications(
       isProvider: false,
     );
@@ -237,24 +206,6 @@ class ProfileSettingsState {
       profile.photoUrl,
       isProvider: isProvider,
     );
-  }
-
-  static Future<void> saveCurrentPaymentMethod(PaymentMethod method) async {
-    final normalized = _normalizePaymentMethod(method);
-    await _repository.savePaymentMethod(
-      isProvider: isProvider,
-      method: normalized,
-    );
-    if (isProvider) {
-      providerPaymentMethod.value = normalized;
-    } else {
-      finderPaymentMethod.value = normalized;
-    }
-  }
-
-  static PaymentMethod _normalizePaymentMethod(PaymentMethod method) {
-    if (method == PaymentMethod.bankAccount) return PaymentMethod.creditCard;
-    return method;
   }
 
   static Future<void> saveCurrentNotifications(

@@ -289,6 +289,7 @@ class _PostOfferCard extends StatelessWidget {
                   ),
                   child: ClipOval(
                     child: SafeImage(
+                      isAvatar: true,
                       source: post.avatarPath,
                       width: 44,
                       height: 44,

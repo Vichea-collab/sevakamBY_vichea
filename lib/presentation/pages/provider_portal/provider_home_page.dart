@@ -395,7 +395,7 @@ class _ProviderTopHeaderState extends State<_ProviderTopHeader> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Welcome back',
+                          'Welcome Provider',
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: Colors.white70),
                         ),
@@ -647,6 +647,7 @@ class _FinderPostTile extends StatelessWidget {
                     : ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: SafeImage(
+                          isAvatar: true,
                           source: post.avatarPath,
                           width: 80,
                           height: 80,

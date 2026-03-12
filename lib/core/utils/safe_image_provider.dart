@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../config/app_env.dart';
 
 final Uint8List _transparentPixel = base64Decode(
   'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
@@ -41,10 +42,9 @@ ImageProvider safeImageProvider(String? source) {
 
   // Handle Network URL (more robust check)
   final lowerTrimmed = trimmed.toLowerCase();
-  if (lowerTrimmed.startsWith('http://') || 
+  if (lowerTrimmed.startsWith('http://') ||
       lowerTrimmed.startsWith('https://') ||
       lowerTrimmed.startsWith('//')) {
-    
     String url = trimmed;
     if (url.startsWith('//')) {
       url = 'https:$url';
@@ -52,14 +52,31 @@ ImageProvider safeImageProvider(String? source) {
     return CachedNetworkImageProvider(url);
   }
 
-  // Check if it looks like a URL even if it doesn't start with http (e.g. ui-avatars.com)
-  if (trimmed.contains('://') || (trimmed.contains('.') && trimmed.contains('/') && !trimmed.startsWith('assets/'))) {
-     try {
-       final uri = Uri.tryParse(trimmed);
-       if (uri != null && uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https')) {
-         return CachedNetworkImageProvider(trimmed);
-       }
-     } catch (_) {}
+  // Check if it's an explicit network URL
+  if (trimmed.contains('://') ||
+      (trimmed.contains('.') &&
+          trimmed.contains('/') &&
+          !trimmed.startsWith('assets/'))) {
+    try {
+      final uri = Uri.tryParse(trimmed);
+      if (uri != null &&
+          uri.hasScheme &&
+          (uri.scheme == 'http' || uri.scheme == 'https')) {
+        return CachedNetworkImageProvider(trimmed);
+      }
+    } catch (_) {}
+  }
+
+  // If it's not a local asset, assume it's a relative path to the backend
+  if (!lowerTrimmed.startsWith('assets/')) {
+    final baseUrl = AppEnv.apiBaseUrl();
+    final cleanBase = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final url = trimmed.startsWith('/')
+        ? '$cleanBase$trimmed'
+        : '$cleanBase/$trimmed';
+    return CachedNetworkImageProvider(url);
   }
 
   // Fallback to Asset
@@ -73,6 +90,7 @@ class SafeImage extends StatelessWidget {
   final BoxFit fit;
   final Widget? placeholder;
   final Widget? errorBuilder;
+  final bool isAvatar;
 
   const SafeImage({
     super.key,
@@ -82,17 +100,18 @@ class SafeImage extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.placeholder,
     this.errorBuilder,
+    this.isAvatar = false,
   });
 
   @override
   Widget build(BuildContext context) {
     if (source == null) {
-      return _errorWidget();
+      return _errorWidget(context);
     }
 
     String trimmed = source!.trim();
     if (trimmed.isEmpty) {
-      return _errorWidget();
+      return _errorWidget(context);
     }
 
     // Remove potential surrounding quotes from backend strings
@@ -113,30 +132,49 @@ class SafeImage extends StatelessWidget {
             width: width,
             height: height,
             fit: fit,
-            errorBuilder: (context, error, stackTrace) => _errorWidget(),
+            errorBuilder: (context, error, stackTrace) => _errorWidget(context),
           );
         }
       } catch (e) {
-        return _errorWidget();
+        return _errorWidget(context);
       }
     }
 
     final lowerTrimmed = trimmed.toLowerCase();
-    bool isNetwork = lowerTrimmed.startsWith('http://') || 
-                     lowerTrimmed.startsWith('https://') ||
-                     lowerTrimmed.startsWith('//');
-    
-    if (!isNetwork && (trimmed.contains('://') || (trimmed.contains('.') && trimmed.contains('/') && !trimmed.startsWith('assets/')))) {
-       try {
-         final uri = Uri.tryParse(trimmed);
-         if (uri != null && uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https')) {
-           isNetwork = true;
-         }
-       } catch (_) {}
+    bool isNetwork =
+        lowerTrimmed.startsWith('http://') ||
+        lowerTrimmed.startsWith('https://') ||
+        lowerTrimmed.startsWith('//');
+
+    String url = trimmed;
+
+    if (!isNetwork &&
+        (trimmed.contains('://') ||
+            (trimmed.contains('.') &&
+                trimmed.contains('/') &&
+                !trimmed.startsWith('assets/')))) {
+      try {
+        final uri = Uri.tryParse(trimmed);
+        if (uri != null &&
+            uri.hasScheme &&
+            (uri.scheme == 'http' || uri.scheme == 'https')) {
+          isNetwork = true;
+        }
+      } catch (_) {}
+    }
+
+    if (!isNetwork && !lowerTrimmed.startsWith('assets/')) {
+      isNetwork = true;
+      final baseUrl = AppEnv.apiBaseUrl();
+      final cleanBase = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+      url = trimmed.startsWith('/')
+          ? '$cleanBase$trimmed'
+          : '$cleanBase/$trimmed';
     }
 
     if (isNetwork) {
-      String url = trimmed;
       if (url.startsWith('//')) {
         url = 'https:$url';
       }
@@ -146,7 +184,7 @@ class SafeImage extends StatelessWidget {
         height: height,
         fit: fit,
         placeholder: (context, url) => placeholder ?? _loadingWidget(),
-        errorWidget: (context, url, error) => _errorWidget(),
+        errorWidget: (context, url, error) => _errorWidget(context),
         // Fade in is smoother than immediate replacement
         fadeInDuration: const Duration(milliseconds: 250),
         fadeOutDuration: const Duration(milliseconds: 200),
@@ -159,7 +197,7 @@ class SafeImage extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
-      errorBuilder: (context, error, stackTrace) => _errorWidget(),
+      errorBuilder: (context, error, stackTrace) => _errorWidget(context),
     );
   }
 
@@ -178,13 +216,25 @@ class SafeImage extends StatelessWidget {
     );
   }
 
-  Widget _errorWidget() {
-    return errorBuilder ??
-        Container(
-          width: width,
-          height: height,
-          color: Colors.black12,
-          child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
-        );
+  Widget _errorWidget(BuildContext context) {
+    if (errorBuilder != null) return errorBuilder!;
+    if (isAvatar) {
+      final size = width ?? height ?? 40;
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: const Color(0xFFEAF1FF),
+        child: Icon(
+          Icons.person,
+          color: Theme.of(context).primaryColor,
+          size: size * 0.5,
+        ),
+      );
+    }
+    return Container(
+      width: width,
+      height: height,
+      color: Colors.black12,
+      child: const Icon(Icons.broken_image_rounded, color: Colors.grey),
+    );
   }
 }

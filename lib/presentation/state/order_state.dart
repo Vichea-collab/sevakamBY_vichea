@@ -372,16 +372,6 @@ class OrderState {
     return created;
   }
 
-  static Future<BookingPriceQuote> quoteFinderOrder(BookingDraft draft) async {
-    final ready = await _ensureBackendToken();
-    if (!ready) return BookingPriceQuote.fromDraft(draft);
-    try {
-      return await _runWithAuthRetry(() => _repository.quoteFinderOrder(draft));
-    } catch (_) {
-      return BookingPriceQuote.fromDraft(draft);
-    }
-  }
-
   static Future<List<HomeAddress>> fetchSavedAddresses() {
     return _repository.fetchSavedAddresses();
   }
@@ -400,24 +390,6 @@ class OrderState {
 
   static Future<void> deleteSavedAddress({required String addressId}) {
     return _repository.deleteSavedAddress(addressId: addressId);
-  }
-
-  static Future<KhqrPaymentSession> createKhqrPaymentSession({
-    required String orderId,
-  }) {
-    return _repository.createKhqrPaymentSession(orderId: orderId);
-  }
-
-  static Future<KhqrPaymentVerification> verifyKhqrPayment({
-    required String orderId,
-    String transactionId = '',
-  }) async {
-    final result = await _repository.verifyKhqrPayment(
-      orderId: orderId,
-      transactionId: transactionId,
-    );
-    finderOrders.value = _replaceFinder(result.order);
-    return result;
   }
 
   static Future<OrderItem> updateFinderOrderStatus({
@@ -854,17 +826,10 @@ class OrderState {
       addressLink: (row['addressMapLink'] ?? '').toString(),
       scheduleDate: _formatDate(preferredDate),
       scheduleTime: (row['preferredTimeSlot'] ?? '').toString(),
-      workers: _toInt(row['workers'], fallback: 1),
-      hours: _toInt(row['hours'], fallback: 1),
       homeType: (row['homeType'] ?? '').toString(),
-      paymentMethod: (row['paymentMethod'] ?? '').toString(),
       additionalService: (row['additionalService'] ?? '').toString(),
       finderNote: (row['finderNote'] ?? '').toString(),
       serviceInputs: inputs,
-      subtotal: _toDouble(row['subtotal']),
-      processingFee: _toDouble(row['processingFee']),
-      discount: _toDouble(row['discount']),
-      total: _toDouble(row['total']),
       state: _providerOrderStateFromStorage((row['status'] ?? '').toString()),
       timeline: timeline,
     );
@@ -939,19 +904,11 @@ class OrderState {
       provider: provider,
       serviceName: (row['serviceName'] ?? 'Service').toString(),
       address: address,
-      hours: _toInt(row['hours'], fallback: 1),
-      workers: _toInt(row['workers'], fallback: 1),
       homeType: _homeTypeFromStorage((row['homeType'] ?? '').toString()),
       additionalService: (row['additionalService'] ?? '').toString(),
       bookedAt: bookedAt,
       scheduledAt: preferredDate,
       timeRange: (row['preferredTimeSlot'] ?? '').toString(),
-      paymentMethod: _paymentMethodFromStorage(
-        (row['paymentMethod'] ?? '').toString(),
-      ),
-      subtotal: _toDouble(row['subtotal']),
-      processingFee: _toDouble(row['processingFee']),
-      discount: _toDouble(row['discount']),
       status: _orderStatusFromStorage((row['status'] ?? '').toString()),
       rating: _ratingOrNull(row['finderRating'] ?? row['rating']),
       reviewComment: (row['finderComment'] ?? '').toString(),
@@ -1022,12 +979,6 @@ class OrderState {
     );
   }
 
-  static int _toInt(dynamic value, {int fallback = 0}) {
-    if (value is int) return value;
-    final parsed = int.tryParse((value ?? '').toString());
-    return parsed ?? fallback;
-  }
-
   static double _toDouble(dynamic value, {double fallback = 0}) {
     if (value is num) return value.toDouble();
     final parsed = double.tryParse((value ?? '').toString());
@@ -1055,20 +1006,6 @@ class OrderState {
       case 'booked':
       default:
         return OrderStatus.booked;
-    }
-  }
-
-  static PaymentMethod _paymentMethodFromStorage(String value) {
-    switch (value.trim().toLowerCase()) {
-      case 'bank_account':
-      case 'bank account':
-        return PaymentMethod.bankAccount;
-      case 'cash':
-        return PaymentMethod.cash;
-      case 'khqr':
-        return PaymentMethod.khqr;
-      default:
-        return PaymentMethod.creditCard;
     }
   }
 

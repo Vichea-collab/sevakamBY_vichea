@@ -494,9 +494,25 @@ class _ProviderCard extends StatelessWidget {
         children: [
           Stack(
             children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundImage: safeImageProvider(draft.provider.imagePath),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    width: 1.5,
+                  ),
+                ),
+                child: ClipOval(
+                  child: SafeImage(
+                    isAvatar: true,
+                    source: draft.provider.imagePath,
+                    width: 36,
+                    height: 36,
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
               if (loading)
                 const Positioned.fill(

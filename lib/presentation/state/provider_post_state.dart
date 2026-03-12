@@ -140,7 +140,6 @@ class ProviderPostState {
     required List<String> services,
     required String area,
     required String details,
-    required double ratePerHour,
     required bool availableNow,
   }) async {
     final created = await _repository.createProviderPost(
@@ -148,7 +147,6 @@ class ProviderPostState {
       services: services,
       area: area,
       details: details,
-      ratePerHour: ratePerHour,
       availableNow: availableNow,
     );
     if (_normalizedPage(pagination.value.page) == 1) {
@@ -172,7 +170,6 @@ class ProviderPostState {
     required List<String> services,
     required String area,
     required String details,
-    required double ratePerHour,
     required bool availableNow,
   }) async {
     final updated = await _repository.updateProviderPost(
@@ -181,7 +178,6 @@ class ProviderPostState {
       services: services,
       area: area,
       details: details,
-      ratePerHour: ratePerHour,
       availableNow: availableNow,
     );
     final nextPosts = posts.value
@@ -279,8 +275,6 @@ class ProviderPostState {
           a.updatedAt ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       final byTime = right.compareTo(left);
       if (byTime != 0) return byTime;
-      final byRate = a.ratePerHour.compareTo(b.ratePerHour);
-      if (byRate != 0) return byRate;
       return a.id.compareTo(b.id);
     });
     return sorted;

@@ -77,14 +77,20 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
                           AppTopBar(
                             title: 'My Bookings',
                             showBack: true,
-                            onBack: () => MainShellPage.activeTab.value = AppBottomTab.home,
+                            onBack: () {
+                              if (Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              } else {
+                                MainShellPage.activeTab.value = AppBottomTab.home;
+                              }
+                            },
                           ),
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              _TabChip(
-                                label: 'Incoming',
-                                active: _activeTab == _FinderOrderTab.pending,
+                                _TabChip(
+                                  label: 'Booked',
+                                  active: _activeTab == _FinderOrderTab.pending,
                                 onTap: () =>
                                     _onTabSelected(_FinderOrderTab.pending),
                               ),
@@ -320,7 +326,7 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
   String _emptyTitleForTab(_FinderOrderTab tab) {
     switch (tab) {
       case _FinderOrderTab.pending:
-        return 'No incoming bookings';
+        return 'No bookings';
       case _FinderOrderTab.inProgress:
         return 'No active services';
       case _FinderOrderTab.completed:
@@ -488,8 +494,8 @@ class _OrderStatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, bg) = switch (status) {
-      OrderStatus.booked => ('Incoming', const Color(0xFFD97706)),
-      OrderStatus.onTheWay => ('On the way', AppColors.primary),
+      OrderStatus.booked => ('Booked', const Color(0xFFD97706)),
+      OrderStatus.onTheWay => ('Confirm', AppColors.primary),
       OrderStatus.started => ('Started', const Color(0xFF7C6EF2)),
       OrderStatus.completed => ('Completed', AppColors.success),
       OrderStatus.cancelled => ('Cancelled', AppColors.danger),

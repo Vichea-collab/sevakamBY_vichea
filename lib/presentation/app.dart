@@ -28,7 +28,6 @@ import 'pages/favorites/favorites_page.dart';
 import 'pages/profile/profile_page.dart';
 import 'pages/profile/edit_profile_page.dart';
 import 'pages/profile/notification_page.dart';
-import 'pages/profile/payment_page.dart';
 import 'pages/profile/help_support_page.dart';
 import 'pages/provider_portal/provider_home_page.dart';
 import 'pages/provider_portal/provider_notifications_page.dart';
@@ -146,9 +145,6 @@ class _ServiceFinderAppState extends State<ServiceFinderApp> {
                 break;
               case ProfileNotificationPage.routeName:
                 page = const ProfileNotificationPage();
-                break;
-              case PaymentPage.routeName:
-                page = const PaymentPage();
                 break;
               case HelpSupportPage.routeName:
                 page = const HelpSupportPage();

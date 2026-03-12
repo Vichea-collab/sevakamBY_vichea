@@ -1,4 +1,3 @@
-import '../../domain/entities/order.dart';
 import '../../domain/entities/pagination.dart';
 import '../../domain/entities/profile_settings.dart';
 import '../../domain/repositories/profile_settings_repository.dart';
@@ -87,19 +86,6 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
       );
       await _localDataSource.saveProviderProfession(profession: remote);
     } catch (_) {}
-  }
-
-  @override
-  Future<PaymentMethod> loadPaymentMethod({required bool isProvider}) {
-    return _loadPaymentMethodInternal(isProvider: isProvider);
-  }
-
-  @override
-  Future<void> savePaymentMethod({
-    required bool isProvider,
-    required PaymentMethod method,
-  }) {
-    return _savePaymentMethodInternal(isProvider: isProvider, method: method);
   }
 
   @override
@@ -194,46 +180,6 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
     } catch (_) {}
   }
 
-  Future<PaymentMethod> _loadPaymentMethodInternal({
-    required bool isProvider,
-  }) async {
-    final local = await _localDataSource.loadPaymentMethod(
-      isProvider: isProvider,
-    );
-    try {
-      final data = await _remoteDataSource.fetchSettings();
-      final value = (data['paymentMethod'] ?? '').toString();
-      if (value.isEmpty) return local;
-      final parsed = paymentMethodFromStorageValue(value);
-      await _localDataSource.savePaymentMethod(
-        isProvider: isProvider,
-        method: parsed,
-      );
-      return parsed;
-    } catch (_) {
-      return local;
-    }
-  }
-
-  Future<void> _savePaymentMethodInternal({
-    required bool isProvider,
-    required PaymentMethod method,
-  }) async {
-    await _localDataSource.savePaymentMethod(
-      isProvider: isProvider,
-      method: method,
-    );
-    try {
-      final notification = await _localDataSource.loadNotifications(
-        isProvider: isProvider,
-      );
-      await _remoteDataSource.updateSettings(
-        paymentMethod: paymentMethodToStorageValue(method),
-        notifications: notification.toMap(),
-      );
-    } catch (_) {}
-  }
-
   Future<NotificationPreference> _loadNotificationsInternal({
     required bool isProvider,
   }) async {
@@ -266,11 +212,7 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
       notification: notification,
     );
     try {
-      final payment = await _localDataSource.loadPaymentMethod(
-        isProvider: isProvider,
-      );
       await _remoteDataSource.updateSettings(
-        paymentMethod: paymentMethodToStorageValue(payment),
         notifications: notification.toMap(),
       );
     } catch (_) {}

@@ -607,7 +607,29 @@ class ChatState {
     final updatedAt = _toDateTime(
       row['updatedAt'] ?? row['lastMessageAt'] ?? row['createdAt'],
     );
-    final lastActiveAt = _toDateTime(row['lastActiveAt'] ?? row['updatedAt']);
+    
+    // Attempt to drill down into participantMeta to get the TRUE peer heartbeat.
+    // If we can't find it, we default to something far in the past instead of `updatedAt`.
+    // We absolutely MUST NOT fallback to `updatedAt`, because me sending a message
+    // updates the thread's `updatedAt`, making the offline peer look online.
+    DateTime? peerHeartbeat;
+    final participantMetaRaw = row['participantMeta'];
+    if (participantMetaRaw is Map) {
+      final participants = (row['participants'] is List)
+          ? (row['participants'] as List).map((e) => e.toString().trim()).toList()
+          : <String>[];
+      final peerUid = participants.firstWhere((uid) => uid.isNotEmpty && uid != currentUid, orElse: () => '');
+      if (peerUid.isNotEmpty) {
+        final raw = participantMetaRaw[peerUid];
+        if (raw is Map && raw['lastActiveAt'] != null) {
+          peerHeartbeat = _toDateTime(raw['lastActiveAt']);
+        }
+      }
+    }
+    
+    // If no explicit meta heartbeat, check if the payload itself provided a top-level peerActiveAt.
+    // Otherwise fallback to an old date (Epoch) so they don't falsely appear online.
+    final lastActiveAt = peerHeartbeat ?? _toDateTime(row['peerActiveAt'] ?? 0);
 
     return ChatThread(
       id: id,

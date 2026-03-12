@@ -145,11 +145,9 @@ class ProfileRemoteDataSource {
   }
 
   Future<void> updateSettings({
-    required String paymentMethod,
     required Map<String, dynamic> notifications,
   }) async {
     await _apiClient.putJson('/api/users/settings', {
-      'paymentMethod': paymentMethod,
       'notifications': notifications,
     });
   }

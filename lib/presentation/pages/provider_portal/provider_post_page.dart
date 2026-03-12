@@ -270,7 +270,6 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
           services: services,
           area: _areaController.text.trim(),
           details: _detailsController.text.trim(),
-          ratePerHour: 0, // No price required in UI anymore
           availableNow: _availableNow,
         );
       } else {
@@ -280,7 +279,6 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
           services: services,
           area: _areaController.text.trim(),
           details: _detailsController.text.trim(),
-          ratePerHour: 0, // No price required in UI anymore
           availableNow: _availableNow,
         );
       }

@@ -384,6 +384,7 @@ class _ProviderInfoCard extends StatelessWidget {
             ),
             child: ClipOval(
               child: SafeImage(
+                isAvatar: true,
                 source: draft.provider.imagePath,
                 width: 52,
                 height: 52,

@@ -374,10 +374,9 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       ),
       children: [
         fm.TileLayer(
-          urlTemplate:
-              'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-          subdomains: const ['a', 'b', 'c', 'd'],
-          userAgentPackageName: 'com.example.servicefinder',
+          urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+          subdomains: const ['a', 'b', 'c','d'],
+          userAgentPackageName: 'com.company.sevekam',
         ),
         fm.MarkerLayer(markers: markers),
       ],
@@ -511,7 +510,8 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
   Future<void> _useCurrentLocation({bool silent = false}) async {
     if (!silent) {
       setState(() => _locating = true);
-      _userInteracted = true;
+      // When explicitly requested, re-enable tracking by un-setting user interaction flag
+      _userInteracted = false; 
     }
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -577,12 +577,16 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         return;
       }
 
+      // Check for simulator HQ location (usually Google HQ) and warn if it's there
+      // instead of Phnom Penh.
       if (!silent && kDebugMode && !kIsWeb && position != null) {
         bool isSimulatorHq = false;
         if (defaultTargetPlatform == TargetPlatform.android) {
+          // 37.422, -122.084 is default Android emulator location
           final dist = Geolocator.distanceBetween(position.latitude, position.longitude, 37.422, -122.084);
           if (dist < 1000) isSimulatorHq = true;
         } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+          // 37.332, -122.031 is default iOS simulator location
           final dist = Geolocator.distanceBetween(position.latitude, position.longitude, 37.332, -122.031);
           if (dist < 1000) isSimulatorHq = true;
         }
@@ -597,20 +601,13 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
 
       final outsidePhnomPenh = !_isInsidePhnomPenh(point);
       if (outsidePhnomPenh) {
-        // Only try network fallback if the primary point (GPS) was outside PP.
-        // If the point already came from network, it was already checked for PP.
+        // If GPS is outside, maybe network location is better (VPN or something)
         if (position != null) {
           final networkPoint = await _resolveApproxNetworkLocation();
-          if (networkPoint != null) {
+          if (networkPoint != null && _isInsidePhnomPenh(networkPoint)) {
             setState(() => _selectedPoint = networkPoint);
             await _moveCamera(networkPoint, zoom: 15.0);
             await _reverseGeocode(networkPoint);
-            if (!silent) {
-              _showMessage(
-                'Using network location fallback for Phnom Penh.',
-                type: AppToastType.info,
-              );
-            }
             return;
           }
         }
@@ -647,7 +644,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 3, // Smaller distance for smoother tracking
       ),
     ).listen((position) {
       if (mounted) {
@@ -656,14 +653,23 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
           _currentLiveLocation = point;
         });
 
-        // If the user hasn't interacted yet, and we just got a valid PP location,
-        // automatically move the marker there for a "dynamic" feel.
-        if (!_userInteracted && _isInsidePhnomPenh(point)) {
-          if (_selectedPoint.latitude == _phnomPenh.latitude &&
-              _selectedPoint.longitude == _phnomPenh.longitude) {
+        // If the user hasn't actively been panning the map elsewhere,
+        // or if they just pressed the "use current location" button
+        // we should snap the selected point to their live location 
+        // if they are inside Phnom Penh.
+        // We use a flag to track if we should follow them.
+        if (_isInsidePhnomPenh(point)) {
+          // If the map is already focused near their current location, keep following them
+          final isFollowing = _selectedPoint.latitude == _phnomPenh.latitude || 
+                              Geolocator.distanceBetween(_selectedPoint.latitude, _selectedPoint.longitude, point.latitude, point.longitude) < 50;
+                              
+          if (!_userInteracted || isFollowing) {
             setState(() => _selectedPoint = point);
-            _moveCamera(point, zoom: 15.0);
-            _reverseGeocode(point);
+            // Only move camera if we haven't interacted yet to avoid fighting user's scroll
+            if (!_userInteracted) {
+              _moveCamera(point, zoom: 15.0);
+              _reverseGeocode(point);
+            }
           }
         }
       }
@@ -683,35 +689,37 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
     }
 
     try {
+      // Try high accuracy first with a shorter timeout
       final LocationSettings highAccuracy =
           (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
           ? AndroidSettings(
               accuracy: LocationAccuracy.high,
-              timeLimit: const Duration(seconds: 12),
+              timeLimit: const Duration(seconds: 8),
             )
           : const LocationSettings(
               accuracy: LocationAccuracy.high,
-              timeLimit: Duration(seconds: 12),
+              timeLimit: Duration(seconds: 8),
             );
       return await Geolocator.getCurrentPosition(locationSettings: highAccuracy);
-    } catch (_) {}
-
-    try {
-      final LocationSettings lowAccuracy =
-          (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
-          ? AndroidSettings(
-              accuracy: LocationAccuracy.low,
-              timeLimit: const Duration(seconds: 10),
-              forceLocationManager: true,
-            )
-          : const LocationSettings(
-              accuracy: LocationAccuracy.low,
-              timeLimit: Duration(seconds: 10),
-            );
-      return await Geolocator.getCurrentPosition(locationSettings: lowAccuracy);
-    } catch (_) {}
-
-    return null;
+    } catch (_) {
+      // Try medium accuracy as fallback
+      try {
+        final LocationSettings mediumAccuracy =
+            (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+            ? AndroidSettings(
+                accuracy: LocationAccuracy.medium,
+                timeLimit: const Duration(seconds: 5),
+                forceLocationManager: true,
+              )
+            : const LocationSettings(
+                accuracy: LocationAccuracy.medium,
+                timeLimit: Duration(seconds: 5),
+              );
+        return await Geolocator.getCurrentPosition(locationSettings: mediumAccuracy);
+      } catch (__) {
+        return null;
+      }
+    }
   }
 
   bool _isPositionFresh(Position position) {
@@ -953,9 +961,7 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         if (lat == null || lng == null) continue;
 
         final point = LatLng(lat, lng);
-        if (_isInsidePhnomPenh(point)) {
-          return point;
-        }
+        return point;
       } catch (_) {
       }
     }

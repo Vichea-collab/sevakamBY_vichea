@@ -18,7 +18,6 @@ import 'package:servicefinder/presentation/pages/main_shell_page.dart';
 import 'package:servicefinder/presentation/pages/profile/edit_profile_page.dart';
 import 'package:servicefinder/presentation/pages/profile/help_support_page.dart';
 import 'package:servicefinder/presentation/pages/profile/notification_page.dart';
-import 'package:servicefinder/presentation/pages/profile/payment_page.dart';
 import 'package:servicefinder/presentation/widgets/app_bottom_nav.dart';
 import 'provider_profession_page.dart';
 import 'provider_verification_page.dart';
@@ -136,20 +135,6 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
                 context,
                 slideFadeRoute(const ProviderVerificationPage()),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Subscription & payments',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.onSurface),
-            ),
-            const SizedBox(height: 10),
-            _ActionTile(
-              icon: Icons.credit_card_outlined,
-              label: 'Subscription method',
-              onTap: () =>
-                  Navigator.push(context, slideFadeRoute(const PaymentPage())),
             ),
             const SizedBox(height: 16),
             Text(

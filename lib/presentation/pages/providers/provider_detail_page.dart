@@ -171,7 +171,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                           ),
                           const SizedBox(height: 12),
                           if (_contentTab == _ProviderContentTab.companyInfo)
-                            _CompanyInfoSection(profile: profile)
+                            _CompanyInfoSection(
+                              title: 'Bio',
+                              content: profile.about,
+                            )
                           else
                             _ReviewsSection(
                               reviews: reviews,
@@ -356,9 +359,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           : 'Phnom Penh, Cambodia',
       available: finalMatched?.availableNow ?? true,
       completedJobs: summary?.completedJobs ?? (hasProviderUid ? 0 : 42),
-      about: finalMatched?.details.trim().isNotEmpty == true
-          ? finalMatched!.details.trim()
-          : 'Trusted service provider ready to help with fast and quality work.',
+      about: provider.bio.trim().isNotEmpty 
+          ? provider.bio.trim()
+          : (finalMatched?.details.trim().isNotEmpty == true
+              ? finalMatched!.details.trim()
+              : 'Trusted service provider ready to help with fast and quality work.'),
       reviews:
           summary?.reviews ??
           (hasProviderUid ? const [] : _seedReviews(provider)),
@@ -381,7 +386,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         reviewerInitials: 'D',
         rating: (base - 0.1).clamp(1, 5).toDouble(),
         daysAgo: 19,
-        comment: 'Clear communication and fair pricing.',
+        comment: 'Clear communication and great results.',
       ),
       ProviderReview(
         reviewerName: 'Nary',
@@ -622,9 +627,10 @@ class _ContentTabs extends StatelessWidget {
 }
 
 class _CompanyInfoSection extends StatelessWidget {
-  final ProviderProfile profile;
+  final String title;
+  final String content;
 
-  const _CompanyInfoSection({required this.profile});
+  const _CompanyInfoSection({required this.title, required this.content});
 
   @override
   Widget build(BuildContext context) {
@@ -632,11 +638,11 @@ class _CompanyInfoSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'About ${profile.provider.name}',
+          title,
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
-        Text(profile.about, style: Theme.of(context).textTheme.bodyMedium),
+        Text(content, style: Theme.of(context).textTheme.bodyMedium),
       ],
     );
   }

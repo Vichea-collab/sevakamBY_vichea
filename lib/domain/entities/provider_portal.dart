@@ -42,12 +42,12 @@ class ProviderPostItem {
   final String id;
   final String providerUid;
   final String providerName;
+  final String providerBio;
   final String category;
   final String service;
   final List<String> services;
   final String area;
   final String details;
-  final double ratePerHour;
   final bool availableNow;
   final String timeLabel;
   final String avatarPath;
@@ -63,12 +63,12 @@ class ProviderPostItem {
     required this.id,
     required this.providerUid,
     required this.providerName,
+    this.providerBio = '',
     required this.category,
     required this.service,
     required this.services,
     required this.area,
     required this.details,
-    required this.ratePerHour,
     required this.availableNow,
     required this.timeLabel,
     this.avatarPath = '',
@@ -91,12 +91,12 @@ class ProviderPostItem {
       id: (map['id'] ?? '').toString(),
       providerUid: (map['providerUid'] ?? '').toString(),
       providerName: (map['providerName'] ?? 'Service Provider').toString(),
+      providerBio: (map['providerBio'] ?? '').toString(),
       category: (map['category'] ?? '').toString(),
       service: (map['service'] ?? '').toString(),
       services: (map['services'] as List? ?? []).map((e) => e.toString()).toList(),
       area: (map['area'] ?? '').toString(),
       details: (map['details'] ?? '').toString(),
-      ratePerHour: double.tryParse((map['ratePerHour'] ?? '0').toString()) ?? 0,
       availableNow: map['availableNow'] == true,
       timeLabel: (map['timeLabel'] ?? '').toString(),
       avatarPath: (map['avatarPath'] ?? map['providerAvatar'] ?? '').toString(),
@@ -117,12 +117,12 @@ class ProviderPostItem {
       'id': id,
       'providerUid': providerUid,
       'providerName': providerName,
+      'providerBio': providerBio,
       'category': category,
       'service': service,
       'services': services,
       'area': area,
       'details': details,
-      'ratePerHour': ratePerHour,
       'availableNow': availableNow,
       'timeLabel': timeLabel,
       'avatarPath': avatarPath,
@@ -147,17 +147,10 @@ class ProviderOrderItem {
   final String addressLink;
   final String scheduleDate;
   final String scheduleTime;
-  final int workers;
-  final int hours;
   final String homeType;
-  final String paymentMethod;
   final String additionalService;
   final String finderNote;
   final Map<String, String> serviceInputs;
-  final double subtotal;
-  final double processingFee;
-  final double discount;
-  final double total;
   final ProviderOrderState state;
   final OrderStatusTimeline timeline;
 
@@ -171,22 +164,13 @@ class ProviderOrderItem {
     this.addressLink = '',
     required this.scheduleDate,
     required this.scheduleTime,
-    required this.workers,
-    required this.hours,
     this.homeType = '',
-    this.paymentMethod = '',
     this.additionalService = '',
     this.finderNote = '',
     this.serviceInputs = const {},
-    double? subtotal,
-    double? processingFee,
-    double? discount,
-    required this.total,
     required this.state,
     this.timeline = const OrderStatusTimeline(),
-  }) : subtotal = subtotal ?? total,
-       processingFee = processingFee ?? 0,
-       discount = discount ?? 0;
+  });
 
   ProviderOrderItem copyWith({
     ProviderOrderState? state,
@@ -202,17 +186,10 @@ class ProviderOrderItem {
       addressLink: addressLink,
       scheduleDate: scheduleDate,
       scheduleTime: scheduleTime,
-      workers: workers,
-      hours: hours,
       homeType: homeType,
-      paymentMethod: paymentMethod,
       additionalService: additionalService,
       finderNote: finderNote,
       serviceInputs: serviceInputs,
-      subtotal: subtotal,
-      processingFee: processingFee,
-      discount: discount,
-      total: total,
       state: state ?? this.state,
       timeline: timeline ?? this.timeline,
     );

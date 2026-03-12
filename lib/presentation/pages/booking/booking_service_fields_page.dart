@@ -13,7 +13,7 @@ import '../../widgets/app_state_panel.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
-import 'booking_payment_page.dart';
+import 'booking_summary_page.dart';
 
 class BookingServiceFieldsPage extends StatefulWidget {
   final BookingDraft draft;

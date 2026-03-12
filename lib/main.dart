@@ -11,10 +11,15 @@ import 'presentation/state/profile_settings_state.dart';
 import 'presentation/state/catalog_state.dart';
 import 'presentation/state/booking_catalog_state.dart';
 import 'presentation/state/favorite_state.dart';
+import 'presentation/state/app_role_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _runSafe('AppEnv.load', AppEnv.load);
+  
+  // Must initialize AppRoleState BEFORE AuthState so AuthState knows who is signing in natively
+  await _runSafe('AppRoleState.initialize', AppRoleState.initialize);
+  
   await _runSafe('AuthState.initialize', AuthState.initialize);
   await Future.wait<void>([
     _runSafe('FavoriteState.init', FavoriteState.init),

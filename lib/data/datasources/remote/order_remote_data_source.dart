@@ -19,13 +19,6 @@ class OrderRemoteDataSource {
     return _safeMap(response['data']);
   }
 
-  Future<Map<String, dynamic>> quoteFinderOrder(
-    Map<String, dynamic> payload,
-  ) async {
-    final response = await _apiClient.postJson('/api/orders/quote', payload);
-    return _safeMap(response['data']);
-  }
-
   Future<PaginatedResult<Map<String, dynamic>>> fetchFinderOrders({
     int page = 1,
     int limit = _defaultPageSize,
@@ -105,30 +98,6 @@ class OrderRemoteDataSource {
 
   Future<void> deleteSavedAddress({required String addressId}) async {
     await _apiClient.deleteJson('/api/users/addresses/$addressId');
-  }
-
-  Future<Map<String, dynamic>> createKhqrPaymentSession({
-    required String orderId,
-  }) async {
-    final response = await _apiClient.postJson('/api/payments/khqr/create', {
-      'orderId': orderId,
-    });
-    return _safeMap(response['data']);
-  }
-
-  Future<Map<String, dynamic>> verifyKhqrPayment({
-    required String orderId,
-    String transactionId = '',
-  }) async {
-    final body = <String, dynamic>{'orderId': orderId};
-    if (transactionId.trim().isNotEmpty) {
-      body['transactionId'] = transactionId.trim();
-    }
-    final response = await _apiClient.postJson(
-      '/api/payments/khqr/verify',
-      body,
-    );
-    return _safeMap(response['data']);
   }
 
   Future<Map<String, dynamic>> updateOrderStatus({

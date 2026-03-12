@@ -22,7 +22,6 @@ class _ProfileNotificationPageState extends State<ProfileNotificationPage> {
   bool sound = false;
   bool vibrate = true;
   bool newService = false;
-  bool payment = true;
   bool _saving = false;
 
   @override
@@ -33,7 +32,6 @@ class _ProfileNotificationPageState extends State<ProfileNotificationPage> {
     sound = values.sound;
     vibrate = values.vibrate;
     newService = values.newService;
-    payment = values.payment;
   }
 
   @override
@@ -72,11 +70,6 @@ class _ProfileNotificationPageState extends State<ProfileNotificationPage> {
                 value: newService,
                 onChanged: (v) => setState(() => newService = v),
               ),
-              _SwitchTile(
-                label: 'Payment',
-                value: payment,
-                onChanged: (v) => setState(() => payment = v),
-              ),
               const SizedBox(height: 18),
               PrimaryButton(
                 label: _saving ? 'Saving...' : 'Save',
@@ -97,7 +90,6 @@ class _ProfileNotificationPageState extends State<ProfileNotificationPage> {
         sound: sound,
         vibrate: vibrate,
         newService: newService,
-        payment: payment,
       ),
     );
     if (!mounted) return;

@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,6 +12,7 @@ import '../../state/profile_image_state.dart';
 import '../../state/profile_settings_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
+import '../../../core/firebase/firebase_storage_service.dart';
 
 class EditProfilePage extends StatefulWidget {
   static const String routeName = '/profile/edit';
@@ -36,7 +37,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final TextEditingController _bioController = TextEditingController();
   bool _saving = false;
   bool _photoChanged = false;
-  String _selectedPhotoDataUrl = '';
+  Uint8List? _selectedPhotoBytes;
+  String _selectedPhotoExtension = 'jpg';
 
   bool get _isProvider => AppRoleState.isProvider;
 
@@ -45,7 +47,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.initState();
     final profile = ProfileSettingsState.currentProfile;
     _setForm(profile);
-    _selectedPhotoDataUrl = profile.photoUrl.trim();
   }
 
   @override
@@ -259,7 +260,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   onTap: () {
                     ProfileImageState.useDefaultAvatar();
                     _photoChanged = true;
-                    _selectedPhotoDataUrl = '';
+                    _selectedPhotoBytes = null;
                     Navigator.pop(context);
                   },
                 ),
@@ -295,11 +296,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
     if (!mounted) return;
     final extension = _extensionFromName(picked.name);
-    final mimeType = _mimeTypeFromExtension(extension);
-    final dataUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
+
+    // We keep the byte array here and flag it as changed.
+    // We DO NOT encode to base64 anymore because we will upload to Firebase Storage!
     ProfileImageState.setCustomAvatar(bytes);
     _photoChanged = true;
-    _selectedPhotoDataUrl = dataUrl;
+    _selectedPhotoBytes = bytes;
+    _selectedPhotoExtension = extension;
   }
 
   void _setForm(ProfileFormData profile) {
@@ -363,6 +366,37 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
 
+    setState(() => _saving = true);
+
+    String finalPhotoUrl = ProfileSettingsState.currentProfile.photoUrl.trim();
+
+    if (_photoChanged) {
+      if (_selectedPhotoBytes != null) {
+        // Upload the actual bytes to Firebase Storage
+        final uploadedUrl = await FirebaseStorageService.uploadProfileAvatar(
+          _selectedPhotoBytes!,
+          extension: _selectedPhotoExtension,
+        );
+
+        if (uploadedUrl != null) {
+          finalPhotoUrl = uploadedUrl;
+        } else {
+          // If the upload silently failed, we can let them know and stop the save
+          if (mounted) {
+            AppToast.warning(
+              context,
+              'Failed to upload photo. Check your connection.',
+            );
+            setState(() => _saving = false);
+          }
+          return;
+        }
+      } else {
+        // They picked "Use default profile" which cleared out the byte array completely.
+        finalPhotoUrl = '';
+      }
+    }
+
     final payload = ProfileFormData(
       name: _nameController.text.trim(),
       email: _emailController.text.trim(),
@@ -371,16 +405,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
       phoneNumber: _phoneController.text.trim(),
       city: _cityController.text.trim(),
       bio: _bioController.text.trim(),
-      photoUrl: _photoChanged
-          ? _selectedPhotoDataUrl.trim()
-          : ProfileSettingsState.currentProfile.photoUrl.trim(),
+      photoUrl: finalPhotoUrl,
     );
 
-    setState(() => _saving = true);
     await ProfileSettingsState.saveCurrentProfile(payload);
     if (!mounted) return;
+
     _photoChanged = false;
-    _selectedPhotoDataUrl = payload.photoUrl;
+    _selectedPhotoBytes = null; // Clean up
+
     setState(() => _saving = false);
     AppToast.success(context, 'Profile saved successfully.');
   }
@@ -389,24 +422,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final dot = fileName.lastIndexOf('.');
     if (dot == -1 || dot >= fileName.length - 1) return 'jpg';
     return fileName.substring(dot + 1).toLowerCase();
-  }
-
-  String _mimeTypeFromExtension(String extension) {
-    switch (extension) {
-      case 'png':
-        return 'image/png';
-      case 'webp':
-        return 'image/webp';
-      case 'gif':
-        return 'image/gif';
-      case 'heic':
-      case 'heif':
-        return 'image/heic';
-      case 'jpg':
-      case 'jpeg':
-      default:
-        return 'image/jpeg';
-    }
   }
 }
 

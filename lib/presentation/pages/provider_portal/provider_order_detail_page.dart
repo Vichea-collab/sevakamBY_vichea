@@ -205,7 +205,7 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
               _ActionPanel(
                 status: _order.state,
                 busy: _updatingStatus,
-                onAccept: () => _updateStatus(ProviderOrderState.booked),
+                onAccept: () => _updateStatus(ProviderOrderState.onTheWay),
                 onDecline: () => _updateStatus(ProviderOrderState.declined),
                 onOnTheWay: () => _updateStatus(ProviderOrderState.onTheWay),
                 onMarkStarted: () => _updateStatus(ProviderOrderState.started),
@@ -476,7 +476,7 @@ class _ActionPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: PrimaryButton(
-                    label: 'Accept',
+                    label: 'Confirm',
                     icon: Icons.check_circle_outline_rounded,
                     tone: PrimaryButtonTone.success,
                     onPressed: busy ? null : onAccept,
@@ -493,13 +493,6 @@ class _ActionPanel extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ] else if (status == ProviderOrderState.booked) ...[
-            PrimaryButton(
-              label: 'On The Way',
-              icon: Icons.delivery_dining_rounded,
-              tone: PrimaryButtonTone.primary,
-              onPressed: busy ? null : onOnTheWay,
             ),
           ] else if (status == ProviderOrderState.onTheWay) ...[
             PrimaryButton(
@@ -560,7 +553,7 @@ class _StatusStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = ['Booked', 'On Way', 'Started', 'Completed'];
+    final steps = ['Booked', 'Confirm', 'Started', 'Completed'];
     final index = _statusIndex(status);
     return Row(
       children: List.generate(steps.length, (i) {
@@ -662,7 +655,7 @@ class _ProviderStatusBanner extends StatelessWidget {
         const Color(0xFFD97706),
       ),
       ProviderOrderState.booked => (
-        'Booking accepted and confirmed',
+        'Booking confirmed',
         Icons.fact_check_rounded,
         const Color(0xFFEAF1FF),
         AppColors.primary,
@@ -726,9 +719,9 @@ class _ProviderStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      ProviderOrderState.incoming => ('Incoming', const Color(0xFFD97706)),
-      ProviderOrderState.booked => ('Booked', AppColors.primary),
-      ProviderOrderState.onTheWay => ('On the way', AppColors.primary),
+      ProviderOrderState.incoming => ('Booked', const Color(0xFFD97706)),
+      ProviderOrderState.booked => ('Confirm', AppColors.primary),
+      ProviderOrderState.onTheWay => ('Confirm', AppColors.primary),
       ProviderOrderState.started => ('Started', const Color(0xFF7C6EF2)),
       ProviderOrderState.completed => ('Completed', AppColors.success),
       ProviderOrderState.declined => ('Declined', AppColors.danger),

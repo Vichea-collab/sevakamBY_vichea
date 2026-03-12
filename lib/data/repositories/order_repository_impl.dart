@@ -20,30 +20,6 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
-  Future<BookingPriceQuote> quoteFinderOrder(BookingDraft draft) async {
-    final payload = <String, dynamic>{
-      'providerUid': draft.provider.uid.trim(),
-      'categoryName': draft.categoryName,
-      'serviceName': draft.serviceName,
-      'hours': draft.hours,
-      'workers': 1,
-      'promoCode': draft.promoCode.trim(),
-      'unitPricePerHour': draft.unitPricePerHour,
-    };
-    final row = await _remoteDataSource.quoteFinderOrder(payload);
-    final promo = _safeMap(row['promo']);
-    return BookingPriceQuote(
-      promoCode: (promo['code'] ?? draft.promoCode).toString().trim(),
-      promoApplied: promo['applied'] == true,
-      promoMessage: (promo['message'] ?? '').toString(),
-      subtotal: _toDouble(row['subtotal']),
-      processingFee: _toDouble(row['processingFee']),
-      discount: _toDouble(row['discount']),
-      total: _toDouble(row['total']),
-    );
-  }
-
-  @override
   Future<OrderItem> createFinderOrder(BookingDraft draft) async {
     final payload = <String, dynamic>{
       'providerUid': draft.provider.uid.trim(),
@@ -59,19 +35,10 @@ class OrderRepositoryImpl implements OrderRepository {
       'addressMapLink': draft.address?.mapLink ?? '',
       'preferredDate': draft.preferredDate.toIso8601String(),
       'preferredTimeSlot': draft.preferredTimeSlot,
-      'hours': draft.hours,
-      'workers': 1,
       'homeType': _homeTypeToStorage(draft.homeType),
-      'paymentMethod': _paymentMethodToStorage(draft.paymentMethod),
       'additionalService': draft.additionalService,
       'finderNote': draft.additionalService,
-      'promoCode': draft.promoCode,
-      'unitPricePerHour': draft.unitPricePerHour,
       'serviceFields': draft.serviceFields,
-      'subtotal': draft.subtotal,
-      'processingFee': draft.processingFee,
-      'discount': draft.discount,
-      'total': draft.total,
     };
     final row = await _remoteDataSource.createFinderOrder(payload);
     return _toFinderOrder(row);
@@ -160,43 +127,6 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
-  Future<KhqrPaymentSession> createKhqrPaymentSession({
-    required String orderId,
-  }) async {
-    final row = await _remoteDataSource.createKhqrPaymentSession(
-      orderId: orderId,
-    );
-    return KhqrPaymentSession(
-      orderId: (row['orderId'] ?? orderId).toString(),
-      amount: _toDouble(row['amount']),
-      currency: (row['currency'] ?? 'USD').toString(),
-      merchantReference: (row['merchantReference'] ?? '').toString(),
-      transactionId: (row['transactionId'] ?? '').toString(),
-      qrPayload: (row['qrPayload'] ?? '').toString(),
-      qrImageUrl: (row['qrImageUrl'] ?? '').toString(),
-      paymentStatus: (row['paymentStatus'] ?? 'pending').toString(),
-    );
-  }
-
-  @override
-  Future<KhqrPaymentVerification> verifyKhqrPayment({
-    required String orderId,
-    String transactionId = '',
-  }) async {
-    final row = await _remoteDataSource.verifyKhqrPayment(
-      orderId: orderId,
-      transactionId: transactionId,
-    );
-    final order = _toFinderOrder(_safeMap(row['order']));
-    return KhqrPaymentVerification(
-      paid: row['paid'] == true,
-      paymentStatus: (row['paymentStatus'] ?? 'pending').toString(),
-      status: (row['status'] ?? '').toString(),
-      order: order,
-    );
-  }
-
-  @override
   Future<OrderItem> updateFinderOrderStatus({
     required String orderId,
     required OrderStatus status,
@@ -215,12 +145,12 @@ class OrderRepositoryImpl implements OrderRepository {
     required double rating,
     String comment = '',
   }) async {
-    final row = await _remoteDataSource.submitFinderOrderReview(
+    final response = await _remoteDataSource.submitFinderOrderReview(
       orderId: orderId,
       rating: rating,
       comment: comment,
     );
-    return _toFinderOrder(row);
+    return _toFinderOrder(response);
   }
 
   @override
@@ -306,19 +236,11 @@ class OrderRepositoryImpl implements OrderRepository {
       provider: provider,
       serviceName: (row['serviceName'] ?? 'Service').toString(),
       address: address,
-      hours: _toInt(row['hours'], fallback: 1),
-      workers: _toInt(row['workers'], fallback: 1),
       homeType: _homeTypeFromStorage((row['homeType'] ?? '').toString()),
       additionalService: (row['additionalService'] ?? '').toString(),
       bookedAt: bookedAt,
       scheduledAt: preferredDate,
       timeRange: (row['preferredTimeSlot'] ?? '').toString(),
-      paymentMethod: _paymentMethodFromStorage(
-        (row['paymentMethod'] ?? '').toString(),
-      ),
-      subtotal: _toDouble(row['subtotal']),
-      processingFee: _toDouble(row['processingFee']),
-      discount: _toDouble(row['discount']),
       status: _orderStatusFromStorage((row['status'] ?? '').toString()),
       rating: _ratingOrNull(row['finderRating'] ?? row['rating']),
       reviewComment: (row['finderComment'] ?? '').toString(),
@@ -353,17 +275,10 @@ class OrderRepositoryImpl implements OrderRepository {
       addressLink: (row['addressMapLink'] ?? '').toString(),
       scheduleDate: _formatDate(preferredDate),
       scheduleTime: (row['preferredTimeSlot'] ?? '').toString(),
-      workers: _toInt(row['workers'], fallback: 1),
-      hours: _toInt(row['hours'], fallback: 1),
       homeType: (row['homeType'] ?? '').toString(),
-      paymentMethod: (row['paymentMethod'] ?? '').toString(),
       additionalService: (row['additionalService'] ?? '').toString(),
       finderNote: (row['finderNote'] ?? '').toString(),
       serviceInputs: inputs,
-      subtotal: _toDouble(row['subtotal']),
-      processingFee: _toDouble(row['processingFee']),
-      discount: _toDouble(row['discount']),
-      total: _toDouble(row['total']),
       state: _providerStateFromStorage((row['status'] ?? '').toString()),
       timeline: timeline,
     );
@@ -570,33 +485,6 @@ class OrderRepositoryImpl implements OrderRepository {
       case 'booked':
       default:
         return ProviderOrderState.incoming;
-    }
-  }
-
-  String _paymentMethodToStorage(PaymentMethod method) {
-    switch (method) {
-      case PaymentMethod.creditCard:
-        return 'credit_card';
-      case PaymentMethod.bankAccount:
-        return 'bank_account';
-      case PaymentMethod.cash:
-        return 'cash';
-      case PaymentMethod.khqr:
-        return 'khqr';
-    }
-  }
-
-  PaymentMethod _paymentMethodFromStorage(String value) {
-    switch (value.trim().toLowerCase()) {
-      case 'bank_account':
-      case 'bank account':
-        return PaymentMethod.bankAccount;
-      case 'cash':
-        return PaymentMethod.cash;
-      case 'khqr':
-        return PaymentMethod.khqr;
-      default:
-        return PaymentMethod.creditCard;
     }
   }
 

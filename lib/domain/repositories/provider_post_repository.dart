@@ -14,7 +14,6 @@ abstract class ProviderPostRepository {
     required List<String> services,
     required String area,
     required String details,
-    required double ratePerHour,
     required bool availableNow,
   });
 
@@ -24,7 +23,6 @@ abstract class ProviderPostRepository {
     required List<String> services,
     required String area,
     required String details,
-    required double ratePerHour,
     required bool availableNow,
   });
 

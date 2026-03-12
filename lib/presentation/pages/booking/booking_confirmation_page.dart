@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../core/utils/safe_image_provider.dart';
 import '../../../domain/entities/order.dart';
+import '../../state/order_state.dart';
 import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
 import '../orders/orders_page.dart';
 
 class BookingConfirmationPage extends StatefulWidget {
-  final OrderItem order;
+  final OrderItem? order;
+  final BookingDraft? draft;
 
-  const BookingConfirmationPage({super.key, required this.order});
+  const BookingConfirmationPage({super.key, this.order, this.draft})
+      : assert(order != null || draft != null, 'Either order or draft must be provided');
 
   @override
   State<BookingConfirmationPage> createState() =>
@@ -20,10 +24,50 @@ class BookingConfirmationPage extends StatefulWidget {
 
 class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
   bool _expanded = true;
+  bool _isSubmitting = false;
+  OrderItem? _order;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.order != null) {
+      _order = widget.order;
+    } else if (widget.draft != null) {
+      _createOrderFromDraft();
+    }
+  }
+
+  Future<void> _createOrderFromDraft() async {
+    if (widget.draft == null) return;
+    setState(() => _isSubmitting = true);
+    try {
+      final created = await OrderState.createFinderOrder(widget.draft!);
+      if (mounted) {
+        setState(() {
+          _order = created;
+          _isSubmitting = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        AppToast.error(context, 'Failed to create booking. Please try again.');
+        Navigator.pop(context);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final order = widget.order;
+    if (_isSubmitting || _order == null) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final order = _order!;
     return Scaffold(
       backgroundColor: const Color(0xFF6B7280),
       body: SafeArea(
@@ -178,15 +222,6 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
                             onToggle: () =>
                                 setState(() => _expanded = !_expanded),
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            "You can pay the provider by cash after the service is completed.",
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primary,
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -208,9 +243,10 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
   }
 
   void _goProjects() {
+    if (_order == null) return;
     Navigator.pushAndRemoveUntil(
       context,
-      slideFadeRoute(OrdersPage(latestOrder: widget.order)),
+      slideFadeRoute(OrdersPage(latestOrder: _order)),
       (route) => false,
     );
   }
@@ -244,9 +280,22 @@ class _ServiceDetailCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             child: Row(
               children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundImage: safeImageProvider(order.provider.imagePath),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.1), width: 1),
+                  ),
+                  child: ClipOval(
+                    child: SafeImage(
+                      isAvatar: true,
+                      source: order.provider.imagePath,
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(

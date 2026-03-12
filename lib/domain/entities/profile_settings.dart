@@ -1,5 +1,3 @@
-import 'order.dart';
-
 class ProfileFormData {
   final String name;
   final String email;
@@ -179,14 +177,12 @@ class NotificationPreference {
   final bool sound;
   final bool vibrate;
   final bool newService;
-  final bool payment;
 
   const NotificationPreference({
     required this.general,
     required this.sound,
     required this.vibrate,
     required this.newService,
-    required this.payment,
   });
 
   factory NotificationPreference.defaults() {
@@ -195,7 +191,6 @@ class NotificationPreference {
       sound: false,
       vibrate: true,
       newService: false,
-      payment: true,
     );
   }
 
@@ -204,14 +199,12 @@ class NotificationPreference {
     bool? sound,
     bool? vibrate,
     bool? newService,
-    bool? payment,
   }) {
     return NotificationPreference(
       general: general ?? this.general,
       sound: sound ?? this.sound,
       vibrate: vibrate ?? this.vibrate,
       newService: newService ?? this.newService,
-      payment: payment ?? this.payment,
     );
   }
 
@@ -221,7 +214,6 @@ class NotificationPreference {
       sound: map['sound'] == true,
       vibrate: map['vibrate'] == true,
       newService: map['newService'] == true,
-      payment: map['payment'] == true,
     );
   }
 
@@ -231,7 +223,6 @@ class NotificationPreference {
       'sound': sound,
       'vibrate': vibrate,
       'newService': newService,
-      'payment': payment,
     };
   }
 }
@@ -343,31 +334,4 @@ DateTime? _parseDateDynamic(dynamic value) {
     return DateTime.fromMillisecondsSinceEpoch((seconds * 1000).round());
   }
   return null;
-}
-
-String paymentMethodToStorageValue(PaymentMethod method) {
-  switch (method) {
-    case PaymentMethod.creditCard:
-      return 'credit_card';
-    case PaymentMethod.bankAccount:
-      return 'bank_account';
-    case PaymentMethod.cash:
-      return 'cash';
-    case PaymentMethod.khqr:
-      return 'khqr';
-  }
-}
-
-PaymentMethod paymentMethodFromStorageValue(String value) {
-  switch (value) {
-    case 'bank_account':
-      return PaymentMethod.bankAccount;
-    case 'cash':
-      return PaymentMethod.cash;
-    case 'khqr':
-      return PaymentMethod.khqr;
-    case 'credit_card':
-    default:
-      return PaymentMethod.creditCard;
-  }
 }

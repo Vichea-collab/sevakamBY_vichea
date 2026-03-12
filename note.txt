@@ -20,43 +20,9 @@ implement
    * Automated Review Prompts: Automatically send a push notification to the Finder 1 hour after a Provider marks an order as
      "Completed," prompting them to leave a 1-5 star rating.
 
-  6. Business Model: Provider Subscription Tiers (Cambodia Market Optimized)
-   * Payment Logic: Payments are for Providers ONLY (Subscription based). Finder payment flow is currently out of scope.
-   * Accepted Methods: Credit Card (Stripe/PayWay) and KHQR (Upcoming Feature).
-
-   * Basic Plan (Individual / Starter):
-     - Monthly Cost: $0 (Standard)
-     - Trial Period: 7-day initial boost (higher search visibility).
-     - Limits: Accept up to 3 booking requests per month.
-     - Features: Basic profile, direct chat with finders, standard search placement.
-     - Best For: Freelancers just starting or testing the platform.
-
-   * Professional Plan (Growth / Featured):
-     - Monthly Cost: $10.00 / month
-     - Limits: Accept up to 25 booking requests per month.
-     - Visibility: "Featured Provider" blue badge, 2x higher ranking in category search.
-     - Features: Portfolio gallery (up to 15 photos), profile performance analytics, priority KYC verification.
-     - Best For: Full-time individual professionals looking to grow their client base.
-
-   * Elite Business Plan (Unlimited / Premium):
-     - Monthly Cost: $25.00 / month
-     - Limits: Unlimited booking requests.
-     - Visibility: "Top Tier" gold badge, top-of-list search ranking, featured on Home Page "Top Providers" section.
-     - Features: Unlimited portfolio photos, KHQR direct payment integration on profile (upcoming), ability to send "Special Offer" broadcasts to past customers, dedicated support manager.
-     - Best For: Established service companies and teams with multiple workers.
-
-
 
 checking for me, is my whole app when refreashing need to have action for refresh for data up to date
 
-
 account:
 Demo password: Demo@123456
-
-
-
-for booking process
-- in step 2 detail of general detail remove how many hour worker to stay. and for service it display all services that the provider have post and let costomer select 1 service
-- in step 4 change name to Summary, remove the payment, promocode
-- remove everything that have cost for me, the booking just for comfirm booking
 

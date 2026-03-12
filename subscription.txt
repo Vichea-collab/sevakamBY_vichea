@@ -1,0 +1,43 @@
+Business Model: Provider Subscription Tiers (Cambodia Market Optimized)
+   * Payment Logic: Providers pay subscription fees only.
+   * Accepted Methods: Credit Card (Stripe) and KHQR (coming soon).
+
+   * Basic (Starter) — $0 / month
+     - Purpose: Try the platform and build early credibility.
+     - Includes: Basic profile, direct chat with finders, standard search placement.
+     - Trial: 7-day initial visibility boost.
+     - Limits: Accept up to 5 booking requests per month.
+     - Search Ranking: 1x (standard).
+     - Best For: Freelancers starting out or testing demand.
+     - Actions: Complete profile + KYC, upload 3–5 photos, reply to chats within 24 hours.
+
+   * Professional (Growth / Featured) — $10 / month ($100 / year — save $20)
+     - Purpose: Grow steady bookings and improve ranking.
+     - Includes: Featured Provider badge (blue), 2x category ranking weight.
+     - Features: Portfolio gallery up to 15 photos, profile analytics, priority KYC verification.
+     - Limits: Accept up to 25 booking requests per month.
+     - Search Ranking: 2x boost.
+     - Quality Gate: KYC complete + 3.5+ rating + 5 completed orders required.
+     - Trial: 7-day free trial for new providers (auto-downgrade to Basic if not subscribed).
+     - Best For: Full-time professionals building a consistent client base.
+     - Actions: Add case studies, use analytics to optimize profile, reply within 12 hours.
+
+   * Elite Business (Premium) — $25 / month ($250 / year — save $50)
+     - Purpose: Maximum visibility and scale.
+     - Includes: Top Tier badge (gold), top-of-list ranking, featured on Home "Top Providers".
+     - Features: Unlimited portfolio photos, broadcast "Special Offers" to past customers, dedicated support manager.
+     - Limits: Unlimited booking requests (subject to fair-use policy).
+     - Search Ranking: 5x boost + featured on homepage.
+     - Quality Gate: KYC complete + 4.5+ rating + 20 completed orders required.
+     - Upcoming: KHQR direct payment on profile.
+     - Best For: Established companies and teams with multiple workers.
+     - Actions: Launch monthly promotions, maintain 4.5+ rating, use support manager growth plan.
+
+   * Business Rules
+     - Annual plan discount: 2 months free on yearly billing.
+     - Booking limits: Hard stop at limit with "Upgrade" prompt (no overage charges for MVP).
+     - Grace period: Downgraded providers keep features until billing cycle ends.
+     - Search ranking factors: subscription tier, rating, response time, completion rate.
+     - Quality gates: Paid tiers require KYC + minimum rating + minimum completed orders.
+     - Monthly reset: Booking counts reset at each billing period start.
+     - Cancellation: Takes effect at end of current billing period (no immediate cutoff).

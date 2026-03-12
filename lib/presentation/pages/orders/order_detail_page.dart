@@ -316,14 +316,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
-              Text(
-                "Payment is handled directly with the provider (cash preferred).",
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
-                ),
-              ),
               if (_order.status == OrderStatus.cancelled ||
                   _order.status == OrderStatus.declined) ...[
                 const SizedBox(height: 16),
@@ -556,7 +548,7 @@ class _StatusStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = ['Booked', 'On the way', 'Started', 'Completed'];
+    final steps = ['Booked', 'Confirm', 'Started', 'Completed'];
     final activeIndex = _statusIndex(status);
     return Row(
       children: List.generate(steps.length, (index) {
@@ -656,7 +648,7 @@ class _StatusBanner extends StatelessWidget {
         const Color(0xFFD97706),
       ),
       OrderStatus.onTheWay => (
-        'Provider is on the way',
+        'Provider confirmed',
         Icons.delivery_dining_rounded,
         const Color(0xFFEAF1FF),
         AppColors.primary,
@@ -720,8 +712,8 @@ class _OrderStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      OrderStatus.booked => ('Incoming', const Color(0xFFD97706)),
-      OrderStatus.onTheWay => ('On the way', AppColors.primary),
+      OrderStatus.booked => ('Booked', const Color(0xFFD97706)),
+      OrderStatus.onTheWay => ('Confirm', AppColors.primary),
       OrderStatus.started => ('Started', const Color(0xFF7C6EF2)),
       OrderStatus.completed => ('Completed', AppColors.success),
       OrderStatus.cancelled => ('Cancelled', AppColors.danger),

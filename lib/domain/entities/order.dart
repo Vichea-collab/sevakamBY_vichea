@@ -1,7 +1,5 @@
 import 'provider.dart';
 
-enum PaymentMethod { creditCard, bankAccount, cash, khqr }
-
 enum OrderStatus { booked, onTheWay, started, completed, cancelled, declined }
 
 class OrderStatusTimeline {
@@ -107,13 +105,6 @@ class BookingDraft {
   final HomeType homeType;
   final String additionalService;
   final Map<String, dynamic> serviceFields;
-  
-  // Legacy fields kept for compilation, but ignored in UI
-  final int hours;
-  final int workers;
-  final PaymentMethod paymentMethod;
-  final String promoCode;
-  final double unitPricePerHour;
 
   const BookingDraft({
     required this.provider,
@@ -125,11 +116,6 @@ class BookingDraft {
     this.homeType = HomeType.apartment,
     this.additionalService = '',
     this.serviceFields = const {},
-    this.hours = 1,
-    this.workers = 1,
-    this.paymentMethod = PaymentMethod.cash,
-    this.promoCode = '',
-    this.unitPricePerHour = 0,
   });
 
   BookingDraft copyWith({
@@ -142,11 +128,6 @@ class BookingDraft {
     HomeType? homeType,
     String? additionalService,
     Map<String, dynamic>? serviceFields,
-    int? hours,
-    int? workers,
-    PaymentMethod? paymentMethod,
-    String? promoCode,
-    double? unitPricePerHour,
   }) {
     return BookingDraft(
       provider: provider ?? this.provider,
@@ -158,41 +139,7 @@ class BookingDraft {
       homeType: homeType ?? this.homeType,
       additionalService: additionalService ?? this.additionalService,
       serviceFields: serviceFields ?? this.serviceFields,
-      hours: hours ?? this.hours,
-      workers: workers ?? this.workers,
-      paymentMethod: paymentMethod ?? this.paymentMethod,
-      promoCode: promoCode ?? this.promoCode,
-      unitPricePerHour: unitPricePerHour ?? this.unitPricePerHour,
     );
-  }
-
-  double get subtotal => 0;
-  double get processingFee => 0;
-  double get discount => 0;
-  double get total => 0;
-}
-
-class BookingPriceQuote {
-  final String promoCode;
-  final bool promoApplied;
-  final String promoMessage;
-  final double subtotal;
-  final double processingFee;
-  final double discount;
-  final double total;
-
-  const BookingPriceQuote({
-    this.promoCode = '',
-    this.promoApplied = false,
-    this.promoMessage = '',
-    this.subtotal = 0,
-    this.processingFee = 0,
-    this.discount = 0,
-    this.total = 0,
-  });
-
-  factory BookingPriceQuote.fromDraft(BookingDraft draft) {
-    return const BookingPriceQuote();
   }
 }
 
@@ -212,14 +159,6 @@ class OrderItem {
   final List<String> photoUrls;
   final DateTime? reviewedAt;
   final OrderStatusTimeline timeline;
-  
-  // Legacy fields kept for compilation
-  final int hours;
-  final int workers;
-  final PaymentMethod paymentMethod;
-  final double subtotal;
-  final double processingFee;
-  final double discount;
 
   const OrderItem({
     required this.id,
@@ -237,15 +176,7 @@ class OrderItem {
     this.photoUrls = const [],
     this.reviewedAt,
     this.timeline = const OrderStatusTimeline(),
-    this.hours = 1,
-    this.workers = 1,
-    this.paymentMethod = PaymentMethod.cash,
-    this.subtotal = 0,
-    this.processingFee = 0,
-    this.discount = 0,
   });
-
-  double get total => 0;
 
   OrderItem copyWith({
     OrderStatus? status,
@@ -271,50 +202,8 @@ class OrderItem {
       photoUrls: photoUrls ?? this.photoUrls,
       reviewedAt: reviewedAt ?? this.reviewedAt,
       timeline: timeline ?? this.timeline,
-      hours: hours,
-      workers: workers,
-      paymentMethod: paymentMethod,
-      subtotal: subtotal,
-      processingFee: processingFee,
-      discount: discount,
     );
   }
 
   bool get hasReview => (rating ?? 0) > 0;
-}
-
-class KhqrPaymentSession {
-  final String orderId;
-  final double amount;
-  final String currency;
-  final String merchantReference;
-  final String transactionId;
-  final String qrPayload;
-  final String qrImageUrl;
-  final String paymentStatus;
-
-  const KhqrPaymentSession({
-    required this.orderId,
-    required this.amount,
-    required this.currency,
-    required this.merchantReference,
-    required this.transactionId,
-    required this.qrPayload,
-    required this.qrImageUrl,
-    required this.paymentStatus,
-  });
-}
-
-class KhqrPaymentVerification {
-  final bool paid;
-  final String paymentStatus;
-  final String status;
-  final OrderItem order;
-
-  const KhqrPaymentVerification({
-    required this.paid,
-    required this.paymentStatus,
-    required this.status,
-    required this.order,
-  });
 }

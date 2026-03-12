@@ -29,7 +29,6 @@ class ProviderPostRepositoryImpl implements ProviderPostRepository {
     required List<String> services,
     required String area,
     required String details,
-    required double ratePerHour,
     required bool availableNow,
   }) async {
     return _remoteDataSource.createProviderPost(
@@ -37,7 +36,6 @@ class ProviderPostRepositoryImpl implements ProviderPostRepository {
       services: services,
       area: area,
       details: details,
-      ratePerHour: ratePerHour,
       availableNow: availableNow,
     );
   }
@@ -49,7 +47,6 @@ class ProviderPostRepositoryImpl implements ProviderPostRepository {
     required List<String> services,
     required String area,
     required String details,
-    required double ratePerHour,
     required bool availableNow,
   }) async {
     return _remoteDataSource.updateProviderPost(
@@ -58,7 +55,6 @@ class ProviderPostRepositoryImpl implements ProviderPostRepository {
       services: services,
       area: area,
       details: details,
-      ratePerHour: ratePerHour,
       availableNow: availableNow,
     );
   }

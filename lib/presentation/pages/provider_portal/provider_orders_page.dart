@@ -93,14 +93,19 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
                         children: [
                           AppTopBar(
                             title: 'Provider Orders',
-                            showBack: true,
-                            onBack: () => MainShellPage.activeTab.value = AppBottomTab.home,
+                            onBack: () {
+                              if (Navigator.canPop(context)) {
+                                Navigator.pop(context);
+                              } else {
+                                MainShellPage.activeTab.value = AppBottomTab.home;
+                              }
+                            },
                           ),
                           const SizedBox(height: 12),
                           Row(
                             children: [
                               _TabChip(
-                                label: 'Incoming',
+                                label: 'Booked',
                                 active: _tab == ProviderOrderTab.incoming,
                                 onTap: () =>
                                     _onTabSelected(ProviderOrderTab.incoming),
@@ -176,7 +181,7 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
                                                       ? () => _move(
                                                           item,
                                                           ProviderOrderState
-                                                              .booked,
+                                                              .onTheWay,
                                                         )
                                                       : null,
                                                   onDecline:
@@ -346,7 +351,7 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
   String _emptyTitle(ProviderOrderTab tab) {
     switch (tab) {
       case ProviderOrderTab.incoming:
-        return 'No incoming orders';
+        return 'No bookings';
       case ProviderOrderTab.active:
         return 'No active jobs';
       case ProviderOrderTab.completed:
@@ -459,7 +464,7 @@ class _ProviderOrderCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: PrimaryButton(
-                      label: 'Accept',
+                      label: 'Confirm',
                       icon: Icons.check_circle_outline_rounded,
                       tone: PrimaryButtonTone.success,
                       onPressed: onAccept,
@@ -502,9 +507,9 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, bg) = switch (state) {
-      ProviderOrderState.incoming => ('Incoming', const Color(0xFFD97706)),
-      ProviderOrderState.booked => ('Booked', const Color(0xFFD97706)),
-      ProviderOrderState.onTheWay => ('On the way', AppColors.primary),
+      ProviderOrderState.incoming => ('Booked', const Color(0xFFD97706)),
+      ProviderOrderState.booked => ('Confirm', const Color(0xFFD97706)),
+      ProviderOrderState.onTheWay => ('Confirm', AppColors.primary),
       ProviderOrderState.started => ('Started', const Color(0xFF7C6EF2)),
       ProviderOrderState.completed => ('Completed', AppColors.success),
       ProviderOrderState.declined => ('Declined', AppColors.danger),

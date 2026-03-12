@@ -1,4 +1,3 @@
-import '../entities/order.dart';
 import '../entities/pagination.dart';
 import '../entities/profile_settings.dart';
 
@@ -17,12 +16,6 @@ abstract class ProfileSettingsRepository {
   Future<ProviderProfessionData> loadProviderProfessionFromBackend();
   Future<int> loadProviderCompletedOrdersFromBackend();
   Future<void> saveProviderProfession(ProviderProfessionData profession);
-
-  Future<PaymentMethod> loadPaymentMethod({required bool isProvider});
-  Future<void> savePaymentMethod({
-    required bool isProvider,
-    required PaymentMethod method,
-  });
 
   Future<NotificationPreference> loadNotifications({required bool isProvider});
   Future<void> saveNotifications({

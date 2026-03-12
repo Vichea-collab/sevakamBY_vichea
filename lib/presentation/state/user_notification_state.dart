@@ -180,6 +180,35 @@ class UserNotificationState {
     }
   }
 
+  static Future<void> refreshUnreadStatus() async {
+    try {
+      final ready = await _ensureBackendToken();
+      if (!ready) return;
+      
+      // Forces re-fetching the read/cleared keys from backend
+      // and checking for any unread counts if the backend supports it.
+      // Since the backend might not have a dedicated fast-poll unread endpoint yet,
+      // we'll fetch the first page minimally to see if there are new items.
+      final role = AppRoleState.isProvider ? 'provider' : 'finder';
+      final result = await _runWithAuthRetry(() {
+        return _apiClient.getJson('/api/users/notifications?page=1&limit=5&type=all&role=$role');
+      });
+      
+      final dataRows = _safeList(result['data']);
+      if (dataRows.isEmpty) return;
+      
+      final newTopId = dataRows.first['id']?.toString() ?? '';
+      
+      // If we have a new top item we didn't have before, trigger a full refresh
+      final currentTopId = notices.value.isNotEmpty ? notices.value.first.id : '';
+      if (newTopId.isNotEmpty && newTopId != currentTopId) {
+        unawaited(refresh());
+      }
+    } catch (_) {
+      // Ignore transient errors on background poll
+    }
+  }
+
   static bool isRead(String key) {
     final normalized = _normalizeStateKey(key);
     if (normalized.isEmpty) return false;

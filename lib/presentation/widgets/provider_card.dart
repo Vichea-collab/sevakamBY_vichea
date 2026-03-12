@@ -90,6 +90,7 @@ class ProviderCard extends StatelessWidget {
                                 )
                               : ClipOval(
                                   child: SafeImage(
+                                    isAvatar: true,
                                     source: provider.imagePath,
                                     width: 80,
                                     height: 80,
