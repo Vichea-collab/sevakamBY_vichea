@@ -84,6 +84,13 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   @override
   Widget build(BuildContext context) {
     final hasReview = _order.hasReview;
+    final serviceFieldDefs = BookingCatalogState.bookingFieldsForService(
+      _order.serviceName,
+    );
+    final serviceEntries = _visibleServiceEntries(
+      _order.serviceFields,
+      serviceFieldDefs,
+    );
 
     return Scaffold(
       body: SafeArea(
@@ -100,9 +107,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               const SizedBox(height: 12),
               Text(
                 _order.serviceName,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(color: Theme.of(context).colorScheme.onSurface),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
               Text(
                 'Order ID: #${_order.id}',
@@ -195,13 +202,17 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               const SizedBox(height: 10),
               OrderStatusTimelineCard(entries: _timelineEntries(_order)),
               const SizedBox(height: 12),
-              
+
               if (_order.status == OrderStatus.started) ...[
                 PrimaryButton(
-                  label: _updating ? 'Marking complete...' : 'Mark as Completed',
+                  label: _updating
+                      ? 'Marking complete...'
+                      : 'Mark as Completed',
                   icon: Icons.verified_rounded,
                   tone: PrimaryButtonTone.success,
-                  onPressed: _updating ? null : () => _updateStatus(OrderStatus.completed),
+                  onPressed: _updating
+                      ? null
+                      : () => _updateStatus(OrderStatus.completed),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -217,7 +228,8 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                   children: [
                     CircleAvatar(
                       backgroundColor: AppColors.background,
-                      backgroundImage: _order.provider.imagePath.trim().isNotEmpty
+                      backgroundImage:
+                          _order.provider.imagePath.trim().isNotEmpty
                           ? safeImageProvider(_order.provider.imagePath)
                           : null,
                       child: _order.provider.imagePath.trim().isEmpty
@@ -236,9 +248,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                           Text(
                             _order.provider.name,
                             style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           Row(
                             children: [
@@ -274,9 +284,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               const SizedBox(height: 14),
               Text(
                 'Booking Details',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.primary),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
               const SizedBox(height: 8),
               Container(
@@ -302,10 +312,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                         value: _order.additionalService,
                       ),
                     _InfoRow(
-                      label: 'Size of home',
-                      value: _homeTypeLabel(_order.homeType),
-                    ),
-                    _InfoRow(
                       label: 'Address',
                       value: '${_order.address.street}, ${_order.address.city}',
                     ),
@@ -316,6 +322,17 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                   ],
                 ),
               ),
+              if (serviceEntries.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  'Service Requirements',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _ServiceRequirementsCard(entries: serviceEntries),
+              ],
               if (_order.status == OrderStatus.cancelled ||
                   _order.status == OrderStatus.declined) ...[
                 const SizedBox(height: 16),
@@ -445,24 +462,39 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
   }
 
-  String _homeTypeLabel(HomeType value) {
-    switch (value) {
-      case HomeType.apartment:
-        return 'Apartment';
-      case HomeType.flat:
-        return 'Flat';
-      case HomeType.villa:
-        return 'Villa';
-      case HomeType.office:
-        return 'Office';
-    }
-  }
-
   String _resolvedAddressLink(HomeAddress address) {
     final direct = address.mapLink.trim();
     if (direct.isNotEmpty) return direct;
     final query = Uri.encodeComponent('${address.street}, ${address.city}');
     return 'https://maps.google.com/?q=$query';
+  }
+
+  List<MapEntry<String, String>> _visibleServiceEntries(
+    Map<String, dynamic> values,
+    List<BookingFieldDef> defs,
+  ) {
+    final defsByKey = {for (final def in defs) def.key: def};
+    final entries = <MapEntry<String, String>>[];
+    for (final entry in values.entries) {
+      final def = defsByKey[entry.key];
+      if (def == null) continue;
+      final displayValue = _displayServiceValue(entry.value);
+      if (displayValue == null) continue;
+      entries.add(MapEntry(def.label, displayValue));
+    }
+    return entries;
+  }
+
+  String? _displayServiceValue(dynamic value) {
+    if (value == null) return null;
+    if (value is bool) return value ? 'Yes' : 'No';
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    final normalized = text.toLowerCase();
+    if (normalized == 'true') return 'Yes';
+    if (normalized == 'false') return 'No';
+    if (text.startsWith('data:image/')) return 'Photo attached';
+    return text;
   }
 
   List<StatusTimelineEntry> _timelineEntries(OrderItem order) {
@@ -481,9 +513,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     if (timeline.onTheWayAt != null) {
       entries.add(
         StatusTimelineEntry(
-          label: 'On the way',
+          label: 'Confirmed',
           at: timeline.onTheWayAt!,
-          icon: Icons.delivery_dining_rounded,
+          icon: Icons.fact_check_rounded,
           color: AppColors.primary,
         ),
       );
@@ -542,6 +574,92 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   }
 }
 
+class _ServiceRequirementsCard extends StatelessWidget {
+  final List<MapEntry<String, String>> entries;
+
+  const _ServiceRequirementsCard({required this.entries});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: Column(
+        children: entries
+            .asMap()
+            .entries
+            .map((item) {
+              final index = item.key;
+              final entry = item.value;
+              final isLast = index == entries.length - 1;
+              return Padding(
+                padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        _iconForValue(entry.value),
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.key,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            entry.value,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.35,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            })
+            .toList(growable: false),
+      ),
+    );
+  }
+
+  static IconData _iconForValue(String value) {
+    if (value == 'Yes' || value == 'No') {
+      return Icons.toggle_on_rounded;
+    }
+    if (value == 'Photo attached') {
+      return Icons.photo_camera_outlined;
+    }
+    return Icons.checklist_rtl_rounded;
+  }
+}
+
 class _StatusStepper extends StatelessWidget {
   final OrderStatus status;
 
@@ -549,7 +667,7 @@ class _StatusStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = ['Booked', 'Confirm', 'Started', 'Completed'];
+    final steps = ['Booked', 'Confirmed', 'Started', 'Completed'];
     final activeIndex = _statusIndex(status);
     return Row(
       children: List.generate(steps.length, (index) {
@@ -575,11 +693,15 @@ class _StatusStepper extends StatelessWidget {
                     width: isCurrent ? 24 : 20,
                     height: isCurrent ? 24 : 20,
                     decoration: BoxDecoration(
-                      color: reached ? Theme.of(context).colorScheme.primary : Theme.of(context).dividerColor,
+                      color: reached
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).dividerColor,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: isCurrent
-                            ? Theme.of(context).colorScheme.primary.withValues(alpha: 89)
+                            ? Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 89)
                             : Colors.transparent,
                         width: 3,
                       ),
@@ -587,7 +709,9 @@ class _StatusStepper extends StatelessWidget {
                     child: Icon(
                       reached ? Icons.check : Icons.circle,
                       size: reached ? 12 : 8,
-                      color: reached ? Colors.white : Theme.of(context).hintColor,
+                      color: reached
+                          ? Colors.white
+                          : Theme.of(context).hintColor,
                     ),
                   ),
                   Expanded(
@@ -606,7 +730,9 @@ class _StatusStepper extends StatelessWidget {
               Text(
                 steps[index],
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: reached ? Theme.of(context).colorScheme.primary : Theme.of(context).hintColor,
+                  color: reached
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).hintColor,
                   fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
@@ -650,7 +776,7 @@ class _StatusBanner extends StatelessWidget {
       ),
       OrderStatus.onTheWay => (
         'Provider confirmed',
-        Icons.delivery_dining_rounded,
+        Icons.fact_check_rounded,
         const Color(0xFFEAF1FF),
         AppColors.primary,
       ),
@@ -714,7 +840,7 @@ class _OrderStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
       OrderStatus.booked => ('Booked', const Color(0xFFD97706)),
-      OrderStatus.onTheWay => ('Confirm', AppColors.primary),
+      OrderStatus.onTheWay => ('Confirmed', AppColors.primary),
       OrderStatus.started => ('Started', const Color(0xFF7C6EF2)),
       OrderStatus.completed => ('Completed', AppColors.success),
       OrderStatus.cancelled => ('Cancelled', AppColors.danger),
@@ -757,9 +883,9 @@ class _InfoRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
             ),
           ),
         ],

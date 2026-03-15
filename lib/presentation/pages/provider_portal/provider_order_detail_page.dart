@@ -270,8 +270,6 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
     for (final entry in inputs.entries) {
       final value = entry.value.trim();
       if (value.isEmpty) continue;
-      final normalized = value.toLowerCase();
-      if (normalized == 'false' || normalized == '0') continue;
       return true;
     }
     return false;
@@ -284,7 +282,6 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
       final raw = entry.value.trim();
       if (raw.isEmpty) continue;
       final normalized = raw.toLowerCase();
-      if (normalized == 'false' || normalized == '0') continue;
       if (_isImageDataUrl(raw)) {
         final bytes = _decodeDataUrlImage(raw);
         widgets.add(
@@ -297,7 +294,14 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
         continue;
       }
       widgets.add(
-        _InfoRow(label: label, value: normalized == 'true' ? 'Yes' : raw),
+        _InfoRow(
+          label: label,
+          value: normalized == 'true'
+              ? 'Yes'
+              : normalized == 'false'
+              ? 'No'
+              : raw,
+        ),
       );
     }
     if (widgets.isEmpty) {
@@ -353,9 +357,9 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
     if (timeline.onTheWayAt != null) {
       entries.add(
         StatusTimelineEntry(
-          label: 'On the way',
+          label: 'Confirmed',
           at: timeline.onTheWayAt!,
-          icon: Icons.delivery_dining_rounded,
+          icon: Icons.fact_check_rounded,
           color: AppColors.primary,
         ),
       );
@@ -553,7 +557,7 @@ class _StatusStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = ['Booked', 'Confirm', 'Started', 'Completed'];
+    final steps = ['Booked', 'Confirmed', 'Started', 'Completed'];
     final index = _statusIndex(status);
     return Row(
       children: List.generate(steps.length, (i) {
@@ -661,8 +665,8 @@ class _ProviderStatusBanner extends StatelessWidget {
         AppColors.primary,
       ),
       ProviderOrderState.onTheWay => (
-        'You are currently on the way',
-        Icons.delivery_dining_rounded,
+        'Order confirmed and ready to start',
+        Icons.fact_check_rounded,
         const Color(0xFFEAF1FF),
         AppColors.primary,
       ),
@@ -721,7 +725,7 @@ class _ProviderStatusChip extends StatelessWidget {
     final (label, color) = switch (status) {
       ProviderOrderState.incoming => ('Booked', const Color(0xFFD97706)),
       ProviderOrderState.booked => ('Confirm', AppColors.primary),
-      ProviderOrderState.onTheWay => ('Confirm', AppColors.primary),
+      ProviderOrderState.onTheWay => ('Confirmed', AppColors.primary),
       ProviderOrderState.started => ('Started', const Color(0xFF7C6EF2)),
       ProviderOrderState.completed => ('Completed', AppColors.success),
       ProviderOrderState.declined => ('Declined', AppColors.danger),

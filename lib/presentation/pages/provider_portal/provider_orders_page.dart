@@ -97,7 +97,8 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
                               if (Navigator.canPop(context)) {
                                 Navigator.pop(context);
                               } else {
-                                MainShellPage.activeTab.value = AppBottomTab.home;
+                                MainShellPage.activeTab.value =
+                                    AppBottomTab.home;
                               }
                             },
                           ),
@@ -509,7 +510,7 @@ class _StatusPill extends StatelessWidget {
     final (label, bg) = switch (state) {
       ProviderOrderState.incoming => ('Booked', const Color(0xFFD97706)),
       ProviderOrderState.booked => ('Confirm', const Color(0xFFD97706)),
-      ProviderOrderState.onTheWay => ('Confirm', AppColors.primary),
+      ProviderOrderState.onTheWay => ('Confirmed', AppColors.primary),
       ProviderOrderState.started => ('Started', const Color(0xFF7C6EF2)),
       ProviderOrderState.completed => ('Completed', AppColors.success),
       ProviderOrderState.declined => ('Declined', AppColors.danger),

@@ -211,6 +211,15 @@ class AdminUserRow {
   final String email;
   final String role;
   final bool active;
+  final String providerKycStatus;
+  final bool providerVerified;
+  final String providerSubscriptionTier;
+  final String providerSubscriptionStatus;
+  final bool providerSubscriptionCancelAtPeriodEnd;
+  final DateTime? providerSubscriptionPeriodEnd;
+  final String providerKycIdFrontUrl;
+  final String providerKycIdBackUrl;
+  final DateTime? providerKycSubmittedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -220,6 +229,15 @@ class AdminUserRow {
     required this.email,
     required this.role,
     required this.active,
+    this.providerKycStatus = '',
+    this.providerVerified = false,
+    this.providerSubscriptionTier = '',
+    this.providerSubscriptionStatus = '',
+    this.providerSubscriptionCancelAtPeriodEnd = false,
+    this.providerSubscriptionPeriodEnd,
+    this.providerKycIdFrontUrl = '',
+    this.providerKycIdBackUrl = '',
+    this.providerKycSubmittedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -231,6 +249,26 @@ class AdminUserRow {
       email: _AdminParser.text(row['email']),
       role: _AdminParser.text(row['role'], fallback: 'user'),
       active: _AdminParser.parseBool(row['active'], true),
+      providerKycStatus: _AdminParser.text(row['providerKycStatus']),
+      providerVerified: _AdminParser.parseBool(row['providerVerified'], false),
+      providerSubscriptionTier: _AdminParser.text(
+        row['providerSubscriptionTier'],
+      ),
+      providerSubscriptionStatus: _AdminParser.text(
+        row['providerSubscriptionStatus'],
+      ),
+      providerSubscriptionCancelAtPeriodEnd: _AdminParser.parseBool(
+        row['providerSubscriptionCancelAtPeriodEnd'],
+        false,
+      ),
+      providerSubscriptionPeriodEnd: _AdminParser.parseDate(
+        row['providerSubscriptionPeriodEnd'],
+      ),
+      providerKycIdFrontUrl: _AdminParser.text(row['providerKycIdFrontUrl']),
+      providerKycIdBackUrl: _AdminParser.text(row['providerKycIdBackUrl']),
+      providerKycSubmittedAt: _AdminParser.parseDate(
+        row['providerKycSubmittedAt'],
+      ),
       createdAt: _AdminParser.parseDate(row['createdAt']),
       updatedAt: _AdminParser.parseDate(row['updatedAt']),
     );

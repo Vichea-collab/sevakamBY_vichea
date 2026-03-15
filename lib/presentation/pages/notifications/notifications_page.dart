@@ -126,11 +126,15 @@ class _NotificationsPageState extends State<NotificationsPage>
                     final hasItems =
                         visibleUpdates.isNotEmpty || visiblePromos.isNotEmpty;
 
+                    final contentKey = ValueKey<String>(
+                      'notifications_${_filter.name}_'
+                      'updates:${visibleUpdates.map((item) => item.key).join('|')}_'
+                      'promos:${visiblePromos.map((item) => item.id).join('|')}',
+                    );
+
                     final Widget content = hasItems
                         ? Column(
-                            key: ValueKey<String>(
-                              'notifications_content_${visibleUpdates.length}_${visiblePromos.length}_${_filter.name}',
-                            ),
+                            key: contentKey,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (visibleUpdates.isNotEmpty) ...[
@@ -203,6 +207,7 @@ class _NotificationsPageState extends State<NotificationsPage>
                           )
                         : loading
                         ? const SizedBox(
+                            key: ValueKey<String>('notifications_loading'),
                             height: 320,
                             child: Center(
                               child: AppStatePanel.loading(
@@ -211,6 +216,7 @@ class _NotificationsPageState extends State<NotificationsPage>
                             ),
                           )
                         : const AppStatePanel.empty(
+                            key: ValueKey<String>('notifications_empty'),
                             title: 'No notifications yet',
                             message:
                                 'Order updates and promos will appear here.',
@@ -231,7 +237,8 @@ class _NotificationsPageState extends State<NotificationsPage>
                               AppTopBar(
                                 title: 'Notifications',
                                 showBack: true,
-                                onBack: () => MainShellPage.activeTab.value = AppBottomTab.home,
+                                onBack: () => MainShellPage.activeTab.value =
+                                    AppBottomTab.home,
                                 actions: [
                                   IconButton(
                                     onPressed: _openMessenger,

@@ -44,17 +44,18 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
   _messagesSubscription;
   Timer? _fallbackRefreshTimer;
-  Timer? _heartbeatTimer;
+  Timer? _uiRefreshTimer;
   bool _realtimeActive = false;
   ChatThread? _currentThread;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _threadSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _threadSubscription;
 
   @override
   void initState() {
     super.initState();
     unawaited(_syncReadState(syncThreads: true));
     unawaited(ChatState.flushQueuedMessages(threadId: widget.thread.id));
-    
+
     // Delay heavy data loading slightly to ensure smooth route transition
     Future.delayed(const Duration(milliseconds: 350), () {
       if (!mounted) return;
@@ -62,13 +63,13 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       unawaited(_bindRealtimeMessages());
       unawaited(_bindRealtimeThread());
       _startFallbackRefreshTimer();
-      _startHeartbeat();
+      _startUiRefreshTimer();
     });
   }
 
   @override
   void dispose() {
-    _heartbeatTimer?.cancel();
+    _uiRefreshTimer?.cancel();
     unawaited(_messagesSubscription?.cancel());
     unawaited(_threadSubscription?.cancel());
     _fallbackRefreshTimer?.cancel();
@@ -77,11 +78,10 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     super.dispose();
   }
 
-  void _startHeartbeat() {
-    ChatState.updateHeartbeat();
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      ChatState.updateHeartbeat();
+  void _startUiRefreshTimer() {
+    _uiRefreshTimer?.cancel();
+    _uiRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
     });
   }
 
@@ -94,7 +94,9 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           children: [
             _ChatHeader(
               thread: _currentThread ?? widget.thread,
-              onProfileLinkTap: AppRoleState.isProvider ? _sendProfileLink : null,
+              onProfileLinkTap: AppRoleState.isProvider
+                  ? _sendProfileLink
+                  : null,
             ),
             Expanded(
               child: Container(
@@ -129,7 +131,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     }
     final messages = _mergedMessages();
     final hasOlder = _loadedPages < _pagination.totalPages;
-    
+
     if (messages.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -162,12 +164,21 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                     ? const SizedBox(
                         width: 14,
                         height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary,
+                        ),
                       )
-                    : const Icon(Icons.expand_less_rounded, color: AppColors.primary),
+                    : const Icon(
+                        Icons.expand_less_rounded,
+                        color: AppColors.primary,
+                      ),
                 label: Text(
                   _loadingOlder ? 'Loading...' : 'Load older messages',
-                  style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -175,11 +186,12 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         }
 
         final message = reversedMessages[index];
-        final next = index < reversedMessages.length - 1 ? reversedMessages[index + 1] : null;
-        
+        final next = index < reversedMessages.length - 1
+            ? reversedMessages[index + 1]
+            : null;
+
         final showDateHeader =
-            next == null ||
-            !_isSameCalendarDay(next.sentAt, message.sentAt);
+            next == null || !_isSameCalendarDay(next.sentAt, message.sentAt);
 
         return Column(
           key: ValueKey('msg_${message.id}'),
@@ -409,11 +421,23 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     }
     if (value is num) {
       if (value == 0) return DateTime.fromMillisecondsSinceEpoch(0);
-      return DateTime.fromMillisecondsSinceEpoch(value.toInt()).toLocal();
+      final intValue = value.toInt();
+      final milliseconds = intValue.abs() < 1000000000000
+          ? intValue * 1000
+          : intValue;
+      return DateTime.fromMillisecondsSinceEpoch(milliseconds).toLocal();
     }
     if (value is Map && value['_seconds'] is num) {
       final seconds = value['_seconds'] as num;
-      return DateTime.fromMillisecondsSinceEpoch((seconds * 1000).round()).toLocal();
+      return DateTime.fromMillisecondsSinceEpoch(
+        (seconds * 1000).round(),
+      ).toLocal();
+    }
+    if (value is Map && value['seconds'] is num) {
+      final seconds = value['seconds'] as num;
+      return DateTime.fromMillisecondsSinceEpoch(
+        (seconds * 1000).round(),
+      ).toLocal();
     }
     return DateTime.fromMillisecondsSinceEpoch(0);
   }
@@ -608,7 +632,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       }
       final localId = 'local_${DateTime.now().microsecondsSinceEpoch}';
       pendingLocalId = localId;
-      
+
       final extension = _extensionFromName(picked.name);
       final mimeType = _mimeTypeFromExtension(extension);
       final dataUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
@@ -759,50 +783,71 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
 
     final docRef = FirebaseFirestore.instance.collection('chats').doc(threadId);
     await _threadSubscription?.cancel();
-    _threadSubscription = docRef.snapshots().listen(
-      (doc) {
-        if (!mounted || !doc.exists) return;
-        final data = doc.data() ?? {};
-        
-        DateTime? peerHeartbeat;
-        final participantMetaRaw = data['participantMeta'];
-        if (participantMetaRaw is Map) {
-          final participants = (data['participants'] is List)
-              ? (data['participants'] as List).map((e) => e.toString().trim()).toList()
-              : <String>[];
-          final peerUid = participants.firstWhere((id) => id.isNotEmpty && id != uid, orElse: () => '');
-          if (peerUid.isNotEmpty) {
-            final raw = participantMetaRaw[peerUid];
-            if (raw is Map && raw['lastActiveAt'] != null) {
-              peerHeartbeat = _toRealtimeDateTime(raw['lastActiveAt']);
-            }
+    _threadSubscription = docRef.snapshots().listen((doc) {
+      if (!mounted || !doc.exists) return;
+      final data = doc.data() ?? {};
+
+      DateTime? peerHeartbeat;
+      final participantMetaRaw = data['participantMeta'];
+      if (participantMetaRaw is Map) {
+        final participants = (data['participants'] is List)
+            ? (data['participants'] as List)
+                  .map((e) => e.toString().trim())
+                  .toList()
+            : <String>[];
+        final peerUid = participants.firstWhere(
+          (id) => id.isNotEmpty && id != uid,
+          orElse: () => '',
+        );
+        if (peerUid.isNotEmpty) {
+          final raw = participantMetaRaw[peerUid];
+          if (raw is Map && raw['lastActiveAt'] != null) {
+            peerHeartbeat = _toRealtimeDateTime(raw['lastActiveAt']);
           }
         }
-        final lastActiveAt = peerHeartbeat ?? _toRealtimeDateTime(data['peerActiveAt'] ?? 0);
-        
-        final title = (data['title'] ?? '').toString().trim();
-        final lastMessageText = (data['lastMessageText'] ?? '').toString().trim();
-        final lastSenderUid = (data['lastSenderUid'] ?? '').toString().trim();
-        final subtitle = (data['subtitle'] ?? '').toString().trim();
-        
-        final resolvedSubtitle = subtitle.isNotEmpty 
-            ? subtitle 
-            : (lastSenderUid == uid ? 'You: $lastMessageText' : lastMessageText);
-
-        setState(() {
-          _currentThread = ChatThread(
-            id: threadId,
-            title: title.isNotEmpty ? title : widget.thread.title,
-            subtitle: resolvedSubtitle.isNotEmpty ? resolvedSubtitle : widget.thread.subtitle,
-            avatarPath: widget.thread.avatarPath,
-            updatedAt: _toRealtimeDateTime(data['updatedAt'] ?? data['lastMessageAt'] ?? 0),
-            lastActiveAt: lastActiveAt,
-            unreadCount: (data['unreadCounts'] is Map) ? (data['unreadCounts'][uid] ?? 0) : 0,
-            messages: _latestMessages,
+      }
+      final currentLastActiveAt = _currentThread?.lastActiveAt;
+      final fallbackLastActiveAt =
+          currentLastActiveAt != null && currentLastActiveAt.year >= 2010
+          ? currentLastActiveAt
+          : widget.thread.lastActiveAt;
+      final resolvedLastActiveAt =
+          peerHeartbeat ??
+          _toRealtimeDateTime(
+            data['lastActiveAt'] ?? data['peerActiveAt'] ?? 0,
           );
-        });
-      },
-    );
+      final lastActiveAt = resolvedLastActiveAt.year >= 2010
+          ? resolvedLastActiveAt
+          : fallbackLastActiveAt;
+
+      final title = (data['title'] ?? '').toString().trim();
+      final lastMessageText = (data['lastMessageText'] ?? '').toString().trim();
+      final lastSenderUid = (data['lastSenderUid'] ?? '').toString().trim();
+      final subtitle = (data['subtitle'] ?? '').toString().trim();
+
+      final resolvedSubtitle = subtitle.isNotEmpty
+          ? subtitle
+          : (lastSenderUid == uid ? 'You: $lastMessageText' : lastMessageText);
+
+      setState(() {
+        _currentThread = ChatThread(
+          id: threadId,
+          title: title.isNotEmpty ? title : widget.thread.title,
+          subtitle: resolvedSubtitle.isNotEmpty
+              ? resolvedSubtitle
+              : widget.thread.subtitle,
+          avatarPath: widget.thread.avatarPath,
+          updatedAt: _toRealtimeDateTime(
+            data['updatedAt'] ?? data['lastMessageAt'] ?? 0,
+          ),
+          lastActiveAt: lastActiveAt,
+          unreadCount: (data['unreadCounts'] is Map)
+              ? (data['unreadCounts'][uid] ?? 0)
+              : 0,
+          messages: _latestMessages,
+        );
+      });
+    });
   }
 
   bool _isNearLatest() {
@@ -826,7 +871,6 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       _scrollController.jumpTo(0.0);
     });
   }
-
 }
 
 class _ChatHeader extends StatelessWidget {
@@ -855,7 +899,10 @@ class _ChatHeader extends StatelessWidget {
         children: [
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF64748B)),
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: Color(0xFF64748B),
+            ),
           ),
           Stack(
             children: [
@@ -912,7 +959,9 @@ class _ChatHeader extends StatelessWidget {
             ),
           ),
           _HeaderAction(
-            icon: isProvider ? Icons.assignment_turned_in_rounded : Icons.info_outline_rounded,
+            icon: isProvider
+                ? Icons.assignment_turned_in_rounded
+                : Icons.info_outline_rounded,
             onTap: () {
               if (isProvider && onProfileLinkTap != null) {
                 onProfileLinkTap!();
@@ -930,26 +979,34 @@ class _ChatHeader extends StatelessWidget {
     final local = lastActiveAt.toLocal();
     final now = DateTime.now();
     final delta = now.difference(local);
-    
+
     // If date is uninitialized or extremely old (1970 epoch), show general Offline
     if (local.year < 2010) {
       return (label: 'Offline', color: const Color(0xFF94A3B8));
     }
 
-    if (delta.inMinutes < 5) {
+    if (delta.inMinutes < 2) {
       return (label: 'Active now', color: AppColors.success);
     }
-    
+
     const inactiveColor = Color(0xFF94A3B8);
-    final timeStr = "${local.hour % 12 == 0 ? 12 : local.hour % 12}:${local.minute.toString().padLeft(2, '0')} ${local.hour >= 12 ? 'PM' : 'AM'}";
-    
-    if (delta.inHours < 24 && local.day == now.day && local.month == now.month) {
-      return (label: 'Active at $timeStr', color: inactiveColor);
+
+    if (delta.inMinutes < 60) {
+      return (label: 'Active ${delta.inMinutes} min ago', color: inactiveColor);
     }
-    
+
+    if (delta.inHours < 24) {
+      return (label: 'Active ${delta.inHours} hr ago', color: inactiveColor);
+    }
+
+    final timeStr =
+        "${local.hour % 12 == 0 ? 12 : local.hour % 12}:${local.minute.toString().padLeft(2, '0')} ${local.hour >= 12 ? 'PM' : 'AM'}";
+
     if (delta.inDays < 2) {
       final yesterday = now.subtract(const Duration(days: 1));
-      if (local.day == yesterday.day && local.month == yesterday.month && local.year == yesterday.year) {
+      if (local.day == yesterday.day &&
+          local.month == yesterday.month &&
+          local.year == yesterday.year) {
         return (label: 'Active yesterday at $timeStr', color: inactiveColor);
       }
     }
@@ -957,7 +1014,7 @@ class _ChatHeader extends StatelessWidget {
     if (delta.inDays < 7) {
       return (label: 'Active ${delta.inDays}d ago', color: inactiveColor);
     }
-    
+
     final dateLabel = '${local.day}/${local.month}/${local.year}';
     return (label: 'Active $dateLabel', color: inactiveColor);
   }
@@ -1034,16 +1091,18 @@ class _MessageBubble extends StatelessWidget {
     final hasText = message.text.trim().isNotEmpty;
 
     final isProfileLink = message.text.startsWith('PROTOCOL:VIEW_PROFILE:');
-    final providerUid =
-        isProfileLink ? message.text.split(':').last.trim() : null;
+    final providerUid = isProfileLink
+        ? message.text.split(':').last.trim()
+        : null;
 
     final isLocalDataUrl = message.imageUrl.startsWith('data:');
 
     return Align(
       alignment: fromMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
-        crossAxisAlignment:
-            fromMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: fromMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Container(
             margin: const EdgeInsets.only(bottom: 4),
@@ -1054,17 +1113,13 @@ class _MessageBubble extends StatelessWidget {
             ),
             decoration: BoxDecoration(
               color: isProfileLink ? Colors.transparent : bubbleColor,
-              gradient:
-                  (fromMe && !isProfileLink)
-                      ? LinearGradient(
-                        colors: [
-                          accentColor,
-                          accentColor.withValues(alpha: 0.9),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                      : null,
+              gradient: (fromMe && !isProfileLink)
+                  ? LinearGradient(
+                      colors: [accentColor, accentColor.withValues(alpha: 0.9)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(20),
                 topRight: const Radius.circular(20),
@@ -1074,10 +1129,9 @@ class _MessageBubble extends StatelessWidget {
               boxShadow: [
                 if (!isProfileLink)
                   BoxShadow(
-                    color:
-                        fromMe
-                            ? accentColor.withValues(alpha: 0.2)
-                            : const Color(0x080F172A),
+                    color: fromMe
+                        ? accentColor.withValues(alpha: 0.2)
+                        : const Color(0x080F172A),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -1091,13 +1145,13 @@ class _MessageBubble extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                      child: isLocalDataUrl 
-                        ? _buildLocalImage(message.imageUrl)
-                        : SafeImage(
-                            source: message.imageUrl,
-                            width: 240,
-                            fit: BoxFit.cover,
-                          ),
+                      child: isLocalDataUrl
+                          ? _buildLocalImage(message.imageUrl)
+                          : SafeImage(
+                              source: message.imageUrl,
+                              width: 240,
+                              fit: BoxFit.cover,
+                            ),
                     ),
                   ),
                 if (isProfileLink && providerUid != null)
@@ -1148,11 +1202,7 @@ class _MessageBubble extends StatelessWidget {
     try {
       final base64String = dataUrl.split(',').last;
       final bytes = base64Decode(base64String);
-      return Image.memory(
-        bytes,
-        width: 240,
-        fit: BoxFit.cover,
-      );
+      return Image.memory(bytes, width: 240, fit: BoxFit.cover);
     } catch (_) {
       return const SizedBox(
         width: 240,
@@ -1238,10 +1288,9 @@ class _ProfileLinkCardState extends State<_ProfileLinkCard> {
           final role = post.category.trim().isEmpty ? 'Cleaner' : post.category;
           _provider = ProviderItem(
             uid: post.providerUid.trim(),
-            name:
-                post.providerName.trim().isEmpty
-                    ? 'Service Provider'
-                    : post.providerName.trim(),
+            name: post.providerName.trim().isEmpty
+                ? 'Service Provider'
+                : post.providerName.trim(),
             role: role,
             rating: post.rating,
             imagePath: post.avatarPath,
@@ -1270,7 +1319,10 @@ class _ProfileLinkCardState extends State<_ProfileLinkCard> {
         child: const SizedBox(
           width: 20,
           height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.primary,
+          ),
         ),
       );
     }
@@ -1404,13 +1456,18 @@ class _Composer extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: AppColors.divider.withValues(alpha: 0.5))),
+        border: Border(
+          top: BorderSide(color: AppColors.divider.withValues(alpha: 0.5)),
+        ),
       ),
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _ComposerAction(icon: Icons.add_circle_outline_rounded, onTap: onPickImage),
+          _ComposerAction(
+            icon: Icons.add_circle_outline_rounded,
+            onTap: onPickImage,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Container(
@@ -1454,7 +1511,11 @@ class _Composer extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.send_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ),
           ),

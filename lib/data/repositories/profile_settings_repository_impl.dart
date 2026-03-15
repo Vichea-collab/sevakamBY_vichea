@@ -78,6 +78,26 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
   }
 
   @override
+  Future<bool> loadProviderVerifiedFromBackend() async {
+    try {
+      return await _remoteDataSource.fetchProviderVerified();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<void> submitProviderVerification({
+    required String idFrontUrl,
+    required String idBackUrl,
+  }) async {
+    await _remoteDataSource.submitProviderVerification(
+      idFrontUrl: idFrontUrl,
+      idBackUrl: idBackUrl,
+    );
+  }
+
+  @override
   Future<void> saveProviderProfession(ProviderProfessionData profession) async {
     await _localDataSource.saveProviderProfession(profession: profession);
     try {
@@ -139,9 +159,7 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
     );
     return PaginatedResult(
       items: _sortHelpTicketMessages(
-        result.items
-            .map(HelpTicketMessage.fromMap)
-            .toList(growable: false),
+        result.items.map(HelpTicketMessage.fromMap).toList(growable: false),
       ),
       pagination: result.pagination,
     );

@@ -137,7 +137,10 @@ class ChatState {
   static Future<void> updateHeartbeat() async {
     if (_apiClient.bearerToken.trim().isEmpty) return;
     try {
-      await _apiClient.postJson('/api/chats/heartbeat', const <String, dynamic>{});
+      await _apiClient.postJson(
+        '/api/chats/heartbeat',
+        const <String, dynamic>{},
+      );
     } catch (_) {}
   }
 
@@ -607,7 +610,7 @@ class ChatState {
     final updatedAt = _toDateTime(
       row['updatedAt'] ?? row['lastMessageAt'] ?? row['createdAt'],
     );
-    
+
     // Attempt to drill down into participantMeta to get the TRUE peer heartbeat.
     // If we can't find it, we default to something far in the past instead of `updatedAt`.
     // We absolutely MUST NOT fallback to `updatedAt`, because me sending a message
@@ -616,9 +619,14 @@ class ChatState {
     final participantMetaRaw = row['participantMeta'];
     if (participantMetaRaw is Map) {
       final participants = (row['participants'] is List)
-          ? (row['participants'] as List).map((e) => e.toString().trim()).toList()
+          ? (row['participants'] as List)
+                .map((e) => e.toString().trim())
+                .toList()
           : <String>[];
-      final peerUid = participants.firstWhere((uid) => uid.isNotEmpty && uid != currentUid, orElse: () => '');
+      final peerUid = participants.firstWhere(
+        (uid) => uid.isNotEmpty && uid != currentUid,
+        orElse: () => '',
+      );
       if (peerUid.isNotEmpty) {
         final raw = participantMetaRaw[peerUid];
         if (raw is Map && raw['lastActiveAt'] != null) {
@@ -626,10 +634,12 @@ class ChatState {
         }
       }
     }
-    
+
     // If no explicit meta heartbeat, check if the payload itself provided a top-level peerActiveAt.
     // Otherwise fallback to an old date (Epoch) so they don't falsely appear online.
-    final lastActiveAt = peerHeartbeat ?? _toDateTime(row['peerActiveAt'] ?? 0);
+    final lastActiveAt =
+        peerHeartbeat ??
+        _toDateTime(row['lastActiveAt'] ?? row['peerActiveAt'] ?? 0);
 
     return ChatThread(
       id: id,
@@ -694,9 +704,25 @@ class ChatState {
       final parsed = DateTime.tryParse(value);
       if (parsed != null) return parsed.toLocal();
     }
+    if (value is num) {
+      if (value == 0) return DateTime.fromMillisecondsSinceEpoch(0);
+      final intValue = value.toInt();
+      final milliseconds = intValue.abs() < 1000000000000
+          ? intValue * 1000
+          : intValue;
+      return DateTime.fromMillisecondsSinceEpoch(milliseconds).toLocal();
+    }
     if (value is Map && value['_seconds'] is num) {
       final seconds = value['_seconds'] as num;
-      return DateTime.fromMillisecondsSinceEpoch((seconds * 1000).round());
+      return DateTime.fromMillisecondsSinceEpoch(
+        (seconds * 1000).round(),
+      ).toLocal();
+    }
+    if (value is Map && value['seconds'] is num) {
+      final seconds = value['seconds'] as num;
+      return DateTime.fromMillisecondsSinceEpoch(
+        (seconds * 1000).round(),
+      ).toLocal();
     }
     return DateTime.fromMillisecondsSinceEpoch(0);
   }

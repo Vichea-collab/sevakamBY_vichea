@@ -5,6 +5,7 @@ import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../core/utils/safe_image_provider.dart';
 import '../../../domain/entities/order.dart';
+import '../../state/booking_catalog_state.dart';
 import '../../state/order_state.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/booking_step_progress.dart';
@@ -26,6 +27,13 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    final serviceFieldDefs = BookingCatalogState.bookingFieldsForService(
+      widget.draft.serviceName,
+    );
+    final visibleServiceEntries = _visibleServiceEntries(
+      widget.draft.serviceFields,
+      serviceFieldDefs,
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFF),
@@ -33,12 +41,19 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.lg,
+                0,
+              ),
               child: Column(
                 children: [
                   const AppTopBar(title: 'Booking Summary'),
                   const SizedBox(height: 16),
-                  const BookingStepProgress(currentStep: BookingFlowStep.payment),
+                  const BookingStepProgress(
+                    currentStep: BookingFlowStep.payment,
+                  ),
                 ],
               ),
             ),
@@ -48,7 +63,10 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                 children: [
                   // Booking Detail Header Section
-                  _SectionHeader(title: 'Booking Details', icon: Icons.assignment_outlined),
+                  _SectionHeader(
+                    title: 'Booking Details',
+                    icon: Icons.assignment_outlined,
+                  ),
                   const SizedBox(height: 12),
                   Container(
                     decoration: BoxDecoration(
@@ -61,7 +79,9 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                           offset: const Offset(0, 8),
                         ),
                       ],
-                      border: Border.all(color: AppColors.divider.withValues(alpha: 0.5)),
+                      border: Border.all(
+                        color: AppColors.divider.withValues(alpha: 0.5),
+                      ),
                     ),
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -90,46 +110,51 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                           label: 'Location',
                           value: widget.draft.address?.street ?? 'Not provided',
                         ),
-                        const _SummaryDivider(),
-                        _SummaryDetailRow(
-                          icon: Icons.home_work_rounded,
-                          label: 'Home Type',
-                          value: _homeTypeLabel(widget.draft.homeType),
-                        ),
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Provider Section
-                  _SectionHeader(title: 'Service Provider', icon: Icons.person_outline_rounded),
+                  _SectionHeader(
+                    title: 'Service Provider',
+                    icon: Icons.person_outline_rounded,
+                  ),
                   const SizedBox(height: 12),
                   _ProviderInfoCard(draft: widget.draft),
 
                   const SizedBox(height: 24),
 
                   // Service Requirements (Dynamic Fields)
-                  if (widget.draft.serviceFields.isNotEmpty) ...[
-                    _SectionHeader(title: 'Service Requirements', icon: Icons.fact_check_outlined),
+                  if (visibleServiceEntries.isNotEmpty) ...[
+                    _SectionHeader(
+                      title: 'Service Requirements',
+                      icon: Icons.fact_check_outlined,
+                    ),
                     const SizedBox(height: 12),
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: AppColors.divider.withValues(alpha: 0.5)),
+                        border: Border.all(
+                          color: AppColors.divider.withValues(alpha: 0.5),
+                        ),
                       ),
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         children: [
-                          ...widget.draft.serviceFields.entries.map((entry) {
-                            final isLast = entry.key == widget.draft.serviceFields.keys.last;
+                          ...visibleServiceEntries.asMap().entries.map((item) {
+                            final index = item.key;
+                            final entry = item.value;
+                            final isLast =
+                                index == visibleServiceEntries.length - 1;
                             return Column(
                               children: [
                                 _SummaryDetailRow(
-                                  icon: Icons.arrow_right_rounded,
-                                  label: _formatKey(entry.key),
-                                  value: entry.value.toString(),
+                                  icon: _summaryIconForValue(entry.value),
+                                  label: entry.key,
+                                  value: entry.value,
                                   isSmall: true,
                                 ),
                                 if (!isLast) const _SummaryDivider(),
@@ -141,35 +166,17 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                     ),
                   ],
 
-                  if (widget.draft.additionalService.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    _SectionHeader(title: 'Additional Notes', icon: Icons.note_alt_outlined),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Text(
-                        widget.draft.additionalService,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                  
                   const SizedBox(height: 40),
-                  
+
                   // Bottom Info Note
                   Center(
                     child: Column(
                       children: [
-                        const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 20),
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           "Direct cash payment to provider",
@@ -218,15 +225,6 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
     );
   }
 
-  String _formatKey(String key) {
-    if (key.isEmpty) return '';
-    final words = key.split(RegExp(r'(_|-)'));
-    return words.map((w) {
-      if (w.isEmpty) return '';
-      return w[0].toUpperCase() + w.substring(1).toLowerCase();
-    }).join(' ');
-  }
-
   Future<void> _confirmBooking() async {
     setState(() => _submitting = true);
     try {
@@ -248,17 +246,59 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
   }
 
   String _dateLabel(DateTime date) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  String _homeTypeLabel(HomeType type) {
-    switch (type) {
-      case HomeType.apartment: return 'Apartment';
-      case HomeType.flat: return 'Flat';
-      case HomeType.villa: return 'Villa';
-      case HomeType.office: return 'Office';
+  List<MapEntry<String, String>> _visibleServiceEntries(
+    Map<String, dynamic> values,
+    List<BookingFieldDef> defs,
+  ) {
+    final defsByKey = {for (final def in defs) def.key: def};
+    final entries = <MapEntry<String, String>>[];
+    for (final entry in values.entries) {
+      final def = defsByKey[entry.key];
+      if (def == null) continue;
+      final displayValue = _displayServiceValue(entry.value);
+      if (displayValue == null) continue;
+      entries.add(MapEntry(def.label, displayValue));
     }
+    return entries;
+  }
+
+  String? _displayServiceValue(dynamic value) {
+    if (value == null) return null;
+    if (value is bool) return value ? 'Yes' : 'No';
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    final normalized = text.toLowerCase();
+    if (normalized == 'true') return 'Yes';
+    if (normalized == 'false') return 'No';
+    if (text.startsWith('data:image/')) return 'Photo attached';
+    return text;
+  }
+
+  IconData _summaryIconForValue(String value) {
+    if (value == 'Yes' || value == 'No') {
+      return Icons.toggle_on_rounded;
+    }
+    if (value == 'Photo attached') {
+      return Icons.photo_camera_outlined;
+    }
+    return Icons.arrow_right_rounded;
   }
 }
 
@@ -354,7 +394,11 @@ class _SummaryDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 44, top: 10, bottom: 10),
-      child: Divider(height: 1, thickness: 1, color: AppColors.divider.withValues(alpha: 0.5)),
+      child: Divider(
+        height: 1,
+        thickness: 1,
+        color: AppColors.divider.withValues(alpha: 0.5),
+      ),
     );
   }
 }
@@ -380,7 +424,10 @@ class _ProviderInfoCard extends StatelessWidget {
             height: 52,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.1), width: 2),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                width: 2,
+              ),
             ),
             child: ClipOval(
               child: SafeImage(
@@ -426,7 +473,11 @@ class _ProviderInfoCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF59E0B)),
+                const Icon(
+                  Icons.star_rounded,
+                  size: 16,
+                  color: Color(0xFFF59E0B),
+                ),
                 const SizedBox(width: 4),
                 Text(
                   draft.provider.rating.toStringAsFixed(1),

@@ -72,6 +72,11 @@ abstract class AdminRepository {
     required bool active,
     required String reason,
   });
+  Future<AdminActionResult> updateProviderKycStatus({
+    required String providerId,
+    required String status,
+    required String reason,
+  });
   Future<AdminActionResult> updateOrderStatus({
     required String orderId,
     required String status,

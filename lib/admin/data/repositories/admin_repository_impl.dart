@@ -232,6 +232,20 @@ class AdminRepositoryImpl implements AdminRepository {
   }
 
   @override
+  Future<AdminActionResult> updateProviderKycStatus({
+    required String providerId,
+    required String status,
+    required String reason,
+  }) async {
+    final row = await _remoteDataSource.updateProviderKycStatus(
+      providerId: providerId,
+      status: status,
+      reason: reason,
+    );
+    return AdminActionResult.fromMap(row);
+  }
+
+  @override
   Future<AdminActionResult> updateOrderStatus({
     required String orderId,
     required String status,

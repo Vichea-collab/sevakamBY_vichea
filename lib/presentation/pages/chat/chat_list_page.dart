@@ -29,27 +29,26 @@ class _ChatListPageState extends State<ChatListPage> {
   bool _isPaging = false;
   bool _refreshInProgress = false;
   DateTime? _lastPullAt;
-  Timer? _heartbeatTimer;
+  Timer? _uiRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     ChatState.refresh(page: 1);
-    _startHeartbeat();
+    _startUiRefreshTimer();
   }
 
   @override
   void dispose() {
-    _heartbeatTimer?.cancel();
+    _uiRefreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _startHeartbeat() {
-    ChatState.updateHeartbeat();
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(minutes: 2), (_) {
-      ChatState.updateHeartbeat();
+  void _startUiRefreshTimer() {
+    _uiRefreshTimer?.cancel();
+    _uiRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
     });
   }
 
@@ -229,7 +228,7 @@ class _ChatThreadTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasUnread = thread.unreadCount > 0;
     const accentColor = AppColors.primary;
-    final isActive = DateTime.now().difference(thread.lastActiveAt.toLocal()).inMinutes < 5;
+    final isActive = DateTime.now().difference(thread.lastActiveAt.toLocal()).inMinutes < 2;
 
     void openConversation() {
       final currentPage = ChatState.threadPagination.value.page;

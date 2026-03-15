@@ -364,6 +364,18 @@ class AdminDashboardState {
     );
   }
 
+  static Future<AdminActionResult> updateProviderKycStatus({
+    required String providerId,
+    required String status,
+    required String reason,
+  }) {
+    return _repository.updateProviderKycStatus(
+      providerId: providerId,
+      status: status,
+      reason: reason,
+    );
+  }
+
   static Future<AdminActionResult> updateOrderStatus({
     required String orderId,
     required String status,

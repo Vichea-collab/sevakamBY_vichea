@@ -1,95 +1,112 @@
-Plumber
--	Pipe leaks
-o	locationOfLeak (TextField)
-o	serverity (Dropdown: small/Medium/Burst)
-o	waterStillRunning (Switch: Yes/No)
-o	preferredDate (Datepicker)
-o	photo (Image upload)
-o	notes (TextField)
--	Toilet Repair
-o	problemType (Dropdown: Not flushing / Leaking / Blocked)
-o	toiletType (Dropdown: Squat / Western)
-o	waterOverflowing (Switch)
-o	preferredDate
-o	phot
-o	notes
--	Water Installation
-o	installationType (Dropdown: Sink / Shower / Pipe / Tank)
-o	numberOfInstallation
-o	preferredDate
-o	photo
-o	notes
-Electrician
--	Wiring Repair
-o	problemDescription (TextField)
-o	preferredDate
-o	photo
-o	notes
--	Light / Fan Installation
-o	deviceType (Dropdown: Light / Fan / Both)
-o	quantity (NumberField, if both put number of light and fans)
-o	preferredDate
-o	photo
-o	notes
--	Power Outage Fixes
-o	outageScope (Dropdown: room / Whole house)
-o	roomquantity (put number of rooms)
-o	preferredDate
-o	photo
-o	notes
+Booking Step 3 - Service Requirements
+Use houseType/propertyType only for:
+- Cleaner -> House Cleaning
+- Cleaner -> Move-in / Move-out Cleaning
 
+Plumber
+- Pipe Leaks
+o leakLocation (TextField, Required)
+o leakSeverity (Dropdown: Small / Medium / Burst, Required)
+o waterStillRunning (Switch: Yes / No, Required)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
+
+- Toilet Repair
+o problemType (Dropdown: Not flushing / Leaking / Blocked, Required)
+o toiletType (Dropdown: Squat / Western, Required)
+o waterOverflowing (Switch: Yes / No, Required)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
+
+- Water Installation
+o installationType (Dropdown: Sink / Shower / Pipe / Tank / Faucet, Required)
+o quantity (NumberField, Required)
+o materialReady (Switch: Yes / No, Required)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
+
+Electrician
+- Wiring Repair
+o affectedArea (TextField, Required)
+o powerStatus (Dropdown: Partial outage / Full outage / Sparks / Burning smell, Required)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
+
+- Light / Fan Installation
+o deviceType (Dropdown: Light / Fan / Both, Required)
+o quantity (NumberField, Required)
+o deviceReady (Switch: Yes / No, Required)
+o installationPointReady (Switch: Yes / No, Required)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
+
+- Power Outage Fixes
+o outageScope (Dropdown: One room / Multiple rooms / Whole house / Whole office, Required)
+o affectedRoomCount (NumberField, Optional)
+o circuitBreakerChecked (Switch: Yes / No, Optional)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
 
 Cleaner
--	House Cleaning
-o	houseType (Dropdown: Apartment / Villa / Room)
-o	numberOfRooms (NumberField)
-o	preferredDate
-o	notes
--	Office Cleaning
-o	officeSize (Dropdown: Small / Medium / Large)
-o	numberOfRooms
-o	preferredDate
-o	notes
--	Move-in / Move-out Cleaning
-o	propertySize (Dropdown: Small / Medium / Large)
-o	furnished (Switch)
-o	heavyStains (Switch)
-o	preferredDate
-o	notes
-Home Appliance
--	Air Conditioner Repair
-o	acType (Dropdown: Split / Window / Cassette)
-o	problemType (Dropdown: Not cooling / Leaking / No power)
-o	lastServiceDate (DatePicker)
-o	photo
-o	notes
--	Washing Machine Repair
-o	machineType (Dropdown: Front load / Top load)
-o	problemType (Dropdown: Not spinning / Leaking / No power)
-o	brand (TextField)
-o	photo
-o	notes
--	Refrigerator Repair
-o	problemType (Dropdown: Not cold / Freezer issue / Noise)
-o	brand (TextField)
-o	photo
-o	notes
-Home Maintenance
--	Door & Window Repair
-o	materialType (Dropdown: Wood / Aluminum / Glass)
-o	problemType (Dropdown: Broken / Hard to open / Off hinge)
-o	quantity
-o	photo
-o	notes
--	Furniture Fixing
-o	furnitureType (Dropdown: Bed / Table / Chair / Cabinet)
-o	problemType (Dropdown: Loose / Broken / Assembly)
-o	quantity
-o	photo
-o	notes
--	Shelf / Curtain Installation
-o	installationType (Dropdown: Shelf / Curtain rod)
-o	quantity
-o	photo
-o	notes
+- House Cleaning
+o houseType (Dropdown: Apartment / Villa / Room / House, Required)
+o roomCount (NumberField, Required)
+o cleaningLevel (Dropdown: Basic / Deep Cleaning / Heavy Dirt, Required)
+o notes (TextField, Optional)
 
+- Office Cleaning
+o officeSize (Dropdown: Small / Medium / Large, Required)
+o cleaningType (Dropdown: Regular / Deep Cleaning / Post-event, Required)
+o floorCount (NumberField, Optional)
+o notes (TextField, Optional)
+
+- Move-in / Move-out Cleaning
+o houseType (Dropdown: Apartment / House / Room / Office, Required)
+o propertySize (Dropdown: Small / Medium / Large, Required)
+o furnished (Switch: Yes / No, Required)
+o heavyStains (Switch: Yes / No, Optional)
+o notes (TextField, Optional)
+
+Home Appliance
+- Air Conditioner Repair
+o acType (Dropdown: Split / Window / Cassette / Standing, Required)
+o problemType (Dropdown: Not cooling / Leaking / No power / Strange noise, Required)
+o brand (TextField, Optional)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
+
+- Washing Machine Repair
+o machineType (Dropdown: Front Load / Top Load, Required)
+o problemType (Dropdown: Not spinning / Leaking / No power / Not draining, Required)
+o brand (TextField, Optional)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
+
+- Refrigerator Repair
+o problemType (Dropdown: Not cold / Freezer issue / Water leaking / Strange noise, Required)
+o brand (TextField, Optional)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
+
+Home Maintenance
+- Door & Window Repair
+o itemType (Dropdown: Door / Window / Both, Required)
+o problemType (Dropdown: Broken / Hard to open / Off hinge / Lock issue, Required)
+o quantity (NumberField, Required)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
+
+- Furniture Fixing
+o furnitureType (Dropdown: Bed / Table / Chair / Cabinet / Sofa, Required)
+o problemType (Dropdown: Loose / Broken / Assembly, Required)
+o quantity (NumberField, Required)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)
+
+- Shelf / Curtain Installation
+o installationType (Dropdown: Shelf / Curtain rod / Both, Required)
+o quantity (NumberField, Required)
+o itemReady (Switch: Yes / No, Required)
+o wallType (Dropdown: Concrete / Wood / Unknown, Optional)
+o photo (Image Upload, Optional)
+o notes (TextField, Optional)

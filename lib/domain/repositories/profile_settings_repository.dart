@@ -15,6 +15,11 @@ abstract class ProfileSettingsRepository {
   Future<ProviderProfessionData> loadProviderProfession();
   Future<ProviderProfessionData> loadProviderProfessionFromBackend();
   Future<int> loadProviderCompletedOrdersFromBackend();
+  Future<bool> loadProviderVerifiedFromBackend();
+  Future<void> submitProviderVerification({
+    required String idFrontUrl,
+    required String idBackUrl,
+  });
   Future<void> saveProviderProfession(ProviderProfessionData profession);
 
   Future<NotificationPreference> loadNotifications({required bool isProvider});

@@ -90,6 +90,7 @@ class ProviderPostRemoteDataSource {
   ProviderPostItem _mapToProviderPost(Map<dynamic, dynamic> row) {
     final id = (row['id'] ?? '').toString();
     final createdAt = _parseDate(row['createdAt']);
+    final updatedAt = _parseDate(row['updatedAt']);
     final services = _parseServices(row['services']);
     final primaryService = (row['service'] ?? '').toString().trim();
     final avatarUrl = (row['providerAvatarUrl'] ?? '').toString().trim();
@@ -98,11 +99,14 @@ class ProviderPostRemoteDataSource {
         .where((e) => e != null)
         .cast<DateTime>()
         .toList();
+    final latitude = _toDouble(row['latitude'], fallback: double.nan);
+    final longitude = _toDouble(row['longitude'], fallback: double.nan);
 
     return ProviderPostItem(
       id: id.isEmpty ? DateTime.now().millisecondsSinceEpoch.toString() : id,
       providerUid: (row['providerUid'] ?? '').toString(),
       providerName: (row['providerName'] ?? 'Service Provider').toString(),
+      providerBio: (row['providerBio'] ?? '').toString(),
       category: (row['category'] ?? '').toString(),
       service: primaryService.isNotEmpty
           ? primaryService
@@ -116,6 +120,10 @@ class ProviderPostRemoteDataSource {
       rating: _toDouble(row['rating'], fallback: 0),
       isVerified: row['isVerified'] == true,
       subscriptionTier: (row['subscriptionTier'] ?? 'basic').toString(),
+      latitude: latitude.isNaN ? null : latitude,
+      longitude: longitude.isNaN ? null : longitude,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
       blockedDates: blockedDates,
       portfolioPhotos: (row['portfolioPhotos'] as List? ?? [])
           .map((e) => e.toString())

@@ -3,10 +3,6 @@ implement
    * Provider Verification (KYC): Add a flow for providers to upload their National ID or Passport. Once verified by an admin, they
      receive a blue "Verified" badge on their profile. This drastically increases customer trust.
 
-
-  3. Enhancing the Finder (Customer) Experience
-   * Favorites / Wishlist: Allow users to "Heart" or save their favorite providers. Add a "Favorites" tab so they can easily rebook
-     someone they liked without searching again.
    * Dark Mode Support: Ensure AppTheme.dark() is fully implemented so users can toggle between Light and Dark modes for better
      nighttime viewing.
 
@@ -14,15 +10,27 @@ implement
    * Advanced Calendar / Availability Blocking: Allow providers to block out specific days or hours when they are on vacation or
      busy, so they don't receive booking requests they have to decline.
 
-  5. UX / Polish (Quick Wins)
-   * Lottie Animations: Integrate Lottie files for empty states (e.g., an animated sleeping cat for "No messages yet") and success
-     states (e.g., an animated confetti checkmark when a KHQR payment is successful).
-   * Automated Review Prompts: Automatically send a push notification to the Finder 1 hour after a Provider marks an order as
-     "Completed," prompting them to leave a 1-5 star rating.
 
 
-checking for me, is my whole app when refreashing need to have action for refresh for data up to date
+checking for me, is my whole app when refreashing need to have action for refresh for data up to date?
 
 account:
 Demo password: Demo@123456
 
+Error:
+- for chat feature, the active and inactive if inactive display how long it inactive like 1 min ago, 39 min ago like that, checking everything make sure everything up to date
+- problem in providers Portofilo page and in finder of provider detail, the portofile not display in ui of those screen.
+- in home page of finder, top tier provider and top recommendation, if it have 2 post ,it should show only 1 newest post for 1 provider in only in home page.
+- for address map picker, the currect location, the tracking is not track in current location, it goes default the singe point set in simulator of location
+
+- update the finder and provider too when u get approved from admin of KYC, the provider_card of finder should show badge verified, have connection with subscription plan
+
+tmr prompts:
+- update the chat feature for me, the notification messages should have between finder/provider and for admin the support with finder/provider
+- help me check are the transition is smoothies?, navigation have interaction? app feel smoothies and feel like a real production?
+- checking my whole app features work with ios device yet?
+- in home page of finder of the promotion ads, can u suggest for me how to setup that ads it need provider post or admin add the ads?
+- do one more visual pass to make the plan cards shorter, because they still carry a lot of feature text on mobile.
+
+- audit for all screens that need to clean any remaining inconsistent UI.
+- implement that refresh audit pass next and standardize the refresh behavior across finder, provider, and admin.

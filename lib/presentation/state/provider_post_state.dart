@@ -202,7 +202,9 @@ class ProviderPostState {
     if (targetUid.isEmpty) return null;
 
     // First check in-memory cache
-    final cached = allPosts.value.where((p) => p.providerUid.trim().toLowerCase() == targetUid).toList();
+    final cached = allPosts.value
+        .where((p) => p.providerUid.trim().toLowerCase() == targetUid)
+        .toList(growable: false);
     if (cached.isNotEmpty) {
       // Still refresh in background or return latest
     }
@@ -211,14 +213,28 @@ class ProviderPostState {
       // We don't have a direct "get by uid" API yet, so we refresh the lookup list
       // which is usually small enough (3-5 pages of posts).
       await refreshAllForLookup(maxPages: 3);
-      final updated = allPosts.value.firstWhere(
-        (p) => p.providerUid.trim().toLowerCase() == targetUid,
+      return _latestProviderPost(
+        allPosts.value.where(
+          (p) => p.providerUid.trim().toLowerCase() == targetUid,
+        ),
       );
-      return updated;
     } catch (_) {
       // If refresh fails, return cached if available
-      return cached.isNotEmpty ? cached.first : null;
+      return _latestProviderPost(cached);
     }
+  }
+
+  static Future<List<ProviderPostItem>> findAllByUid(String uid) async {
+    final targetUid = uid.trim().toLowerCase();
+    if (targetUid.isEmpty) return const [];
+
+    try {
+      await refreshAllForLookup(maxPages: 5);
+    } catch (_) {}
+
+    return allPosts.value
+        .where((p) => p.providerUid.trim().toLowerCase() == targetUid)
+        .toList();
   }
 
   static Future<List<String>> aggregateServicesByUid(String uid) async {
@@ -263,6 +279,30 @@ class ProviderPostState {
   static int _normalizedPage(int page) {
     if (page < 1) return 1;
     return page;
+  }
+
+  static ProviderPostItem? _latestProviderPost(
+    Iterable<ProviderPostItem> posts,
+  ) {
+    ProviderPostItem? latest;
+    for (final post in posts) {
+      if (latest == null) {
+        latest = post;
+        continue;
+      }
+      final latestAt =
+          latest.updatedAt ??
+          latest.createdAt ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final currentAt =
+          post.updatedAt ??
+          post.createdAt ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      if (currentAt.isAfter(latestAt)) {
+        latest = post;
+      }
+    }
+    return latest;
   }
 
   static List<ProviderPostItem> _sortProviderPosts(

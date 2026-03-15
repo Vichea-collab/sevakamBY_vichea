@@ -8,62 +8,86 @@ class CategoryChip extends StatelessWidget {
   final Category category;
   final VoidCallback? onTap;
 
-  const CategoryChip({
-    super.key,
-    required this.category,
-    this.onTap,
-  });
+  const CategoryChip({super.key, required this.category, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final accent = accentForCategory(category.name);
+    final softTint = Color.lerp(accent, Colors.white, 0.86)!;
     return PressableScale(
       onTap: onTap,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: Container(
-          width: 112,
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
+          width: 102,
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 14),
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Theme.of(context).dividerColor.withValues(alpha: 0.5)),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: accent.withValues(alpha: 0.14)),
             boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: 0.08),
+                blurRadius: 20,
+                spreadRadius: -14,
+                offset: const Offset(0, 14),
+              ),
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 12,
-                offset: const Offset(0, 4),
+                spreadRadius: -8,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                height: 60,
-                width: 60,
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [softTint, accent.withValues(alpha: 0.10)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(
-                  iconForCategory(category.name),
-                  color: accent,
-                  size: 30,
+                child: Center(
+                  child: Container(
+                    height: 52,
+                    width: 52,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      iconForCategory(category.name),
+                      color: accent,
+                      size: 26,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 14),
-              Text(
-                category.name,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                  letterSpacing: 0.2,
+              const SizedBox(height: 12),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: Text(
+                    category.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                      fontSize: 13.5,
+                      height: 1.18,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
                 ),
               ),
             ],

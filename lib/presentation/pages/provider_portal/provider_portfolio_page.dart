@@ -248,11 +248,14 @@ return _buildAddPlaceholder();
 Widget _buildPhotoItem(String url) {
 return Stack(
 children: [
-ClipRRect(
+GestureDetector(
+onTap: () => _showFullscreenImage(context, url),
+child: ClipRRect(
 borderRadius: BorderRadius.circular(12),
 child: SafeImage(
 source: url,
 fit: BoxFit.cover,
+),
 ),
 ),
 Positioned(
@@ -265,6 +268,13 @@ padding: const EdgeInsets.all(4),
 decoration: const BoxDecoration(
 color: Colors.white,
 shape: BoxShape.circle,
+boxShadow: [
+BoxShadow(
+color: Colors.black12,
+blurRadius: 4,
+offset: Offset(0, 2),
+),
+],
 ),
 child: const Icon(Icons.close, size: 14, color: Colors.red),
 ),
@@ -273,6 +283,40 @@ child: const Icon(Icons.close, size: 14, color: Colors.red),
 ],
 );
 }
+
+void _showFullscreenImage(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      useSafeArea: false,
+      builder: (context) => Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: SafeImage(
+                  source: url,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
 Widget _buildAddPlaceholder() {
 return GestureDetector(

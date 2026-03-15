@@ -13,9 +13,9 @@ import '../../../domain/entities/service.dart';
 import '../../state/catalog_state.dart';
 import '../../state/favorite_state.dart';
 import '../../state/provider_post_state.dart';
-import '../../widgets/app_state_panel.dart';
 import '../../widgets/category_chip.dart';
 import '../../widgets/pressable_scale.dart';
+import '../../widgets/shimmer_loading.dart';
 import '../providers/provider_category_page.dart';
 import '../providers/provider_posts_page.dart';
 
@@ -165,222 +165,224 @@ class _SearchPageState extends State<SearchPage> {
 
     return Scaffold(
       body: SafeArea(
-        child: _bootstrapping && providerPosts.isEmpty
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(AppSpacing.lg),
-                  child: AppStatePanel.loading(title: 'Loading search data'),
-                ),
-              )
-            : Column(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.arrow_back),
-                        ),
-                        Expanded(
-                          child: _SearchField(
-                            controller: _controller,
-                            onChanged: _onSearchChanged,
-                            onSubmitted: _onSearchSubmitted,
-                          ),
-                        ),
-                      ],
-                    ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back),
                   ),
                   Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: _handleRefresh,
-                      color: AppColors.primary,
-                      child: ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Recently',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const Spacer(),
-                              if (_recentSearches.isNotEmpty)
-                                TextButton(
-                                  onPressed: () =>
-                                      setState(_recentSearches.clear),
-                                  child: const Text('Clear'),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: _recentSearches
-                                .map(
-                                  (label) => _SearchChip(
-                                    label: label,
-                                    onTap: () => _useRecentSearch(label),
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                          if (_query.trim().isNotEmpty ||
-                              _selectedCategory != null) ...[
-                            const SizedBox(height: 14),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).cardColor,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Theme.of(context).dividerColor,
-                                ),
-                              ),
-                              child: Text(
-                                _selectedCategory == null
-                                    ? '${filteredPopular.length} results for "${_query.trim()}" around Phnom Penh'
-                                    : '${filteredPopular.length} results in "$_selectedCategory" around Phnom Penh',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 20),
-                          Text(
-                            'Browse all categories',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 150,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemBuilder: (context, index) {
-                                final category = filteredCategories[index];
-                                return CategoryChip(
-                                  category: category,
-                                  onTap: () => _toggleCategory(category.name),
-                                );
-                              },
-                              separatorBuilder: (context, index) =>
-                                  const SizedBox(width: AppSpacing.md),
-                              itemCount: filteredCategories.length,
-                            ),
-                          ),
-                          if (filteredCategories.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                'No categories found.',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Text(
-                                'Provider posts',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const Spacer(),
-                              TextButton(
-                                onPressed: _openAllProviderPosts,
-                                child: const Text('View all'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Browse all live provider posts in one screen.',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  color: Theme.of(context).hintColor,
-                                ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Available Providers',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _SortPill(
-                                label: 'Filter',
-                                onTap: _openSortSheet,
-                                active: false,
-                                icon: Icons.tune,
-                              ),
-                              if (_sortOption != null)
-                                _ActiveSortPill(
-                                  label: _sortLabel(_sortOption!),
-                                  onClear: () => setState(() {
-                                    _sortOption = null;
-                                    _visibleCount = 10;
-                                  }),
-                                ),
-                              if (_selectedCategory != null)
-                                _ActiveSortPill(
-                                  label: _selectedCategory!,
-                                  onClear: () => setState(() {
-                                    _selectedCategory = null;
-                                    _visibleCount = 10;
-                                  }),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          ...visibleServices.map(
-                            (item) {
-                              final matchedProvider = _findMatchedProvider(
-                                item.category,
-                                item.title,
-                                query,
-                              );
-                              return _ServiceListTile(
-                                item: item,
-                                providerUid: matchedProvider?.uid,
-                                providerName: matchedProvider?.name,
-                                providerRating: matchedProvider?.rating,
-                                onTap: () => _openServiceResult(item, query),
-                              );
-                            },
-                          ),
-                          if (filteredPopular.length > _visibleCount)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6, bottom: 8),
-                              child: Center(
-                                child: OutlinedButton(
-                                  onPressed: () =>
-                                      setState(() => _visibleCount += 10),
-                                  child: const Text('Load more'),
-                                ),
-                              ),
-                            ),
-                          if (filteredPopular.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                'No services found.',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                        ],
-                      ),
+                    child: _SearchField(
+                      controller: _controller,
+                      onChanged: _onSearchChanged,
+                      onSubmitted: _onSearchSubmitted,
                     ),
                   ),
                 ],
               ),
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _handleRefresh,
+                color: AppColors.primary,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  cacheExtent: 1000,
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Recently',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const Spacer(),
+                        if (_recentSearches.isNotEmpty)
+                          TextButton(
+                            onPressed: () => setState(_recentSearches.clear),
+                            child: const Text('Clear'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: _recentSearches
+                          .map(
+                            (label) => _SearchChip(
+                              label: label,
+                              onTap: () => _useRecentSearch(label),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    if (_query.trim().isNotEmpty || _selectedCategory != null) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Theme.of(context).dividerColor,
+                          ),
+                        ),
+                        child: Text(
+                          _selectedCategory == null
+                              ? '${filteredPopular.length} results for "${_query.trim()}" around Phnom Penh'
+                              : '${filteredPopular.length} results in "$_selectedCategory" around Phnom Penh',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    Text(
+                      'Browse all categories',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: CatalogState.loading,
+                      builder: (context, loading, _) {
+                        if (loading && filteredCategories.isEmpty) {
+                          return const CategoryShimmerList();
+                        }
+                        return SizedBox(
+                          height: 150,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            cacheExtent: 500,
+                            itemBuilder: (context, index) {
+                              final category = filteredCategories[index];
+                              return CategoryChip(
+                                category: category,
+                                onTap: () => _toggleCategory(category.name),
+                              );
+                            },
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(width: AppSpacing.md),
+                            itemCount: filteredCategories.length,
+                          ),
+                        );
+                      },
+                    ),
+                    if (filteredCategories.isEmpty && !_bootstrapping)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'No categories found.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Text(
+                          'Provider posts',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: _openAllProviderPosts,
+                          child: const Text('View all'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Browse all live provider posts in one screen.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).hintColor,
+                          ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Available Providers',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _SortPill(
+                          label: 'Filter',
+                          onTap: _openSortSheet,
+                          active: false,
+                          icon: Icons.tune,
+                        ),
+                        if (_sortOption != null)
+                          _ActiveSortPill(
+                            label: _sortLabel(_sortOption!),
+                            onClear: () => setState(() {
+                              _sortOption = null;
+                              _visibleCount = 10;
+                            }),
+                          ),
+                        if (_selectedCategory != null)
+                          _ActiveSortPill(
+                            label: _selectedCategory!,
+                            onClear: () => setState(() {
+                              _selectedCategory = null;
+                              _visibleCount = 10;
+                            }),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_bootstrapping || (CatalogState.loading.value && visibleServices.isEmpty))
+                      const SearchServiceShimmerList()
+                    else ...[
+                      ...visibleServices.map(
+                        (item) {
+                          final matchedProvider = _findMatchedProvider(
+                            item.category,
+                            item.title,
+                            query,
+                          );
+                          return _ServiceListTile(
+                            item: item,
+                            providerUid: matchedProvider?.uid,
+                            providerName: matchedProvider?.name,
+                            providerRating: matchedProvider?.rating,
+                            onTap: () => _openServiceResult(item, query),
+                          );
+                        },
+                      ),
+                      if (filteredPopular.length > _visibleCount)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6, bottom: 8),
+                          child: Center(
+                            child: OutlinedButton(
+                              onPressed: () =>
+                                  setState(() => _visibleCount += 10),
+                              child: const Text('Load more'),
+                            ),
+                          ),
+                        ),
+                      if (filteredPopular.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            'No services found.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

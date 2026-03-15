@@ -2,14 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/subscription.dart';
 import '../../state/subscription_state.dart';
+import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
-import '../../widgets/app_dialog.dart';
 
 class SubscriptionPage extends StatefulWidget {
   const SubscriptionPage({super.key});
@@ -39,7 +40,6 @@ class _SubscriptionPageState extends State<SubscriptionPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // When user returns from Stripe Checkout browser, verify and refresh
     if (state == AppLifecycleState.resumed && _waitingForCheckout) {
       _waitingForCheckout = false;
       final sessionId = _lastSessionId;
@@ -57,80 +57,10 @@ class _SubscriptionPageState extends State<SubscriptionPage>
     final tier = SubscriptionState.status.value.tier;
     if (tier != SubscriptionTier.basic) {
       final planName = SubscriptionState.status.value.plan.name;
-      AppToast.success(
-        context,
-        '✨ AMAZING! You are now a $planName subscriber! ✨\nEnjoy your new premium features instantly.',
-      );
+      AppToast.success(context, 'Your $planName plan is now active.');
     } else {
-      AppToast.info(context, 'Payment confirmed. We are finalizing your upgrade...');
+      AppToast.info(context, 'Payment confirmed. We are finalizing your plan.');
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: ValueListenableBuilder<SubscriptionStatus>(
-          valueListenable: SubscriptionState.status,
-          builder: (context, status, _) {
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                12,
-                AppSpacing.lg,
-                AppSpacing.lg,
-              ),
-              children: [
-                AppTopBar(
-                  title: 'Subscription',
-                  actions: [
-                    ValueListenableBuilder<bool>(
-                      valueListenable: SubscriptionState.loading,
-                      builder: (context, isLoading, _) {
-                        return IconButton(
-                          icon: isLoading 
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.refresh_rounded, color: AppColors.primary),
-                          onPressed: isLoading || _loading ? null : () => SubscriptionState.fetchStatus(),
-                          tooltip: 'Refresh status',
-                        );
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _CurrentPlanCard(status: status),
-                const SizedBox(height: 20),
-                Text(
-                  'Choose Your Plan',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...SubscriptionPlan.all.map(
-                  (plan) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: _PlanCard(
-                      plan: plan,
-                      isCurrentPlan: plan.tier == status.tier,
-                      onUpgrade: _loading
-                          ? null
-                          : () => _handleUpgrade(plan.tier),
-                      onCancel: plan.tier == status.tier &&
-                              status.tier != SubscriptionTier.basic &&
-                              !status.isCanceling
-                          ? _handleCancel
-                          : null,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
   }
 
   Future<void> _handleUpgrade(SubscriptionTier tier) async {
@@ -149,7 +79,7 @@ class _SubscriptionPageState extends State<SubscriptionPage>
       }
 
       final uri = Uri.parse(url);
-      bool launched = false;
+      var launched = false;
       try {
         launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       } catch (_) {}
@@ -170,16 +100,14 @@ class _SubscriptionPageState extends State<SubscriptionPage>
         if (mounted) {
           AppToast.success(
             context,
-            'Complete payment in browser. We will update your plan automatically.',
+            'Complete payment in browser. Your plan will refresh automatically.',
           );
         }
         unawaited(SubscriptionState.refreshAfterCheckout(sessionId: sessionId));
-      } else {
-        if (mounted) {
-          AppToast.error(context, 'Could not open checkout page.');
-        }
+      } else if (mounted) {
+        AppToast.error(context, 'Could not open checkout page.');
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         AppToast.error(context, 'Failed to start checkout. Please try again.');
       }
@@ -194,7 +122,7 @@ class _SubscriptionPageState extends State<SubscriptionPage>
       icon: Icons.cancel_outlined,
       title: 'Cancel Subscription',
       message:
-          'Your plan will remain active until the end of the current billing period. After that, you will be downgraded to the Basic plan.',
+          'Your plan stays active until the current billing period ends, then it downgrades to Basic.',
       confirmText: 'Cancel Subscription',
       cancelText: 'Keep Plan',
       tone: AppDialogTone.danger,
@@ -208,12 +136,98 @@ class _SubscriptionPageState extends State<SubscriptionPage>
       if (success) {
         AppToast.success(
           context,
-          'Subscription will cancel at end of billing period.',
+          'Subscription will cancel at the end of the current period.',
         );
       } else {
         AppToast.error(context, 'Failed to cancel. Try again later.');
       }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: ValueListenableBuilder<SubscriptionStatus>(
+          valueListenable: SubscriptionState.status,
+          builder: (context, status, _) {
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                12,
+                AppSpacing.lg,
+                AppSpacing.xl,
+              ),
+              children: [
+                AppTopBar(
+                  title: 'Subscription',
+                  actions: [
+                    ValueListenableBuilder<bool>(
+                      valueListenable: SubscriptionState.loading,
+                      builder: (context, isLoading, _) {
+                        return IconButton(
+                          tooltip: 'Refresh status',
+                          onPressed: isLoading || _loading
+                              ? null
+                              : () => SubscriptionState.fetchStatus(),
+                          icon: isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.refresh_rounded,
+                                  color: AppColors.primary,
+                                ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _CurrentPlanCard(status: status),
+                const SizedBox(height: 22),
+                Text(
+                  'Choose Your Plan',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Compare visibility, booking limits, and portfolio capacity.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ...SubscriptionPlan.all.map(
+                  (plan) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: _PlanCard(
+                      plan: plan,
+                      isCurrentPlan: plan.tier == status.tier,
+                      onUpgrade: _loading
+                          ? null
+                          : () => _handleUpgrade(plan.tier),
+                      onCancel:
+                          plan.tier == status.tier &&
+                              status.tier != SubscriptionTier.basic &&
+                              !status.isCanceling
+                          ? _handleCancel
+                          : null,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
   }
 }
 
@@ -225,23 +239,28 @@ class _CurrentPlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final plan = status.plan;
+    final statusLabel = status.isCanceling
+        ? 'Ending soon'
+        : (status.isActive ? 'Active' : _prettyStatus(status.status));
+    final periodLabel = _periodLabel();
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
             plan.badgeColor,
-            plan.badgeColor.withValues(alpha: 0.75),
+            Color.lerp(plan.badgeColor, Colors.black, 0.12)!,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: plan.badgeColor.withValues(alpha: 0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: plan.badgeColor.withValues(alpha: 0.28),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -249,71 +268,162 @@ class _CurrentPlanCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(plan.badgeIcon, color: Colors.white, size: 28),
-              const SizedBox(width: 10),
-              Text(
-                plan.name,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(plan.badgeIcon, color: Colors.white, size: 28),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Current plan',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.82),
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      plan.name,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      plan.monthlyPrice == 0
+                          ? 'Free starter plan'
+                          : plan.priceLabel,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.88),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+                  horizontal: 12,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  status.isCanceling ? 'Canceling' : 'Active',
+                  statusLabel,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.white,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          // Usage bar
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              Text(
-                status.usageLabel,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
-                ),
+              _CurrentPlanMetric(label: 'Bookings', value: status.usageLabel),
+              _CurrentPlanMetric(
+                label: 'Ranking',
+                value: '${plan.searchRankMultiplier}x priority',
               ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: status.bookingLimit < 0 ? 0 : status.usagePercent,
-                  minHeight: 8,
-                  backgroundColor: Colors.white.withValues(alpha: 0.2),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    status.usagePercent >= 0.9
-                        ? const Color(0xFFEF4444)
-                        : Colors.white,
-                  ),
-                ),
+              _CurrentPlanMetric(
+                label: 'Portfolio',
+                value: plan.maxPhotos < 0
+                    ? 'Unlimited'
+                    : '${plan.maxPhotos} photos',
               ),
             ],
           ),
-          if (status.currentPeriodEnd != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              status.isCanceling
-                  ? 'Expires: ${_formatDate(status.currentPeriodEnd!)}'
-                  : 'Renews: ${_formatDate(status.currentPeriodEnd!)}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.white.withValues(alpha: 0.8),
+          const SizedBox(height: 16),
+          Text(
+            'Booking usage',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.82),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: status.bookingLimit < 0 ? 0 : status.usagePercent,
+              minHeight: 8,
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                status.usagePercent >= 0.9
+                    ? const Color(0xFFEF4444)
+                    : Colors.white,
+              ),
+            ),
+          ),
+          if (periodLabel != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.event_available_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          status.isCanceling
+                              ? 'Access ends at period close'
+                              : 'Current billing period',
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.82),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          periodLabel,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    status.isCanceling ? 'Ends' : 'Renews',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -322,12 +432,89 @@ class _CurrentPlanCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime date) {
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  String? _periodLabel() {
+    final start = status.currentPeriodStart;
+    final end = status.currentPeriodEnd;
+    if (start != null && end != null) {
+      return '${_formatShortDate(start)} - ${_formatShortDate(end)}';
+    }
+    if (end != null) {
+      return status.isCanceling
+          ? 'Ends ${_formatShortDate(end)}'
+          : 'Renews ${_formatShortDate(end)}';
+    }
+    return null;
+  }
+
+  String _prettyStatus(String status) {
+    final normalized = status.trim().toLowerCase();
+    if (normalized.isEmpty) return 'Inactive';
+    return normalized
+        .split('_')
+        .map(
+          (part) => part.isEmpty
+              ? ''
+              : '${part[0].toUpperCase()}${part.substring(1)}',
+        )
+        .join(' ');
+  }
+
+  String _formatShortDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    return '${date.day} ${months[date.month - 1]}';
+  }
+}
+
+class _CurrentPlanMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _CurrentPlanMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Colors.white.withValues(alpha: 0.78),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -347,43 +534,44 @@ class _PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFree = plan.tier == SubscriptionTier.basic;
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isCurrentPlan ? plan.badgeColor : Theme.of(context).dividerColor,
-          width: isCurrentPlan ? 2.5 : 1,
+          color: isCurrentPlan
+              ? plan.badgeColor
+              : Theme.of(context).dividerColor,
+          width: isCurrentPlan ? 2 : 1,
         ),
-        boxShadow: isCurrentPlan
-            ? [
-                BoxShadow(
-                  color: plan.badgeColor.withValues(alpha: 0.2),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ]
-            : null,
+        boxShadow: [
+          BoxShadow(
+            color: isCurrentPlan
+                ? plan.badgeColor.withValues(alpha: 0.16)
+                : Colors.black.withValues(alpha: 0.03),
+            blurRadius: isCurrentPlan ? 22 : 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      child: Transform.scale(
-        scale: isCurrentPlan ? 1.02 : 1.0,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-          // Header
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: plan.badgeColor.withValues(alpha: 0.06),
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(17),
+                top: Radius.circular(19),
               ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     color: plan.badgeColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
@@ -395,141 +583,166 @@ class _PlanCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             plan.name,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
                           ),
-                          if (isCurrentPlan) ...[
-                            const SizedBox(width: 8),
+                          if (isCurrentPlan)
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
-                                vertical: 2,
+                                vertical: 3,
                               ),
                               decoration: BoxDecoration(
                                 color: plan.badgeColor,
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
                                 'Current',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
+                                style: Theme.of(context).textTheme.labelSmall
                                     ?.copyWith(
                                       color: Colors.white,
-                                      fontWeight: FontWeight.w600,
+                                      fontWeight: FontWeight.w700,
                                     ),
                               ),
                             ),
-                          ],
                         ],
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         plan.tagline,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.textSecondary,
+                          height: 1.3,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Text(
-                  plan.priceLabel,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: plan.badgeColor,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      plan.priceLabel,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: plan.badgeColor,
+                      ),
+                    ),
+                    if (plan.annualPriceLabel.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          plan.annualPriceLabel,
+                          textAlign: TextAlign.right,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: plan.badgeColor.withValues(alpha: 0.82),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
           ),
-          // Annual price
-          if (plan.annualPriceLabel.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: 16, top: 4),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  plan.annualPriceLabel,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: plan.badgeColor.withValues(alpha: 0.8),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-          // Features
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ...plan.features.map((f) {
+                ...plan.features.map((feature) {
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(bottom: 10),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.check_circle_rounded,
-                          size: 18,
-                          color: plan.badgeColor,
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Icon(
+                            Icons.check_circle_rounded,
+                            size: 18,
+                            color: plan.badgeColor,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            f,
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            feature,
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodyMedium?.copyWith(height: 1.28),
                           ),
                         ),
                       ],
                     ),
                   );
                 }),
-                // Quality gate
                 if (plan.qualityGate != null) ...[
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFEF3C7),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.shield_outlined, size: 16, color: Color(0xFFD97706)),
+                        const Padding(
+                          padding: EdgeInsets.only(top: 1),
+                          child: Icon(
+                            Icons.shield_outlined,
+                            size: 16,
+                            color: Color(0xFFD97706),
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             plan.qualityGate!,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: const Color(0xFF92400E),
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: const Color(0xFF92400E),
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.3,
+                                ),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ],
-                // Best For
                 if (plan.bestFor.isNotEmpty) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.person_outline, size: 16, color: AppColors.textSecondary),
+                      Icon(
+                        Icons.person_outline,
+                        size: 16,
+                        color: AppColors.textSecondary,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           'Best for: ${plan.bestFor}',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: AppColors.textSecondary,
-                            fontStyle: FontStyle.italic,
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: AppColors.textSecondary,
+                                fontStyle: FontStyle.italic,
+                                height: 1.3,
+                              ),
                         ),
                       ),
                     ],
@@ -538,10 +751,9 @@ class _PlanCard extends StatelessWidget {
               ],
             ),
           ),
-          // Action buttons
           if (!isFree || isCurrentPlan)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
               child: Column(
                 children: [
                   if (!isCurrentPlan && !isFree)
@@ -570,10 +782,9 @@ class _PlanCard extends StatelessWidget {
                   ],
                 ],
               ),
-          ),
+            ),
         ],
       ),
-    ),
-  );
-}
+    );
+  }
 }

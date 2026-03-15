@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/safe_image_provider.dart';
 import '../../app/admin_web_app.dart';
 import '../../data/network/admin_api_client.dart';
 import '../../domain/entities/admin_models.dart';
@@ -14,6 +16,8 @@ part 'admin_dashboard_widgets.dart';
 enum _AdminSection {
   overview,
   users,
+  kyc,
+  subscriptions,
   orders,
   posts,
   tickets,
@@ -28,6 +32,10 @@ extension _AdminSectionX on _AdminSection {
         return 'Overview';
       case _AdminSection.users:
         return 'Users';
+      case _AdminSection.kyc:
+        return 'Provider Verification';
+      case _AdminSection.subscriptions:
+        return 'Subscriptions';
       case _AdminSection.orders:
         return 'Orders';
       case _AdminSection.posts:
@@ -47,6 +55,10 @@ extension _AdminSectionX on _AdminSection {
         return 'Platform performance and recent activity';
       case _AdminSection.users:
         return 'User identities and role distribution';
+      case _AdminSection.kyc:
+        return 'Review provider KYC documents and approval status';
+      case _AdminSection.subscriptions:
+        return 'Track provider plans, billing state, and renewal windows';
       case _AdminSection.orders:
         return 'Bookings, payment status, and revenue';
       case _AdminSection.posts:
@@ -66,6 +78,10 @@ extension _AdminSectionX on _AdminSection {
         return Icons.dashboard_rounded;
       case _AdminSection.users:
         return Icons.group_rounded;
+      case _AdminSection.kyc:
+        return Icons.verified_user_rounded;
+      case _AdminSection.subscriptions:
+        return Icons.workspace_premium_rounded;
       case _AdminSection.orders:
         return Icons.receipt_long_rounded;
       case _AdminSection.posts:
@@ -94,6 +110,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   String _searchQuery = '';
   String _userRoleFilter = 'all';
+  String _userKycFilter = 'all';
+  String _userPlanFilter = 'all';
+  String _subscriptionPlanFilter = 'all';
+  String _subscriptionStatusFilter = 'all';
   String _orderStatusFilter = 'all';
   String _postTypeFilter = 'all';
   String _ticketStatusFilter = 'all';
@@ -442,6 +462,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case _AdminSection.overview:
         return _loadUndoHistory(page);
       case _AdminSection.users:
+      case _AdminSection.kyc:
+      case _AdminSection.subscriptions:
         return _loadUsers(page);
       case _AdminSection.orders:
         return _loadOrders(page);
@@ -529,6 +551,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     switch (value.trim().toLowerCase()) {
       case 'users':
         return _AdminSection.users;
+      case 'kyc':
+      case 'provider_verification':
+        return _AdminSection.kyc;
+      case 'subscription':
+      case 'subscriptions':
+        return _AdminSection.subscriptions;
       case 'orders':
         return _AdminSection.orders;
       case 'posts':
@@ -688,6 +716,78 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showKycDocuments(AdminUserRow item) async {
+    if (item.providerKycIdFrontUrl.trim().isEmpty &&
+        item.providerKycIdBackUrl.trim().isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No KYC documents uploaded yet.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('KYC Documents • ${item.name}'),
+          content: SizedBox(
+            width: 760,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _Pill(
+                        text: _prettyKycStatus(item.providerKycStatus),
+                        color: _kycStatusColor(item.providerKycStatus),
+                      ),
+                      _Pill(
+                        text: item.providerSubscriptionTier.isEmpty
+                            ? 'Basic'
+                            : _titleCase(item.providerSubscriptionTier),
+                        color: _planColor(item.providerSubscriptionTier),
+                      ),
+                      if (item.providerKycSubmittedAt != null)
+                        _Pill(
+                          text:
+                              'Submitted ${_formatDateTime(item.providerKycSubmittedAt)}',
+                          color: AppColors.primary,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _KycImagePanel(
+                    title: 'Front of ID',
+                    imageUrl: item.providerKycIdFrontUrl,
+                  ),
+                  const SizedBox(height: 16),
+                  _KycImagePanel(
+                    title: 'Back of ID',
+                    imageUrl: item.providerKycIdBackUrl,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
               child: const Text('Close'),
             ),
           ],
@@ -1142,7 +1242,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   },
                   child: KeyedSubtree(
                     key: ValueKey<String>(
-                      '${_section.name}_${_searchQuery.trim()}-$_userRoleFilter-$_orderStatusFilter-$_postTypeFilter-$_ticketStatusFilter-$_serviceStateFilter-$_broadcastTypeFilter-$_broadcastStatusFilter-$_broadcastRoleFilter-$_undoHistoryStateFilter',
+                      '${_section.name}_${_searchQuery.trim()}-$_userRoleFilter-$_userKycFilter-$_userPlanFilter-$_subscriptionPlanFilter-$_subscriptionStatusFilter-$_orderStatusFilter-$_postTypeFilter-$_ticketStatusFilter-$_serviceStateFilter-$_broadcastTypeFilter-$_broadcastStatusFilter-$_broadcastRoleFilter-$_undoHistoryStateFilter',
                     ),
                     child: _buildActiveSection(),
                   ),
@@ -1168,6 +1268,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       case _AdminSection.users:
         if (_userRoleFilter != 'all') {
           values.add('Role: ${_prettyRole(_userRoleFilter)}');
+        }
+        break;
+      case _AdminSection.kyc:
+        if (_userKycFilter != 'all') {
+          values.add('KYC: ${_prettyKycStatus(_userKycFilter)}');
+        }
+        if (_userPlanFilter != 'all') {
+          values.add('Plan: ${_titleCase(_userPlanFilter)}');
+        }
+        break;
+      case _AdminSection.subscriptions:
+        if (_subscriptionPlanFilter != 'all') {
+          values.add('Plan: ${_titleCase(_subscriptionPlanFilter)}');
+        }
+        if (_subscriptionStatusFilter != 'all') {
+          values.add(
+            'Billing: ${_prettySubscriptionStatus(_subscriptionStatusFilter)}',
+          );
         }
         break;
       case _AdminSection.orders:
@@ -1214,6 +1332,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     setState(() {
       _searchQuery = '';
       _userRoleFilter = 'all';
+      _userKycFilter = 'all';
+      _userPlanFilter = 'all';
+      _subscriptionPlanFilter = 'all';
+      _subscriptionStatusFilter = 'all';
       _orderStatusFilter = 'all';
       _postTypeFilter = 'all';
       _ticketStatusFilter = 'all';
@@ -1232,6 +1354,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         return _buildOverviewSection();
       case _AdminSection.users:
         return _buildUsersSection();
+      case _AdminSection.kyc:
+        return _buildKycSection();
+      case _AdminSection.subscriptions:
+        return _buildSubscriptionsSection();
       case _AdminSection.orders:
         return _buildOrdersSection();
       case _AdminSection.posts:
@@ -1497,7 +1623,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Widget _buildUsersSection() {
     return _AdminTableCard<AdminUserRow>(
       title: 'User Management',
-      subtitle: 'Audit account identities and role assignments.',
+      subtitle: 'Audit identities, roles, and workspace access.',
       loadingListenable: AdminDashboardState.loadingUsers,
       rowsListenable: AdminDashboardState.users,
       paginationListenable: AdminDashboardState.usersPagination,
@@ -1531,6 +1657,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         final finders = items
             .where((item) => item.role.contains('finder'))
             .length;
+        final suspended = items.where((item) => !item.active).length;
         return [
           _MetricChipData(label: 'Page users', value: '${items.length}'),
           _MetricChipData(
@@ -1548,19 +1675,25 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             value: '$finders',
             color: const Color(0xFF14B8A6),
           ),
+          _MetricChipData(
+            label: 'Suspended',
+            value: '$suspended',
+            color: AppColors.warning,
+          ),
         ];
       },
       filterRows: (items) {
         final query = _searchQuery.trim().toLowerCase();
         return items
             .where((item) {
-              final roleMatch =
-                  _userRoleFilter == 'all' ||
-                  item.role.toLowerCase().contains(_userRoleFilter);
+              final roleMatch = _userRoleFilter == 'all'
+                  ? true
+                  : item.role.toLowerCase().contains(_userRoleFilter);
               if (!roleMatch) return false;
               if (query.isEmpty) return true;
               final haystack =
-                  '${item.name} ${item.email} ${item.role} ${item.id}'
+                  '${item.name} ${item.email} ${item.role} '
+                          '${item.id} ${item.active ? 'active' : 'suspended'}'
                       .toLowerCase();
               return haystack.contains(query);
             })
@@ -1604,6 +1737,487 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ];
       },
     );
+  }
+
+  Widget _buildKycSection() {
+    return _AdminTableCard<AdminUserRow>(
+      title: 'Provider Verification (KYC)',
+      subtitle:
+          'Review uploaded ID documents and approve provider verification.',
+      loadingListenable: AdminDashboardState.loadingUsers,
+      rowsListenable: AdminDashboardState.users,
+      paginationListenable: AdminDashboardState.usersPagination,
+      onPageSelected: _loadUsers,
+      controls: [
+        _DropdownFilter(
+          label: 'KYC',
+          value: _userKycFilter,
+          options: const [
+            _DropdownOption(value: 'all', label: 'All KYC'),
+            _DropdownOption(value: 'pending', label: 'Pending'),
+            _DropdownOption(value: 'approved', label: 'Approved'),
+            _DropdownOption(value: 'rejected', label: 'Rejected'),
+            _DropdownOption(value: 'unverified', label: 'Unverified'),
+          ],
+          onChanged: (value) {
+            setState(() => _userKycFilter = value);
+            unawaited(_loadUsers(1));
+          },
+        ),
+        _DropdownFilter(
+          label: 'Plan',
+          value: _userPlanFilter,
+          options: const [
+            _DropdownOption(value: 'all', label: 'All plans'),
+            _DropdownOption(value: 'basic', label: 'Basic'),
+            _DropdownOption(value: 'professional', label: 'Professional'),
+            _DropdownOption(value: 'elite', label: 'Elite'),
+          ],
+          onChanged: (value) {
+            setState(() => _userPlanFilter = value);
+            unawaited(_loadUsers(1));
+          },
+        ),
+      ],
+      columns: const [
+        'Provider',
+        'Email',
+        'KYC',
+        'Submitted',
+        'Documents',
+        'Plan',
+        'State',
+        'Action',
+      ],
+      emptyText: 'No provider KYC records found for this page.',
+      summaryBuilder: (items) {
+        final pending = items
+            .where((item) => item.providerKycStatus == 'pending')
+            .length;
+        final approved = items
+            .where((item) => item.providerKycStatus == 'approved')
+            .length;
+        final rejected = items
+            .where((item) => item.providerKycStatus == 'rejected')
+            .length;
+        final withDocs = items
+            .where(
+              (item) =>
+                  item.providerKycIdFrontUrl.trim().isNotEmpty ||
+                  item.providerKycIdBackUrl.trim().isNotEmpty,
+            )
+            .length;
+        return [
+          _MetricChipData(label: 'Page providers', value: '${items.length}'),
+          _MetricChipData(
+            label: 'Pending',
+            value: '$pending',
+            color: AppColors.warning,
+          ),
+          _MetricChipData(
+            label: 'Approved',
+            value: '$approved',
+            color: AppColors.success,
+          ),
+          _MetricChipData(
+            label: 'Rejected',
+            value: '$rejected',
+            color: AppColors.danger,
+          ),
+          _MetricChipData(
+            label: 'With docs',
+            value: '$withDocs',
+            color: AppColors.primary,
+          ),
+        ];
+      },
+      filterRows: (items) {
+        final query = _searchQuery.trim().toLowerCase();
+        return items
+            .where((item) {
+              if (!_isProviderRole(item.role)) return false;
+              if (_userKycFilter != 'all' &&
+                  item.providerKycStatus != _userKycFilter) {
+                return false;
+              }
+              if (_userPlanFilter != 'all' &&
+                  item.providerSubscriptionTier != _userPlanFilter) {
+                return false;
+              }
+              if (query.isEmpty) return true;
+              final haystack =
+                  '${item.name} ${item.email} ${item.id} ${item.providerKycStatus} '
+                          '${item.providerSubscriptionTier} ${item.providerSubscriptionStatus}'
+                      .toLowerCase();
+              return haystack.contains(query);
+            })
+            .toList(growable: false);
+      },
+      rowCells: (item) {
+        final hasDocs =
+            item.providerKycIdFrontUrl.trim().isNotEmpty ||
+            item.providerKycIdBackUrl.trim().isNotEmpty;
+        return [
+          DataCell(_cellText(item.name, width: 180)),
+          DataCell(
+            _cellText(item.email.isEmpty ? '-' : item.email, width: 220),
+          ),
+          DataCell(
+            _Pill(
+              text: _prettyKycStatus(item.providerKycStatus),
+              color: _kycStatusColor(item.providerKycStatus),
+            ),
+          ),
+          DataCell(
+            _cellText(
+              item.providerKycSubmittedAt == null
+                  ? '-'
+                  : _formatDateTime(item.providerKycSubmittedAt),
+            ),
+          ),
+          DataCell(
+            hasDocs
+                ? TextButton(
+                    onPressed: () => _showKycDocuments(item),
+                    child: const Text('View docs'),
+                  )
+                : _cellText('-'),
+          ),
+          DataCell(
+            _Pill(
+              text: item.providerSubscriptionTier.isEmpty
+                  ? 'Basic'
+                  : _titleCase(item.providerSubscriptionTier),
+              color: _planColor(item.providerSubscriptionTier),
+            ),
+          ),
+          DataCell(
+            _Pill(
+              text: item.active ? 'Active' : 'Suspended',
+              color: item.active ? AppColors.success : AppColors.warning,
+            ),
+          ),
+          DataCell(_actionMenu(actions: _providerKycActionItems(item))),
+        ];
+      },
+    );
+  }
+
+  Widget _buildSubscriptionsSection() {
+    return _AdminTableCard<AdminUserRow>(
+      title: 'Provider Subscriptions',
+      subtitle: 'Review provider plans, billing state, and renewal timing.',
+      loadingListenable: AdminDashboardState.loadingUsers,
+      rowsListenable: AdminDashboardState.users,
+      paginationListenable: AdminDashboardState.usersPagination,
+      onPageSelected: _loadUsers,
+      controls: [
+        _DropdownFilter(
+          label: 'Plan',
+          value: _subscriptionPlanFilter,
+          options: const [
+            _DropdownOption(value: 'all', label: 'All plans'),
+            _DropdownOption(value: 'basic', label: 'Basic'),
+            _DropdownOption(value: 'professional', label: 'Professional'),
+            _DropdownOption(value: 'elite', label: 'Elite'),
+          ],
+          onChanged: (value) {
+            setState(() => _subscriptionPlanFilter = value);
+            unawaited(_loadUsers(1));
+          },
+        ),
+        _DropdownFilter(
+          label: 'Billing',
+          value: _subscriptionStatusFilter,
+          options: const [
+            _DropdownOption(value: 'all', label: 'All billing states'),
+            _DropdownOption(value: 'active', label: 'Active'),
+            _DropdownOption(value: 'trialing', label: 'Trialing'),
+            _DropdownOption(value: 'past_due', label: 'Past due'),
+            _DropdownOption(value: 'inactive', label: 'Inactive'),
+            _DropdownOption(value: 'canceled', label: 'Canceled'),
+          ],
+          onChanged: (value) {
+            setState(() => _subscriptionStatusFilter = value);
+            unawaited(_loadUsers(1));
+          },
+        ),
+      ],
+      columns: const [
+        'Provider',
+        'Email',
+        'Plan',
+        'Billing',
+        'Renewal',
+        'Period End',
+        'KYC',
+        'State',
+      ],
+      emptyText: 'No provider subscriptions found for this page.',
+      summaryBuilder: (items) {
+        final active = items
+            .where(
+              (item) =>
+                  item.providerSubscriptionStatus.trim().toLowerCase() ==
+                  'active',
+            )
+            .length;
+        final trialing = items
+            .where(
+              (item) =>
+                  item.providerSubscriptionStatus.trim().toLowerCase() ==
+                  'trialing',
+            )
+            .length;
+        final professional = items
+            .where(
+              (item) =>
+                  item.providerSubscriptionTier.trim().toLowerCase() ==
+                  'professional',
+            )
+            .length;
+        final elite = items
+            .where(
+              (item) =>
+                  item.providerSubscriptionTier.trim().toLowerCase() == 'elite',
+            )
+            .length;
+        return [
+          _MetricChipData(label: 'Page providers', value: '${items.length}'),
+          _MetricChipData(
+            label: 'Active',
+            value: '$active',
+            color: AppColors.success,
+          ),
+          _MetricChipData(
+            label: 'Trialing',
+            value: '$trialing',
+            color: AppColors.primary,
+          ),
+          _MetricChipData(
+            label: 'Professional',
+            value: '$professional',
+            color: AppColors.primary,
+          ),
+          _MetricChipData(
+            label: 'Elite',
+            value: '$elite',
+            color: const Color(0xFFF59E0B),
+          ),
+        ];
+      },
+      filterRows: (items) {
+        final query = _searchQuery.trim().toLowerCase();
+        return items
+            .where((item) {
+              if (!_isProviderRole(item.role)) return false;
+              if (_subscriptionPlanFilter != 'all' &&
+                  item.providerSubscriptionTier != _subscriptionPlanFilter) {
+                return false;
+              }
+              final billingStatus = item.providerSubscriptionStatus
+                  .trim()
+                  .toLowerCase();
+              if (_subscriptionStatusFilter != 'all' &&
+                  billingStatus != _subscriptionStatusFilter) {
+                return false;
+              }
+              if (query.isEmpty) return true;
+              final haystack =
+                  '${item.name} ${item.email} ${item.id} ${item.providerSubscriptionTier} '
+                          '${item.providerSubscriptionStatus} ${item.providerKycStatus}'
+                      .toLowerCase();
+              return haystack.contains(query);
+            })
+            .toList(growable: false);
+      },
+      rowCells: (item) {
+        final billingStatus = item.providerSubscriptionStatus.trim().isEmpty
+            ? 'inactive'
+            : item.providerSubscriptionStatus;
+        final renewalLabel = item.providerSubscriptionCancelAtPeriodEnd
+            ? 'Ends at period end'
+            : 'Auto renew';
+        final renewalColor = item.providerSubscriptionCancelAtPeriodEnd
+            ? AppColors.warning
+            : AppColors.success;
+        return [
+          DataCell(_cellText(item.name, width: 180)),
+          DataCell(
+            _cellText(item.email.isEmpty ? '-' : item.email, width: 220),
+          ),
+          DataCell(
+            _Pill(
+              text: item.providerSubscriptionTier.isEmpty
+                  ? 'Basic'
+                  : _titleCase(item.providerSubscriptionTier),
+              color: _planColor(item.providerSubscriptionTier),
+            ),
+          ),
+          DataCell(
+            _Pill(
+              text: _prettySubscriptionStatus(billingStatus),
+              color: _subscriptionStatusColor(billingStatus),
+            ),
+          ),
+          DataCell(_Pill(text: renewalLabel, color: renewalColor)),
+          DataCell(
+            _cellText(
+              _formatDateTime(item.providerSubscriptionPeriodEnd),
+              width: 150,
+            ),
+          ),
+          DataCell(
+            _Pill(
+              text: _prettyKycStatus(item.providerKycStatus),
+              color: _kycStatusColor(item.providerKycStatus),
+            ),
+          ),
+          DataCell(
+            _Pill(
+              text: item.active ? 'Active' : 'Suspended',
+              color: item.active ? AppColors.success : AppColors.warning,
+            ),
+          ),
+        ];
+      },
+    );
+  }
+
+  List<_ActionMenuItem> _providerKycActionItems(AdminUserRow item) {
+    return [
+      _ActionMenuItem(
+        label: 'View KYC documents',
+        onTap: () => _showKycDocuments(item),
+      ),
+      _ActionMenuItem(
+        label: 'Set KYC pending',
+        onTap: () => _runSafeAction(
+          dialogTitle: 'Mark ${item.name} as pending KYC review?',
+          actionLabel: 'Set pending',
+          run: (reason) => AdminDashboardState.updateProviderKycStatus(
+            providerId: item.id,
+            status: 'pending',
+            reason: reason,
+          ),
+        ),
+      ),
+      _ActionMenuItem(
+        label: 'Approve KYC',
+        onTap: () => _runSafeAction(
+          dialogTitle: 'Approve KYC for ${item.name}?',
+          actionLabel: 'Approve',
+          run: (reason) => AdminDashboardState.updateProviderKycStatus(
+            providerId: item.id,
+            status: 'approved',
+            reason: reason,
+          ),
+        ),
+      ),
+      _ActionMenuItem(
+        label: 'Reject KYC',
+        onTap: () => _runSafeAction(
+          dialogTitle: 'Reject KYC for ${item.name}?',
+          actionLabel: 'Reject',
+          run: (reason) => AdminDashboardState.updateProviderKycStatus(
+            providerId: item.id,
+            status: 'rejected',
+            reason: reason,
+          ),
+        ),
+      ),
+      _ActionMenuItem(
+        label: 'Reset KYC',
+        onTap: () => _runSafeAction(
+          dialogTitle: 'Reset KYC for ${item.name} to unverified?',
+          actionLabel: 'Reset',
+          run: (reason) => AdminDashboardState.updateProviderKycStatus(
+            providerId: item.id,
+            status: 'unverified',
+            reason: reason,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  bool _isProviderRole(String role) {
+    return role.toLowerCase().contains('provider');
+  }
+
+  String _prettyKycStatus(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'approved':
+        return 'Approved';
+      case 'pending':
+        return 'Pending';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return 'Unverified';
+    }
+  }
+
+  Color _kycStatusColor(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'approved':
+        return AppColors.success;
+      case 'pending':
+        return AppColors.warning;
+      case 'rejected':
+        return AppColors.danger;
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  Color _planColor(String tier) {
+    switch (tier.trim().toLowerCase()) {
+      case 'elite':
+        return const Color(0xFFF59E0B);
+      case 'professional':
+        return AppColors.primary;
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  String _prettySubscriptionStatus(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'trialing':
+        return 'Trialing';
+      case 'past_due':
+        return 'Past due';
+      case 'canceled':
+      case 'cancelled':
+        return 'Canceled';
+      case 'active':
+        return 'Active';
+      default:
+        return 'Inactive';
+    }
+  }
+
+  Color _subscriptionStatusColor(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'trialing':
+        return AppColors.primary;
+      case 'past_due':
+        return AppColors.warning;
+      case 'canceled':
+      case 'cancelled':
+        return AppColors.danger;
+      case 'active':
+        return AppColors.success;
+      default:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  String _titleCase(String value) {
+    final safe = value.trim().toLowerCase();
+    if (safe.isEmpty) return '-';
+    return safe[0].toUpperCase() + safe.substring(1);
   }
 
   Widget _buildOrdersSection() {

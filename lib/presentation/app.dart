@@ -34,7 +34,6 @@ import 'pages/provider_portal/provider_notifications_page.dart';
 import 'pages/provider_portal/provider_post_page.dart';
 import 'pages/provider_portal/provider_orders_page.dart';
 import 'pages/provider_portal/provider_profile_page.dart';
-import 'pages/provider_portal/provider_profession_page.dart';
 import 'pages/provider_portal/provider_verification_page.dart';
 import 'pages/provider_portal/provider_availability_page.dart';
 import 'pages/provider_portal/provider_portfolio_page.dart';
@@ -166,9 +165,6 @@ class _ServiceFinderAppState extends State<ServiceFinderApp> {
               case ProviderProfilePage.routeName:
                 page = const ProviderProfilePage();
                 break;
-              case ProviderProfessionPage.routeName:
-                page = const ProviderProfessionPage();
-                break;
               case ProviderVerificationPage.routeName:
                 page = const ProviderVerificationPage();
                 break;
@@ -209,6 +205,7 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
   Timer? _activeBannerTimer;
   StreamSubscription<RemoteMessage>? _pushForegroundSubscription;
   StreamSubscription<RemoteMessage>? _pushOpenSubscription;
+  Timer? _heartbeatTimer;
   bool _primed = false;
 
   @override
@@ -216,15 +213,25 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
     super.initState();
     UserNotificationState.notices.addListener(_onNoticesChanged);
     unawaited(_setupPushHandlers());
+    _startGlobalHeartbeat();
   }
 
   @override
   void dispose() {
+    _heartbeatTimer?.cancel();
     UserNotificationState.notices.removeListener(_onNoticesChanged);
     _pushForegroundSubscription?.cancel();
     _pushOpenSubscription?.cancel();
     _removeActiveBanner();
     super.dispose();
+  }
+
+  void _startGlobalHeartbeat() {
+    ChatState.updateHeartbeat();
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      ChatState.updateHeartbeat();
+    });
   }
 
   void _onNoticesChanged() {
@@ -492,9 +499,7 @@ class _TopNoticeBanner extends StatelessWidget {
         decoration: BoxDecoration(
           color: surfaceColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppColors.divider,
-          ),
+          border: Border.all(color: AppColors.divider),
           boxShadow: const [
             BoxShadow(
               color: Color(0x1A0F172A),

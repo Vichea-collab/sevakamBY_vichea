@@ -203,6 +203,18 @@ class AdminRemoteDataSource {
     return _safeMap(response['data']);
   }
 
+  Future<Map<String, dynamic>> updateProviderKycStatus({
+    required String providerId,
+    required String status,
+    required String reason,
+  }) async {
+    final response = await _apiClient.patchJson(
+      '/api/admin/providers/${Uri.encodeComponent(providerId)}/kyc',
+      body: {'status': status, 'reason': reason},
+    );
+    return _safeMap(response['data']);
+  }
+
   Future<Map<String, dynamic>> updateOrderStatus({
     required String orderId,
     required String status,

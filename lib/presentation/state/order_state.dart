@@ -899,6 +899,7 @@ class OrderState {
     final preferredDate = _toDateTime(row['preferredDate']);
     final bookedAt = _toDateTime(row['createdAt']);
     final timeline = _timelineFromRow(row, fallbackBookedAt: bookedAt);
+    final serviceFields = _safeMap(row['serviceFields']);
     return OrderItem(
       id: (row['id'] ?? '').toString(),
       provider: provider,
@@ -906,6 +907,7 @@ class OrderState {
       address: address,
       homeType: _homeTypeFromStorage((row['homeType'] ?? '').toString()),
       additionalService: (row['additionalService'] ?? '').toString(),
+      serviceFields: serviceFields,
       bookedAt: bookedAt,
       scheduledAt: preferredDate,
       timeRange: (row['preferredTimeSlot'] ?? '').toString(),
@@ -921,6 +923,14 @@ class OrderState {
     final path = (value ?? '').toString().trim();
     if (path.startsWith('assets/')) return path;
     return '';
+  }
+
+  static Map<String, dynamic> _safeMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) {
+      return value.map((key, item) => MapEntry(key.toString(), item));
+    }
+    return const <String, dynamic>{};
   }
 
   static DateTime _toDateTime(dynamic value) {

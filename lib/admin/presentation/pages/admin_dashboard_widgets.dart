@@ -1066,6 +1066,26 @@ class _OverviewKpiGrid extends StatelessWidget {
         icon: Icons.support_agent_rounded,
       ),
       _KpiData(
+        label: 'KYC Pending',
+        value: '${_intValue(kpis['pendingKycProviders'])}',
+        icon: Icons.pending_actions_rounded,
+      ),
+      _KpiData(
+        label: 'KYC Approved',
+        value: '${_intValue(kpis['verifiedProviders'])}',
+        icon: Icons.verified_user_rounded,
+      ),
+      _KpiData(
+        label: 'Professional',
+        value: '${_intValue(kpis['professionalProviders'])}',
+        icon: Icons.workspace_premium_rounded,
+      ),
+      _KpiData(
+        label: 'Elite',
+        value: '${_intValue(kpis['eliteProviders'])}',
+        icon: Icons.diamond_rounded,
+      ),
+      _KpiData(
         label: 'Completed Revenue',
         value: _toMoney(_numValue(kpis['completedRevenue'])),
         icon: Icons.attach_money_rounded,
@@ -1561,6 +1581,102 @@ class _UndoHistoryCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _KycImagePanel extends StatelessWidget {
+  final String title;
+  final String imageUrl;
+
+  const _KycImagePanel({required this.title, required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = imageUrl.trim().isNotEmpty;
+    final uri = hasImage ? Uri.tryParse(imageUrl.trim()) : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          height: 240,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFF),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFDCE6F7)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: hasImage
+              ? SafeImage(
+                  source: imageUrl,
+                  fit: BoxFit.contain,
+                  placeholder: const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  errorBuilder: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Unable to load image preview',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                      if (uri != null) ...[
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            await launchUrl(
+                              uri,
+                              mode: LaunchMode.platformDefault,
+                            );
+                          },
+                          icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                          label: const Text('Open original'),
+                        ),
+                      ],
+                    ],
+                  ),
+                )
+              : const Center(
+                  child: Text(
+                    'No image uploaded',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+        ),
+        if (hasImage) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: SelectableText(
+                  imageUrl,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              if (uri != null) ...[
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () async {
+                    await launchUrl(uri, mode: LaunchMode.platformDefault);
+                  },
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: const Text('Open'),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

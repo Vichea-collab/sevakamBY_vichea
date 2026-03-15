@@ -19,13 +19,14 @@ import 'package:servicefinder/presentation/pages/profile/edit_profile_page.dart'
 import 'package:servicefinder/presentation/pages/profile/help_support_page.dart';
 import 'package:servicefinder/presentation/pages/profile/notification_page.dart';
 import 'package:servicefinder/presentation/widgets/app_bottom_nav.dart';
-import 'provider_profession_page.dart';
+import 'package:servicefinder/presentation/widgets/role_mode_card.dart';
 import 'provider_verification_page.dart';
 import 'provider_availability_page.dart';
 import 'subscription_page.dart';
 import 'package:servicefinder/presentation/state/subscription_state.dart';
 import 'package:servicefinder/domain/entities/subscription.dart';
 import 'package:servicefinder/presentation/widgets/subscription_badge.dart';
+import 'package:servicefinder/presentation/widgets/verified_badge.dart';
 
 class ProviderProfilePage extends StatefulWidget {
   static const String routeName = '/provider/profile';
@@ -38,6 +39,7 @@ class ProviderProfilePage extends StatefulWidget {
 
 class _ProviderProfilePageState extends State<ProviderProfilePage> {
   double _providerRating = 0.0;
+  bool _switchingRole = false;
 
   @override
   void initState() {
@@ -101,9 +103,9 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
             const SizedBox(height: 16),
             Text(
               'Profile information',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.onSurface),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 10),
             _ActionTile(
@@ -112,15 +114,6 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
               onTap: () => Navigator.push(
                 context,
                 slideFadeRoute(const EditProfilePage()),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _ActionTile(
-              icon: Icons.work_outline_rounded,
-              label: 'Profession',
-              onTap: () => Navigator.push(
-                context,
-                slideFadeRoute(const ProviderProfessionPage()),
               ),
             ),
             const SizedBox(height: 10),
@@ -159,9 +152,9 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
             const SizedBox(height: 16),
             Text(
               'General preferences',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(color: Theme.of(context).colorScheme.onSurface),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 10),
             _ActionTile(
@@ -195,7 +188,9 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
                     height: 34,
                     width: 34,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.1),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
@@ -217,7 +212,9 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
                       return Switch(
                         value: themeMode == ThemeMode.dark,
                         onChanged: (value) => AppState.toggleTheme(),
-                        activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                        activeTrackColor: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.5),
                         activeThumbColor: Theme.of(context).colorScheme.primary,
                       );
                     },
@@ -226,53 +223,10 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
               ),
             ),
             const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Theme.of(context).dividerColor),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.swap_horiz_rounded,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Switch to finder mode',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ),
-                  ValueListenableBuilder<AppRole>(
-                    valueListenable: AppRoleState.role,
-                    builder: (context, role, _) {
-                      return Switch(
-                        value: role == AppRole.provider,
-                        onChanged: (value) async {
-                          if (value) return;
-                          final error = await AuthState.switchRole(
-                            toProvider: false,
-                          );
-                          if (!context.mounted) return;
-                          if (error != null) {
-                            AppToast.warning(context, error);
-                            return;
-                          }
-                          Navigator.of(context).pushAndRemoveUntil(
-                            slideFadeRoute(const MainShellPage()),
-                            (route) => false,
-                          );
-                        },
-                        activeTrackColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-                        activeThumbColor: Theme.of(context).colorScheme.primary,
-                      );
-                    },
-                  ),
-                ],
-              ),
+            RoleModeCard(
+              isProvider: true,
+              isSwitching: _switchingRole,
+              onSwitch: _switchingRole ? null : _switchToFinder,
             ),
             const SizedBox(height: 14),
             PressableScale(
@@ -304,6 +258,22 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _switchToFinder() async {
+    if (_switchingRole) return;
+    setState(() => _switchingRole = true);
+    final error = await AuthState.switchRole(toProvider: false);
+    if (!mounted) return;
+    setState(() => _switchingRole = false);
+    if (error != null) {
+      AppToast.warning(context, error);
+      return;
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      slideFadeRoute(const MainShellPage()),
+      (route) => false,
     );
   }
 
@@ -340,7 +310,10 @@ class _ProviderHero extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary.withValues(alpha: 0.8)],
+          colors: [
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -399,27 +372,25 @@ class _ProviderHero extends StatelessWidget {
                           profile.name.trim().isEmpty
                               ? 'Provider'
                               : profile.name.trim(),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            shadows: const [
-                              Shadow(
-                                color: Color(0x66000000),
-                                blurRadius: 6,
-                                offset: Offset(0, 1),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                shadows: const [
+                                  Shadow(
+                                    color: Color(0x66000000),
+                                    blurRadius: 6,
+                                    offset: Offset(0, 1),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
                         ),
                         ValueListenableBuilder<bool>(
-                          valueListenable: ProfileSettingsState.providerVerified,
+                          valueListenable:
+                              ProfileSettingsState.providerVerified,
                           builder: (context, isVerified, _) {
                             if (!isVerified) return const SizedBox.shrink();
-                            return const Icon(
-                              Icons.verified_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            );
+                            return const VerifiedBadge(size: 11, onDark: true);
                           },
                         ),
                         ValueListenableBuilder<SubscriptionStatus>(
@@ -428,9 +399,7 @@ class _ProviderHero extends StatelessWidget {
                             if (status.tier == SubscriptionTier.basic) {
                               return const SizedBox.shrink();
                             }
-                            return SubscriptionBadge(
-                              tier: status.tier,
-                            );
+                            return SubscriptionBadge(tier: status.tier);
                           },
                         ),
                       ],
@@ -537,10 +506,16 @@ class _ActionTile extends StatelessWidget {
                 height: 34,
                 width: 34,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.1),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 19),
+                child: Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 19,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(child: Text(label)),

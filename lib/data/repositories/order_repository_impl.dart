@@ -35,7 +35,7 @@ class OrderRepositoryImpl implements OrderRepository {
       'addressMapLink': draft.address?.mapLink ?? '',
       'preferredDate': draft.preferredDate.toIso8601String(),
       'preferredTimeSlot': draft.preferredTimeSlot,
-      'homeType': _homeTypeToStorage(draft.homeType),
+      'homeType': _houseTypeFromServiceFields(draft.serviceFields),
       'additionalService': draft.additionalService,
       'finderNote': draft.additionalService,
       'serviceFields': draft.serviceFields,
@@ -231,6 +231,7 @@ class OrderRepositoryImpl implements OrderRepository {
     final preferredDate = _toDateTime(row['preferredDate']);
     final bookedAt = _toDateTime(row['createdAt']);
     final timeline = _timelineFromRow(row, fallbackBookedAt: bookedAt);
+    final serviceFields = _safeMap(row['serviceFields']);
     return OrderItem(
       id: (row['id'] ?? '').toString(),
       provider: provider,
@@ -238,6 +239,7 @@ class OrderRepositoryImpl implements OrderRepository {
       address: address,
       homeType: _homeTypeFromStorage((row['homeType'] ?? '').toString()),
       additionalService: (row['additionalService'] ?? '').toString(),
+      serviceFields: serviceFields,
       bookedAt: bookedAt,
       scheduledAt: preferredDate,
       timeRange: (row['preferredTimeSlot'] ?? '').toString(),
@@ -501,17 +503,8 @@ class OrderRepositoryImpl implements OrderRepository {
     return value.whereType<Map>().map(_safeMap).toList(growable: false);
   }
 
-  String _homeTypeToStorage(HomeType value) {
-    switch (value) {
-      case HomeType.apartment:
-        return 'apartment';
-      case HomeType.flat:
-        return 'flat';
-      case HomeType.villa:
-        return 'villa';
-      case HomeType.office:
-        return 'office';
-    }
+  String _houseTypeFromServiceFields(Map<String, dynamic> fields) {
+    return (fields['houseType'] ?? '').toString().trim();
   }
 
   HomeType _homeTypeFromStorage(String value) {

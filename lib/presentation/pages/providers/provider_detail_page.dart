@@ -18,6 +18,7 @@ import '../../widgets/app_state_panel.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../../widgets/subscription_badge.dart';
+import '../../widgets/verified_badge.dart';
 import '../booking/booking_address_page.dart';
 import '../chat/chat_conversation_page.dart';
 import '../chat/chat_list_page.dart';
@@ -38,7 +39,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   _ProviderContentTab _contentTab = _ProviderContentTab.companyInfo;
   ReviewRange _reviewRange = ReviewRange.last120;
   ProviderReviewSummary? _reviewSummary;
-  ProviderPostItem? _providerPost;
+  List<ProviderPostItem> _providerPosts = const [];
   bool _loadingReviews = false;
   bool _loadingProfile = true;
 
@@ -54,10 +55,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   Future<void> _loadData() async {
     setState(() => _loadingProfile = true);
     try {
-      await Future.wait([
-        _loadProviderReviews(),
-        _loadProviderPost(),
-      ]);
+      await Future.wait([_loadProviderReviews(), _loadProviderPosts()]);
     } finally {
       if (mounted) setState(() => _loadingProfile = false);
     }
@@ -67,11 +65,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     await _loadData();
   }
 
-  Future<void> _loadProviderPost() async {
+  Future<void> _loadProviderPosts() async {
     final uid = widget.provider.uid.trim();
     if (uid.isEmpty) return;
-    final matched = await ProviderPostState.findLatestByUid(uid);
-    if (mounted) setState(() => _providerPost = matched);
+    final matched = await ProviderPostState.findAllByUid(uid);
+    if (mounted) setState(() => _providerPosts = matched);
   }
 
   @override
@@ -90,7 +88,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     final profile = _buildProfile(
       widget.provider,
       summary: _reviewSummary,
-      matched: _providerPost,
+      matchedPosts: _providerPosts,
       heroTag: widget.heroTag,
     );
     final reviews = _reviewsByRange(profile.reviews, _reviewRange);
@@ -110,9 +108,12 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                     builder: (context, favorites, _) {
                       final isFav = favorites.contains(widget.provider.uid);
                       return IconButton(
-                        onPressed: () => FavoriteState.toggleFavorite(widget.provider.uid),
+                        onPressed: () =>
+                            FavoriteState.toggleFavorite(widget.provider.uid),
                         icon: Icon(
-                          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          isFav
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
                           color: isFav ? AppColors.danger : AppColors.primary,
                         ),
                       );
@@ -133,8 +134,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             ),
             Container(height: 1, color: AppColors.divider),
             Expanded(
-              child: _loadingProfile && _providerPost == null
-                  ? const Center(child: AppStatePanel.loading(title: 'Loading profile'))
+              child: _loadingProfile && _providerPosts.isEmpty
+                  ? const Center(
+                      child: AppStatePanel.loading(title: 'Loading profile'),
+                    )
                   : RefreshIndicator(
                       onRefresh: _handleRefresh,
                       color: AppColors.primary,
@@ -152,12 +155,14 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                               context,
                               slideFadeRoute(
                                 BookingAddressPage(
-                                  draft: BookingCatalogState.defaultBookingDraft(
-                                    provider: profile.provider,
-                                    serviceName: profile.provider.services.isNotEmpty
-                                        ? profile.provider.services.first
-                                        : null,
-                                  ),
+                                  draft:
+                                      BookingCatalogState.defaultBookingDraft(
+                                        provider: profile.provider,
+                                        serviceName:
+                                            profile.provider.services.isNotEmpty
+                                            ? profile.provider.services.first
+                                            : null,
+                                      ),
                                 ),
                               ),
                             ),
@@ -168,7 +173,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                           const SizedBox(height: 12),
                           _ContentTabs(
                             activeTab: _contentTab,
-                            onChanged: (tab) => setState(() => _contentTab = tab),
+                            onChanged: (tab) =>
+                                setState(() => _contentTab = tab),
                           ),
                           const SizedBox(height: 12),
                           if (_contentTab == _ProviderContentTab.companyInfo)
@@ -305,30 +311,27 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   ProviderProfile _buildProfile(
     ProviderItem provider, {
     ProviderReviewSummary? summary,
-    ProviderPostItem? matched,
+    List<ProviderPostItem> matchedPosts = const [],
     String? heroTag,
   }) {
     final providerUid = provider.uid.trim().toLowerCase();
     final providerName = provider.name.trim().toLowerCase();
-    final providerCategory = provider.role.trim().toLowerCase();
 
-    // If matched is null, try to find from cached state as fallback
-    var finalMatched = matched;
-    if (finalMatched == null) {
-      final allPosts = ProviderPostState.allPosts.value;
-      final posts = allPosts.isNotEmpty ? allPosts : ProviderPostState.posts.value;
-      for (final post in posts) {
+    // Aggregate all relevant posts
+    final posts = <ProviderPostItem>[...matchedPosts];
+    if (posts.isEmpty) {
+      final allCached = ProviderPostState.allPosts.value;
+      final cachedList = allCached.isNotEmpty
+          ? allCached
+          : ProviderPostState.posts.value;
+      for (final post in cachedList) {
         final sameUid =
             providerUid.isNotEmpty &&
             providerUid == post.providerUid.trim().toLowerCase();
         final sameName = providerName == post.providerName.trim().toLowerCase();
         if (!sameUid && !sameName) continue;
-        if (providerCategory.isNotEmpty &&
-            post.category.trim().toLowerCase() != providerCategory) {
-          continue;
-        }
-        finalMatched = post;
-        break;
+
+        posts.add(post);
       }
     }
 
@@ -336,43 +339,82 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       ...provider.services
           .map((item) => item.trim())
           .where((item) => item.isNotEmpty),
-      if (finalMatched != null)
-        ...finalMatched.serviceList.map((service) => service.trim())
+      for (final post in posts)
+        ...post.serviceList
+            .map((service) => service.trim())
             .where((item) => item.isNotEmpty),
     }.toList(growable: false)..sort();
+
+    final portfolioPhotos = <String>{
+      ...provider.portfolioPhotos,
+      for (final post in posts) ...post.portfolioPhotos,
+    }.toList(growable: false);
 
     final hasProviderUid = provider.uid.trim().isNotEmpty;
     final averageRating = (summary?.averageRating ?? 0) > 0
         ? summary!.averageRating
         : provider.rating;
 
+    // Use latest post for primary details like location/availability
+    ProviderPostItem? latestPost;
+    for (final post in posts) {
+      if (latestPost == null) {
+        latestPost = post;
+        continue;
+      }
+      final latestAt =
+          latestPost.updatedAt ??
+          latestPost.createdAt ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final currentAt =
+          post.updatedAt ??
+          post.createdAt ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      if (currentAt.isAfter(latestAt)) {
+        latestPost = post;
+      }
+    }
+
     final mergedProvider = ProviderItem(
       uid: provider.uid,
       name: provider.name,
       role: provider.role,
+      bio: provider.bio.trim().isNotEmpty
+          ? provider.bio
+          : (latestPost?.providerBio ?? ''),
       rating: averageRating,
-      imagePath: provider.imagePath,
+      imagePath: provider.imagePath.trim().isNotEmpty
+          ? provider.imagePath
+          : (latestPost?.avatarPath ?? ''),
       accentColor: provider.accentColor,
       services: services,
+      isVerified: provider.isVerified || (latestPost?.isVerified ?? false),
+      subscriptionTier:
+          provider.subscriptionTier.trim().toLowerCase() != 'basic'
+          ? provider.subscriptionTier
+          : (latestPost?.subscriptionTier ?? provider.subscriptionTier),
+      latitude: provider.latitude ?? latestPost?.latitude,
+      longitude: provider.longitude ?? latestPost?.longitude,
       blockedDates: provider.blockedDates,
-      portfolioPhotos: finalMatched?.portfolioPhotos ?? provider.portfolioPhotos,
+      portfolioPhotos: portfolioPhotos,
     );
 
     return ProviderProfile(
       provider: mergedProvider,
-      location: finalMatched?.area.trim().isNotEmpty == true
-          ? finalMatched!.area.trim()
+      location: latestPost?.area.trim().isNotEmpty == true
+          ? latestPost!.area.trim()
           : 'Phnom Penh, Cambodia',
-      available: finalMatched?.availableNow ?? true,
+      available: latestPost?.availableNow ?? true,
       completedJobs: summary?.completedJobs ?? (hasProviderUid ? 0 : 42),
-      about: provider.bio.trim().isNotEmpty 
+      about: provider.bio.trim().isNotEmpty
           ? provider.bio.trim()
-          : (finalMatched?.details.trim().isNotEmpty == true
-              ? finalMatched!.details.trim()
-              : 'Trusted service provider ready to help with fast and quality work.'),
+          : (latestPost?.details.trim().isNotEmpty == true
+                ? latestPost!.details.trim()
+                : 'Trusted service provider ready to help with fast and quality work.'),
       reviews:
           summary?.reviews ??
           (hasProviderUid ? const [] : _seedReviews(provider)),
+      portfolioPhotos: portfolioPhotos,
       heroTag: heroTag,
     );
   }
@@ -454,7 +496,9 @@ class _ProviderSummaryCard extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 18,
                   backgroundColor: AppColors.background,
-                  backgroundImage: imagePath.isNotEmpty ? safeImageProvider(imagePath) : null,
+                  backgroundImage: imagePath.isNotEmpty
+                      ? safeImageProvider(imagePath)
+                      : null,
                   child: imagePath.isEmpty
                       ? const Icon(
                           Icons.person_rounded,
@@ -473,7 +517,18 @@ class _ProviderSummaryCard extends StatelessWidget {
                   ).textTheme.titleMedium?.copyWith(color: AppColors.primary),
                 ),
               ),
-              SubscriptionBadge.fromString(profile.provider.subscriptionTier),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (profile.provider.isVerified)
+                    const VerifiedBadge(size: 11),
+                  SubscriptionBadge.fromString(
+                    profile.provider.subscriptionTier,
+                  ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -625,9 +680,7 @@ class _ContentTabs extends StatelessWidget {
 
     return Container(
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
       ),
       child: Row(
         children: [
@@ -653,7 +706,11 @@ class _PortfolioSection extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.xxl),
           child: Column(
             children: [
-              Icon(Icons.photo_library_outlined, size: 48, color: AppColors.textSecondary.withValues(alpha: 0.3)),
+              Icon(
+                Icons.photo_library_outlined,
+                size: 48,
+                color: AppColors.textSecondary.withValues(alpha: 0.3),
+              ),
               const SizedBox(height: 12),
               Text(
                 'No portfolio photos yet',
@@ -671,21 +728,56 @@ class _PortfolioSection extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
         childAspectRatio: 1,
       ),
       itemCount: photos.length,
       itemBuilder: (context, index) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SafeImage(
-            source: photos[index],
-            fit: BoxFit.cover,
+        final photo = photos[index];
+        return GestureDetector(
+          onTap: () => _showFullscreenImage(context, photo),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SafeImage(source: photo, fit: BoxFit.cover),
           ),
         );
       },
+    );
+  }
+
+  void _showFullscreenImage(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      useSafeArea: false,
+      builder: (context) => Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: SafeImage(
+                  source: url,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -701,10 +793,7 @@ class _CompanyInfoSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Text(content, style: Theme.of(context).textTheme.bodyMedium),
       ],
@@ -797,7 +886,7 @@ class _ReviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final photoUrl = review.reviewerPhotoUrl.trim();
     final hasPhoto = photoUrl.isNotEmpty;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -860,7 +949,11 @@ class _ReviewCard extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.star_rounded, size: 18, color: Color(0xFFF59E0B)),
+                  const Icon(
+                    Icons.star_rounded,
+                    size: 18,
+                    color: Color(0xFFF59E0B),
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     review.rating.toStringAsFixed(1),
@@ -915,7 +1008,6 @@ class _ReviewCard extends StatelessWidget {
       ),
     );
   }
-
 
   String _reviewTimestamp(ProviderReview review) {
     final reviewedAt = review.reviewedAt;

@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/firebase/firebase_storage_service.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../state/profile_settings_state.dart';
 import '../../widgets/app_top_bar.dart';
@@ -14,7 +16,8 @@ class ProviderVerificationPage extends StatefulWidget {
   const ProviderVerificationPage({super.key});
 
   @override
-  State<ProviderVerificationPage> createState() => _ProviderVerificationPageState();
+  State<ProviderVerificationPage> createState() =>
+      _ProviderVerificationPageState();
 }
 
 class _ProviderVerificationPageState extends State<ProviderVerificationPage> {
@@ -24,7 +27,10 @@ class _ProviderVerificationPageState extends State<ProviderVerificationPage> {
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _pickImage(bool isFront) async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
     if (picked != null) {
       setState(() {
         if (isFront) {
@@ -38,17 +44,68 @@ class _ProviderVerificationPageState extends State<ProviderVerificationPage> {
 
   Future<void> _submit() async {
     if (_idFrontPath == null || _idBackPath == null) {
-      AppToast.warning(context, 'Please upload both front and back of your ID.');
+      AppToast.warning(
+        context,
+        'Please upload both front and back of your ID.',
+      );
       return;
     }
 
     setState(() => _submitting = true);
-    await Future.delayed(const Duration(seconds: 2)); // Simulate upload
-    
+    try {
+      final frontBytes = await XFile(_idFrontPath!).readAsBytes();
+      final backBytes = await XFile(_idBackPath!).readAsBytes();
+      final frontUrl = await _uploadKycSide(
+        bytes: frontBytes,
+        localPath: _idFrontPath!,
+        side: 'front',
+      );
+      final backUrl = await _uploadKycSide(
+        bytes: backBytes,
+        localPath: _idBackPath!,
+        side: 'back',
+      );
+      if (frontUrl == null || backUrl == null) {
+        throw Exception('upload_failed');
+      }
+      await ProfileSettingsState.submitProviderVerification(
+        idFrontUrl: frontUrl,
+        idBackUrl: backUrl,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      AppToast.warning(context, 'Unable to submit verification right now.');
+      return;
+    }
+
     if (!mounted) return;
-    ProfileSettingsState.providerVerified.value = true;
-    AppToast.success(context, 'Verification documents submitted! You are now verified.');
+    setState(() => _submitting = false);
+    AppToast.success(
+      context,
+      'Verification documents submitted. Your KYC is now pending review.',
+    );
     Navigator.pop(context);
+  }
+
+  Future<String?> _uploadKycSide({
+    required Uint8List bytes,
+    required String localPath,
+    required String side,
+  }) {
+    final extension = _fileExtension(localPath);
+    return FirebaseStorageService.uploadProviderKycDocument(
+      bytes,
+      side: side,
+      extension: extension,
+    );
+  }
+
+  String _fileExtension(String path) {
+    final normalized = path.trim().toLowerCase();
+    final dotIndex = normalized.lastIndexOf('.');
+    if (dotIndex == -1 || dotIndex == normalized.length - 1) return 'jpg';
+    return normalized.substring(dotIndex + 1);
   }
 
   @override
@@ -80,7 +137,9 @@ class _ProviderVerificationPageState extends State<ProviderVerificationPage> {
               ),
               const Spacer(),
               PrimaryButton(
-                label: _submitting ? 'Submitting...' : 'Submit for Verification',
+                label: _submitting
+                    ? 'Submitting...'
+                    : 'Submit for Verification',
                 onPressed: _submitting ? null : _submit,
               ),
             ],
@@ -123,9 +182,16 @@ class _UploadBox extends StatelessWidget {
                 : const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.add_a_photo_outlined, color: AppColors.textSecondary, size: 32),
+                      Icon(
+                        Icons.add_a_photo_outlined,
+                        color: AppColors.textSecondary,
+                        size: 32,
+                      ),
                       SizedBox(height: 8),
-                      Text('Tap to upload', style: TextStyle(color: AppColors.textSecondary)),
+                      Text(
+                        'Tap to upload',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
                     ],
                   ),
           ),

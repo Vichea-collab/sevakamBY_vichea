@@ -1,40 +1,16 @@
 {
-  "generic": [
-    {
-      "key": "issueSummary",
-      "label": "Issue summary",
-      "type": "multiline",
-      "required": true
-    },
-    {
-      "key": "urgent",
-      "label": "Urgent request",
-      "type": "toggle"
-    },
-    {
-      "key": "photo",
-      "label": "Upload photo",
-      "type": "photo"
-    }
-  ],
+  "generic": [],
   "services": {
-    "Pipe Leak Repair": [
+    "Pipe leaks": [
       {
-        "key": "locationOfLeak",
-        "label": "Location of leak",
+        "key": "leakLocation",
+        "label": "Leak location",
         "type": "text",
         "required": true
       },
       {
-        "key": "pipeType",
-        "label": "Pipe type",
-        "type": "dropdown",
-        "required": true,
-        "options": ["PVC", "Metal", "Unknown"]
-      },
-      {
-        "key": "severity",
-        "label": "Severity",
+        "key": "leakSeverity",
+        "label": "Leak severity",
         "type": "dropdown",
         "required": true,
         "options": ["Small", "Medium", "Burst"]
@@ -42,12 +18,18 @@
       {
         "key": "waterStillRunning",
         "label": "Water still running",
-        "type": "toggle"
+        "type": "toggle",
+        "required": true
       },
       {
         "key": "photo",
         "label": "Upload photo",
         "type": "photo"
+      },
+      {
+        "key": "notes",
+        "label": "Notes",
+        "type": "multiline"
       }
     ],
     "Toilet Repair": [
@@ -68,7 +50,8 @@
       {
         "key": "waterOverflowing",
         "label": "Water overflowing",
-        "type": "toggle"
+        "type": "toggle",
+        "required": true
       },
       {
         "key": "photo",
@@ -87,20 +70,19 @@
         "label": "Installation type",
         "type": "dropdown",
         "required": true,
-        "options": ["Sink", "Shower", "Pipe", "Tank"]
+        "options": ["Sink", "Shower", "Pipe", "Tank", "Faucet"]
       },
       {
-        "key": "numberOfPoints",
-        "label": "Number of points",
+        "key": "quantity",
+        "label": "Quantity",
         "type": "number",
         "required": true
       },
       {
-        "key": "materialProvidedBy",
-        "label": "Material provided by",
-        "type": "dropdown",
-        "required": true,
-        "options": ["Customer", "Technician"]
+        "key": "materialReady",
+        "label": "Material ready",
+        "type": "toggle",
+        "required": true
       },
       {
         "key": "photo",
@@ -115,31 +97,27 @@
     ],
     "Wiring Repair": [
       {
-        "key": "problemDescription",
-        "label": "Problem description",
-        "type": "multiline",
-        "required": true
-      },
-      {
-        "key": "areaAffected",
-        "label": "Area affected",
+        "key": "affectedArea",
+        "label": "Affected area",
         "type": "text",
         "required": true
       },
       {
-        "key": "sparksOrBurnSmell",
-        "label": "Sparks or burn smell",
-        "type": "toggle"
-      },
-      {
-        "key": "powerTurnedOff",
-        "label": "Power turned off",
-        "type": "toggle"
+        "key": "powerStatus",
+        "label": "Power status",
+        "type": "dropdown",
+        "required": true,
+        "options": ["Partial outage", "Full outage", "Sparks", "Burning smell"]
       },
       {
         "key": "photo",
         "label": "Upload photo",
         "type": "photo"
+      },
+      {
+        "key": "notes",
+        "label": "Notes",
+        "type": "multiline"
       }
     ],
     "Light / Fan Installation": [
@@ -157,21 +135,26 @@
         "required": true
       },
       {
-        "key": "ceilingType",
-        "label": "Ceiling type",
-        "type": "dropdown",
-        "required": true,
-        "options": ["Concrete", "Wood", "Gypsum"]
+        "key": "deviceReady",
+        "label": "Device ready",
+        "type": "toggle",
+        "required": true
       },
       {
-        "key": "deviceProvided",
-        "label": "Device provided",
-        "type": "toggle"
+        "key": "installationPointReady",
+        "label": "Installation point ready",
+        "type": "toggle",
+        "required": true
       },
       {
         "key": "photo",
         "label": "Upload photo",
         "type": "photo"
+      },
+      {
+        "key": "notes",
+        "label": "Notes",
+        "type": "multiline"
       }
     ],
     "Power Outage Fixes": [
@@ -180,22 +163,27 @@
         "label": "Outage scope",
         "type": "dropdown",
         "required": true,
-        "options": ["One room", "Whole house"]
+        "options": ["One room", "Multiple rooms", "Whole house", "Whole office"]
       },
       {
-        "key": "breakerTripped",
-        "label": "Breaker tripped",
-        "type": "toggle"
+        "key": "affectedRoomCount",
+        "label": "Affected room count",
+        "type": "number"
       },
       {
-        "key": "neighborsAffected",
-        "label": "Neighbors affected",
+        "key": "circuitBreakerChecked",
+        "label": "Circuit breaker checked",
         "type": "toggle"
       },
       {
         "key": "photo",
         "label": "Upload photo",
         "type": "photo"
+      },
+      {
+        "key": "notes",
+        "label": "Notes",
+        "type": "multiline"
       }
     ],
     "House Cleaning": [
@@ -204,25 +192,25 @@
         "label": "House type",
         "type": "dropdown",
         "required": true,
-        "options": ["Apartment", "Villa", "Room"]
+        "options": ["Apartment", "Villa", "Room", "House"]
+      },
+      {
+        "key": "roomCount",
+        "label": "Room count",
+        "type": "number",
+        "required": true
       },
       {
         "key": "cleaningLevel",
         "label": "Cleaning level",
         "type": "dropdown",
         "required": true,
-        "options": ["Light", "Normal", "Deep"]
+        "options": ["Basic", "Deep Cleaning", "Heavy Dirt"]
       },
       {
-        "key": "numberOfRooms",
-        "label": "Number of rooms",
-        "type": "number",
-        "required": true
-      },
-      {
-        "key": "petsAtHome",
-        "label": "Pets at home",
-        "type": "toggle"
+        "key": "notes",
+        "label": "Notes",
+        "type": "multiline"
       }
     ],
     "Office Cleaning": [
@@ -234,17 +222,16 @@
         "options": ["Small", "Medium", "Large"]
       },
       {
-        "key": "numberOfRooms",
-        "label": "Number of rooms",
-        "type": "number",
-        "required": true
-      },
-      {
-        "key": "frequency",
-        "label": "Frequency",
+        "key": "cleaningType",
+        "label": "Cleaning type",
         "type": "dropdown",
         "required": true,
-        "options": ["One-time", "Weekly", "Monthly"]
+        "options": ["Regular", "Deep Cleaning", "Post-event"]
+      },
+      {
+        "key": "floorCount",
+        "label": "Floor count",
+        "type": "number"
       },
       {
         "key": "notes",
@@ -253,6 +240,13 @@
       }
     ],
     "Move-in / Move-out Cleaning": [
+      {
+        "key": "houseType",
+        "label": "House type",
+        "type": "dropdown",
+        "required": true,
+        "options": ["Apartment", "House", "Room", "Office"]
+      },
       {
         "key": "propertySize",
         "label": "Property size",
@@ -263,7 +257,8 @@
       {
         "key": "furnished",
         "label": "Furnished",
-        "type": "toggle"
+        "type": "toggle",
+        "required": true
       },
       {
         "key": "heavyStains",
@@ -282,24 +277,29 @@
         "label": "AC type",
         "type": "dropdown",
         "required": true,
-        "options": ["Split", "Window", "Cassette"]
+        "options": ["Split", "Window", "Cassette", "Standing"]
       },
       {
         "key": "problemType",
         "label": "Problem type",
         "type": "dropdown",
         "required": true,
-        "options": ["Not cooling", "Leaking", "No power"]
+        "options": ["Not cooling", "Leaking", "No power", "Strange noise"]
       },
       {
-        "key": "lastServiceDate",
-        "label": "Last service date",
+        "key": "brand",
+        "label": "Brand",
         "type": "text"
       },
       {
         "key": "photo",
         "label": "Upload photo",
         "type": "photo"
+      },
+      {
+        "key": "notes",
+        "label": "Notes",
+        "type": "multiline"
       }
     ],
     "Washing Machine Repair": [
@@ -308,20 +308,19 @@
         "label": "Machine type",
         "type": "dropdown",
         "required": true,
-        "options": ["Front load", "Top load"]
+        "options": ["Front Load", "Top Load"]
       },
       {
         "key": "problemType",
         "label": "Problem type",
         "type": "dropdown",
         "required": true,
-        "options": ["Not spinning", "Leaking", "No power"]
+        "options": ["Not spinning", "Leaking", "No power", "Not draining"]
       },
       {
         "key": "brand",
         "label": "Brand",
-        "type": "text",
-        "required": true
+        "type": "text"
       },
       {
         "key": "photo",
@@ -340,18 +339,12 @@
         "label": "Problem type",
         "type": "dropdown",
         "required": true,
-        "options": ["Not cold", "Freezer issue", "Noise"]
+        "options": ["Not cold", "Freezer issue", "Water leaking", "Strange noise"]
       },
       {
         "key": "brand",
         "label": "Brand",
-        "type": "text",
-        "required": true
-      },
-      {
-        "key": "powerOn",
-        "label": "Power on",
-        "type": "toggle"
+        "type": "text"
       },
       {
         "key": "photo",
@@ -366,18 +359,18 @@
     ],
     "Door & Window Repair": [
       {
-        "key": "materialType",
-        "label": "Material type",
+        "key": "itemType",
+        "label": "Item type",
         "type": "dropdown",
         "required": true,
-        "options": ["Wood", "Aluminum", "Glass"]
+        "options": ["Door", "Window", "Both"]
       },
       {
         "key": "problemType",
         "label": "Problem type",
         "type": "dropdown",
         "required": true,
-        "options": ["Broken", "Hard to open", "Off hinge"]
+        "options": ["Broken", "Hard to open", "Off hinge", "Lock issue"]
       },
       {
         "key": "quantity",
@@ -402,7 +395,7 @@
         "label": "Furniture type",
         "type": "dropdown",
         "required": true,
-        "options": ["Bed", "Table", "Chair", "Cabinet"]
+        "options": ["Bed", "Table", "Chair", "Cabinet", "Sofa"]
       },
       {
         "key": "problemType",
@@ -434,14 +427,7 @@
         "label": "Installation type",
         "type": "dropdown",
         "required": true,
-        "options": ["Shelf", "Curtain rod"]
-      },
-      {
-        "key": "wallType",
-        "label": "Wall type",
-        "type": "dropdown",
-        "required": true,
-        "options": ["Concrete", "Gypsum", "Wood"]
+        "options": ["Shelf", "Curtain rod", "Both"]
       },
       {
         "key": "quantity",
@@ -450,9 +436,16 @@
         "required": true
       },
       {
-        "key": "itemProvided",
-        "label": "Item provided",
-        "type": "toggle"
+        "key": "itemReady",
+        "label": "Item ready",
+        "type": "toggle",
+        "required": true
+      },
+      {
+        "key": "wallType",
+        "label": "Wall type",
+        "type": "dropdown",
+        "options": ["Concrete", "Wood", "Unknown"]
       },
       {
         "key": "photo",

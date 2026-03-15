@@ -6,7 +6,9 @@ Path: users/{userId}
 - email: String
 - role: String (e.g., 'finder', 'provider', 'admin')
 - photoUrl: String
+- lastActiveAt: Timestamp
 - createdAt: Timestamp
+- updatedAt: Timestamp
 
 Sub-collections:
 Notifications

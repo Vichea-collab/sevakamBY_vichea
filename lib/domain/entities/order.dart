@@ -53,7 +53,8 @@ class BookingFieldDef {
       label: map['label'].toString(),
       type: _parseFieldType(map['type'].toString()),
       required: map['required'] == true,
-      options: (map['options'] as List?)?.map((e) => e.toString()).toList() ??
+      options:
+          (map['options'] as List?)?.map((e) => e.toString()).toList() ??
           const [],
     );
   }
@@ -150,6 +151,7 @@ class OrderItem {
   final HomeAddress address;
   final HomeType homeType;
   final String additionalService;
+  final Map<String, dynamic>? _serviceFields;
   final DateTime bookedAt;
   final DateTime scheduledAt;
   final String timeRange;
@@ -167,6 +169,7 @@ class OrderItem {
     required this.address,
     required this.homeType,
     required this.additionalService,
+    Map<String, dynamic>? serviceFields = const {},
     required this.bookedAt,
     required this.scheduledAt,
     required this.timeRange,
@@ -176,7 +179,9 @@ class OrderItem {
     this.photoUrls = const [],
     this.reviewedAt,
     this.timeline = const OrderStatusTimeline(),
-  });
+  }) : _serviceFields = serviceFields;
+
+  Map<String, dynamic> get serviceFields => _serviceFields ?? const {};
 
   OrderItem copyWith({
     OrderStatus? status,
@@ -185,6 +190,7 @@ class OrderItem {
     List<String>? photoUrls,
     DateTime? reviewedAt,
     OrderStatusTimeline? timeline,
+    Map<String, dynamic>? serviceFields,
   }) {
     return OrderItem(
       id: id,
@@ -193,6 +199,7 @@ class OrderItem {
       address: address,
       homeType: homeType,
       additionalService: additionalService,
+      serviceFields: serviceFields ?? this.serviceFields,
       bookedAt: bookedAt,
       scheduledAt: scheduledAt,
       timeRange: timeRange,

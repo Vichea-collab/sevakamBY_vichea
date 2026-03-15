@@ -181,7 +181,7 @@ class _NotificationMessengerSheetState
 
   Widget _buildConversation() {
     final thread = _activeThread!;
-    final status = _activityStatus(thread.updatedAt);
+    final status = _activityStatus(thread.lastActiveAt);
     return Column(
       children: [
         Padding(
@@ -320,16 +320,24 @@ class _NotificationMessengerSheetState
   }
 
   ({String label, Color color}) _activityStatus(DateTime lastActiveAt) {
-    final delta = DateTime.now().difference(lastActiveAt.toLocal());
-    if (delta.inMinutes < 5) {
+    final local = lastActiveAt.toLocal();
+    if (local.year < 2010) {
+      return (label: 'Offline', color: const Color(0xFF94A3B8));
+    }
+    final delta = DateTime.now().difference(local);
+    if (delta.inMinutes < 2) {
       return (label: 'Active now', color: AppColors.success);
     }
     const inactiveColor = Color(0xFF94A3B8);
     if (delta.inHours < 1) {
-      return (label: 'Active ${delta.inMinutes}m ago', color: inactiveColor);
+      final minutes = delta.inMinutes <= 0 ? 1 : delta.inMinutes;
+      final unit = minutes == 1 ? 'min' : 'mins';
+      return (label: 'Active $minutes $unit ago', color: inactiveColor);
     }
     if (delta.inDays < 1) {
-      return (label: 'Active ${delta.inHours}h ago', color: inactiveColor);
+      final hours = delta.inHours;
+      final unit = hours == 1 ? 'hr' : 'hrs';
+      return (label: 'Active $hours $unit ago', color: inactiveColor);
     }
     return (label: 'Active ${delta.inDays}d ago', color: inactiveColor);
   }
@@ -348,7 +356,8 @@ class _MessengerThreadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isActive = DateTime.now().difference(thread.lastActiveAt.toLocal()).inMinutes < 5;
+    final isActive =
+        DateTime.now().difference(thread.lastActiveAt.toLocal()).inMinutes < 5;
     return PressableScale(
       onTap: onTap,
       child: InkWell(
@@ -383,7 +392,9 @@ class _MessengerThreadTile extends StatelessWidget {
                       width: 12,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: isActive ? AppColors.success : const Color(0xFFCBD5E1),
+                        color: isActive
+                            ? AppColors.success
+                            : const Color(0xFFCBD5E1),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
@@ -438,7 +449,10 @@ class _MessengerThreadTile extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [accentColor, accentColor.withValues(alpha: 0.85)],
+                          colors: [
+                            accentColor,
+                            accentColor.withValues(alpha: 0.85),
+                          ],
                         ),
                         borderRadius: BorderRadius.circular(10),
                         boxShadow: [
@@ -492,19 +506,22 @@ class _MessengerBubble extends StatelessWidget {
     return Align(
       alignment: fromMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
-        crossAxisAlignment:
-            fromMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: fromMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Container(
             margin: const EdgeInsets.only(bottom: 4),
             constraints: const BoxConstraints(maxWidth: 280),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
-              gradient: fromMe ? LinearGradient(
-                colors: [accentColor, accentColor.withValues(alpha: 0.9)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ) : null,
+              gradient: fromMe
+                  ? LinearGradient(
+                      colors: [accentColor, accentColor.withValues(alpha: 0.9)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
               color: fromMe ? null : const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(18),

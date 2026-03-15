@@ -76,134 +76,137 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
                       MainShellPage.activeTab.value = AppBottomTab.home;
                     },
                     child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        children: [
-                          AppTopBar(
-                            title: 'My Bookings',
-                            showBack: true,
-                            onBack: () {
-                              if (Navigator.canPop(context)) {
-                                Navigator.pop(context);
-                              } else {
-                                MainShellPage.activeTab.value = AppBottomTab.home;
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Column(
+                          children: [
+                            AppTopBar(
+                              title: 'My Bookings',
+                              showBack: true,
+                              onBack: () {
+                                if (Navigator.canPop(context)) {
+                                  Navigator.pop(context);
+                                } else {
+                                  MainShellPage.activeTab.value =
+                                      AppBottomTab.home;
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
                                 _TabChip(
                                   label: 'Booked',
                                   active: _activeTab == _FinderOrderTab.pending,
-                                onTap: () =>
-                                    _onTabSelected(_FinderOrderTab.pending),
-                              ),
-                              const SizedBox(width: 8),
-                              _TabChip(
-                                label: 'In Progress',
-                                active:
-                                    _activeTab == _FinderOrderTab.inProgress,
-                                onTap: () =>
-                                    _onTabSelected(_FinderOrderTab.inProgress),
-                              ),
-                              const SizedBox(width: 8),
-                              _TabChip(
-                                label: 'History',
-                                active: _activeTab == _FinderOrderTab.completed,
-                                onTap: () =>
-                                    _onTabSelected(_FinderOrderTab.completed),
+                                  onTap: () =>
+                                      _onTabSelected(_FinderOrderTab.pending),
+                                ),
+                                const SizedBox(width: 8),
+                                _TabChip(
+                                  label: 'In Progress',
+                                  active:
+                                      _activeTab == _FinderOrderTab.inProgress,
+                                  onTap: () => _onTabSelected(
+                                    _FinderOrderTab.inProgress,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _TabChip(
+                                  label: 'History',
+                                  active:
+                                      _activeTab == _FinderOrderTab.completed,
+                                  onTap: () =>
+                                      _onTabSelected(_FinderOrderTab.completed),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            Expanded(
+                              child: isLoading && allOrders.isEmpty
+                                  ? const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: AppSpacing.md,
+                                        ),
+                                        child: AppStatePanel.loading(
+                                          title: 'Loading bookings',
+                                        ),
+                                      ),
+                                    )
+                                  : RefreshIndicator(
+                                      onRefresh: () => _loadOrders(
+                                        forceNetwork: true,
+                                        page: _normalizedPage(pagination.page),
+                                      ),
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(
+                                          milliseconds: 220,
+                                        ),
+                                        child: visibleOrders.isEmpty
+                                            ? ListView(
+                                                key: ValueKey<String>(
+                                                  'empty_orders_${_activeTab.name}',
+                                                ),
+                                                physics:
+                                                    const AlwaysScrollableScrollPhysics(),
+                                                children: [
+                                                  const SizedBox(height: 80),
+                                                  AppStatePanel.empty(
+                                                    title: _emptyTitleForTab(
+                                                      _activeTab,
+                                                    ),
+                                                    message:
+                                                        _emptyMessageForTab(
+                                                          _activeTab,
+                                                        ),
+                                                  ),
+                                                ],
+                                              )
+                                            : ListView.separated(
+                                                key: ValueKey<String>(
+                                                  'orders_${visibleOrders.length}_${pagination.page}_${_activeTab.name}',
+                                                ),
+                                                physics:
+                                                    const AlwaysScrollableScrollPhysics(),
+                                                itemCount: visibleOrders.length,
+                                                cacheExtent: 1000,
+                                                separatorBuilder: (_, _) =>
+                                                    const SizedBox(
+                                                      height: AppSpacing.md,
+                                                    ),
+                                                itemBuilder: (context, index) {
+                                                  final order =
+                                                      visibleOrders[index];
+                                                  return _OrderCard(
+                                                    order: order,
+                                                    onTap: () =>
+                                                        _openOrder(order),
+                                                  );
+                                                },
+                                              ),
+                                      ),
+                                    ),
+                            ),
+                            if (pagination.totalItems > pagination.limit) ...[
+                              const SizedBox(height: 12),
+                              PaginationBar(
+                                currentPage: _normalizedPage(pagination.page),
+                                totalPages: pagination.totalPages > 0
+                                    ? pagination.totalPages
+                                    : ((pagination.totalItems +
+                                              pagination.limit -
+                                              1) ~/
+                                          pagination.limit),
+                                loading: _isPaging,
+                                onPageSelected: _goToPage,
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 14),
-                          Expanded(
-                            child: isLoading && allOrders.isEmpty
-                                ? const Center(
-                                    child: Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: AppSpacing.md,
-                                      ),
-                                      child: AppStatePanel.loading(
-                                        title: 'Loading bookings',
-                                      ),
-                                    ),
-                                  )
-                                : RefreshIndicator(
-                                    onRefresh: () => _loadOrders(
-                                      forceNetwork: true,
-                                      page: _normalizedPage(pagination.page),
-                                    ),
-                                    child: AnimatedSwitcher(
-                                      duration: const Duration(
-                                        milliseconds: 220,
-                                      ),
-                                      child: visibleOrders.isEmpty
-                                          ? ListView(
-                                              key: ValueKey<String>(
-                                                'empty_orders_${_activeTab.name}',
-                                              ),
-                                              physics:
-                                                  const AlwaysScrollableScrollPhysics(),
-                                              children: [
-                                                const SizedBox(height: 80),
-                                                AppStatePanel.empty(
-                                                  title: _emptyTitleForTab(
-                                                    _activeTab,
-                                                  ),
-                                                  message: _emptyMessageForTab(
-                                                    _activeTab,
-                                                  ),
-                                                ),
-                                              ],
-                                            )
-                                          : ListView.separated(
-                                            key: ValueKey<String>(
-                                              'orders_${visibleOrders.length}_${pagination.page}_${_activeTab.name}',
-                                            ),
-                                            physics:
-                                                const AlwaysScrollableScrollPhysics(),
-                                            itemCount: visibleOrders.length,
-                                            cacheExtent: 1000,
-                                            separatorBuilder: (_, _) =>
-                                                const SizedBox(
-                                                  height: AppSpacing.md,
-                                                ),
-                                            itemBuilder: (context, index) {
-                                              final order =
-                                                  visibleOrders[index];
-                                              return _OrderCard(
-                                                order: order,
-                                                onTap: () =>
-                                                    _openOrder(order),
-                                              );
-                                            },
-                                          ),
-
-                                    ),
-                                  ),
-                          ),
-                          if (pagination.totalItems > pagination.limit) ...[
-                            const SizedBox(height: 12),
-                            PaginationBar(
-                              currentPage: _normalizedPage(pagination.page),
-                              totalPages: pagination.totalPages > 0
-                                  ? pagination.totalPages
-                                  : ((pagination.totalItems +
-                                            pagination.limit -
-                                            1) ~/
-                                        pagination.limit),
-                              loading: _isPaging,
-                              onPageSelected: _goToPage,
-                            ),
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
+                );
               },
             );
           },
@@ -402,10 +405,7 @@ class _OrderCard extends StatelessWidget {
   final OrderItem order;
   final VoidCallback onTap;
 
-  const _OrderCard({
-    required this.order,
-    required this.onTap,
-  });
+  const _OrderCard({required this.order, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -502,7 +502,7 @@ class _OrderStatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, bg) = switch (status) {
       OrderStatus.booked => ('Booked', const Color(0xFFD97706)),
-      OrderStatus.onTheWay => ('Confirm', AppColors.primary),
+      OrderStatus.onTheWay => ('Confirmed', AppColors.primary),
       OrderStatus.started => ('Started', const Color(0xFF7C6EF2)),
       OrderStatus.completed => ('Completed', AppColors.success),
       OrderStatus.cancelled => ('Cancelled', AppColors.danger),

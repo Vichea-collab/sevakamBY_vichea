@@ -341,7 +341,6 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
           if (!_hasPhotoValue(value)) return '${field.label} is required';
           break;
         case BookingFieldType.toggle:
-          if (value != true) return '${field.label} is required';
           break;
         case BookingFieldType.text:
         case BookingFieldType.multiline:
@@ -403,7 +402,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
     if (action == null) return;
     if (action == _PhotoAction.remove) {
       setState(() {
-        _serviceFields[field.key] = false;
+        _serviceFields[field.key] = '';
         if (_fieldErrors.containsKey(field.key)) {
           _fieldErrors = Map<String, String>.from(_fieldErrors)
             ..remove(field.key);

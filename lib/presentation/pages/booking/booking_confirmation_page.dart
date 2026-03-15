@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
+
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../core/utils/safe_image_provider.dart';
 import '../../../domain/entities/order.dart';
+import '../../state/booking_catalog_state.dart';
 import '../../state/order_state.dart';
 import '../../widgets/booking_step_progress.dart';
 import '../../widgets/primary_button.dart';
@@ -15,7 +17,7 @@ class BookingConfirmationPage extends StatefulWidget {
   final BookingDraft? draft;
 
   const BookingConfirmationPage({super.key, this.order, this.draft})
-      : assert(order != null || draft != null, 'Either order or draft must be provided');
+    : assert(order != null || draft != null);
 
   @override
   State<BookingConfirmationPage> createState() =>
@@ -23,7 +25,6 @@ class BookingConfirmationPage extends StatefulWidget {
 }
 
 class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
-  bool _expanded = true;
   bool _isSubmitting = false;
   OrderItem? _order;
 
@@ -38,330 +39,314 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
   }
 
   Future<void> _createOrderFromDraft() async {
-    if (widget.draft == null) return;
+    final draft = widget.draft;
+    if (draft == null) return;
     setState(() => _isSubmitting = true);
     try {
-      final created = await OrderState.createFinderOrder(widget.draft!);
-      if (mounted) {
-        setState(() {
-          _order = created;
-          _isSubmitting = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-        AppToast.error(context, 'Failed to create booking. Please try again.');
-        Navigator.pop(context);
-      }
+      final created = await OrderState.createFinderOrder(draft);
+      if (!mounted) return;
+      setState(() {
+        _order = created;
+        _isSubmitting = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      AppToast.error(context, 'Failed to create booking. Please try again.');
+      Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isSubmitting || _order == null) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
+      return Scaffold(
+        backgroundColor: const Color(0xFFF3F6FB),
+        body: const Center(
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(strokeWidth: 2.6),
+          ),
         ),
       );
     }
 
     final order = _order!;
+    final serviceFieldDefs = BookingCatalogState.bookingFieldsForService(
+      order.serviceName,
+    );
+    final serviceEntries = _visibleServiceEntries(
+      order.serviceFields,
+      serviceFieldDefs,
+    );
+
     return Scaffold(
-      backgroundColor: const Color(0xFF6B7280),
+      backgroundColor: const Color(0xFFF3F6FB),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: Container(
-              margin: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(34),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.xl,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const BookingStepProgress(
+                currentStep: BookingFlowStep.confirmation,
               ),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Center(
-                            child: Container(
-                              width: 62,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: AppColors.textSecondary.withValues(
-                                  alpha: 100,
-                                ),
-                                borderRadius: BorderRadius.circular(99),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Column(
-                                children: [
-                                  Text(
-                                    'Booking Confirmation',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${order.address.street}, ${order.address.city}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: IconButton(
-                                  onPressed: _goProjects,
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    color: AppColors.primary,
-                                    size: 30,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          const Divider(height: 1),
-                          const SizedBox(height: 24),
-                          const BookingStepProgress(
-                            currentStep: BookingFlowStep.confirmation,
-                          ),
-                          const SizedBox(height: 12),
-                          Center(
-                            child: Lottie.network(
-                              'https://assets10.lottiefiles.com/packages/lf20_awSQu9.json',
-                              height: 120,
-                              repeat: false,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  height: 64,
-                                  width: 64,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF16A34A),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.check_rounded,
-                                    color: Colors.white,
-                                    size: 40,
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Thanks, your booking has been confirmed.',
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          const SizedBox(height: 10),
-                          Center(
-                            child: Text.rich(
-                              TextSpan(
-                                style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(
-                                      color: AppColors.primary,
-                                      height: 1.4,
-                                    ),
-                                children: const [
-                                  TextSpan(
-                                    text:
-                                        'Your service request has been sent to the provider.\nor visit ',
-                                  ),
-                                  TextSpan(
-                                    text: 'Orders',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  TextSpan(text: ' to track the status.'),
-                                ],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          const SizedBox(height: 28),
-                          Text(
-                            'Booking Summary',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: AppColors.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          const SizedBox(height: 12),
-                          _ServiceDetailCard(
-                            order: order,
-                            expanded: _expanded,
-                            onToggle: () =>
-                                setState(() => _expanded = !_expanded),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                    child: PrimaryButton(
-                      label: 'Go to Orders',
-                      onPressed: _goProjects,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 18),
+              _SuccessHero(order: order),
+              const SizedBox(height: 22),
+              _SectionTitle(title: 'Booking Summary'),
+              const SizedBox(height: 12),
+              _BookingSummaryCard(order: order),
+              if (serviceEntries.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                _SectionTitle(title: 'Service Requirements'),
+                const SizedBox(height: 12),
+                _ServiceRequirementsCard(entries: serviceEntries),
+              ],
+              const SizedBox(height: 28),
+              PrimaryButton(
+                label: 'Go to Orders',
+                icon: Icons.receipt_long_rounded,
+                onPressed: _goOrders,
               ),
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  void _goProjects() {
-    if (_order == null) return;
+  void _goOrders() {
+    final order = _order;
+    if (order == null) return;
     Navigator.pushAndRemoveUntil(
       context,
-      slideFadeRoute(OrdersPage(latestOrder: _order)),
+      slideFadeRoute(OrdersPage(latestOrder: order)),
       (route) => false,
     );
   }
+
+  List<MapEntry<String, String>> _visibleServiceEntries(
+    Map<String, dynamic> values,
+    List<BookingFieldDef> defs,
+  ) {
+    final defsByKey = {for (final def in defs) def.key: def};
+    final entries = <MapEntry<String, String>>[];
+    for (final entry in values.entries) {
+      final def = defsByKey[entry.key];
+      if (def == null) continue;
+      final displayValue = _displayServiceValue(entry.value);
+      if (displayValue == null) continue;
+      entries.add(MapEntry(def.label, displayValue));
+    }
+    return entries;
+  }
+
+  String? _displayServiceValue(dynamic value) {
+    if (value == null) return null;
+    if (value is bool) return value ? 'Yes' : 'No';
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    final normalized = text.toLowerCase();
+    if (normalized == 'true') return 'Yes';
+    if (normalized == 'false') return 'No';
+    if (text.startsWith('data:image/')) return 'Photo attached';
+    return text;
+  }
 }
 
-class _ServiceDetailCard extends StatelessWidget {
+class _SuccessHero extends StatelessWidget {
   final OrderItem order;
-  final bool expanded;
-  final VoidCallback onToggle;
 
-  const _ServiceDetailCard({
-    required this.order,
-    required this.expanded,
-    required this.onToggle,
-  });
+  const _SuccessHero({required this.order});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: const Color(0xFFD9E6FF)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x110F172A),
+            blurRadius: 24,
+            spreadRadius: -12,
+            offset: Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 88,
+            height: 88,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [Color(0xFF16A34A), Color(0xFF22C55E)],
+              ),
+            ),
+            child: const Icon(
+              Icons.check_rounded,
+              size: 50,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE9FDF4),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              'Booking Confirmed',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.success,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Your booking is confirmed',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Your ${order.serviceName.toLowerCase()} request has been sent to ${order.provider.name}. Track updates from the Orders tab.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+
+  const _SectionTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        color: AppColors.textPrimary,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.3,
+      ),
+    );
+  }
+}
+
+class _BookingSummaryCard extends StatelessWidget {
+  final OrderItem order;
+
+  const _BookingSummaryCard({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
         border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            onTap: onToggle,
-            borderRadius: BorderRadius.circular(10),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.1), width: 1),
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    width: 2,
                   ),
-                  child: ClipOval(
-                    child: SafeImage(
-                      isAvatar: true,
-                      source: order.provider.imagePath,
-                      width: 32,
-                      height: 32,
-                      fit: BoxFit.cover,
+                ),
+                child: ClipOval(
+                  child: SafeImage(
+                    isAvatar: true,
+                    source: order.provider.imagePath,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      order.serviceName,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Text(
+                      order.provider.name,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    order.serviceName,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleMedium?.copyWith(color: AppColors.primary),
-                  ),
-                ),
-                Icon(
-                  expanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  color: AppColors.textPrimary,
-                ),
-              ],
-            ),
-          ),
-          if (expanded) ...[
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
-            _InfoDoubleRow(
-              leftLabel: 'Date',
-              leftValue: _dateLabel(order.scheduledAt),
-              rightLabel: 'Start time',
-              rightValue: order.timeRange,
-            ),
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
-            _InfoSingleRow(label: 'Provider', value: order.provider.name),
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
-            _InfoDoubleRow(
-              leftLabel: 'Category',
-              leftValue: order.provider.role,
-              rightLabel: 'Size of home',
-              rightValue: _homeTypeLabel(order.homeType),
-            ),
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
-            _InfoSingleRow(
-              label: 'Address',
-              value: '${order.address.street}, ${order.address.city}',
-            ),
-            const SizedBox(height: 10),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
-            _InfoSingleRow(
-              label: 'Address Link',
-              value: _resolvedAddressLink(order.address),
-            ),
-            if (order.additionalService.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
-              _InfoSingleRow(
-                label: 'Additional Info',
-                value: order.additionalService,
               ),
             ],
-          ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryCell(
+                  label: 'Date',
+                  value: _dateLabel(order.scheduledAt),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _SummaryCell(label: 'Time', value: order.timeRange),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SummaryCell(label: 'Category', value: order.provider.role),
+          const SizedBox(height: 12),
+          _SummaryCell(
+            label: 'Address',
+            value: '${order.address.street}, ${order.address.city}',
+            multiline: true,
+          ),
         ],
       ),
     );
@@ -385,83 +370,138 @@ class _ServiceDetailCard extends StatelessWidget {
     ];
     return '${week[date.weekday - 1]}, ${month[date.month - 1]} ${date.day}';
   }
-
-  static String _homeTypeLabel(HomeType value) {
-    switch (value) {
-      case HomeType.apartment:
-        return 'Apartment';
-      case HomeType.flat:
-        return 'Flat';
-      case HomeType.villa:
-        return 'Villa';
-      case HomeType.office:
-        return 'Office';
-    }
-  }
-
-  static String _resolvedAddressLink(HomeAddress address) {
-    final direct = address.mapLink.trim();
-    if (direct.isNotEmpty) return direct;
-    final query = Uri.encodeComponent('${address.street}, ${address.city}');
-    return 'https://maps.google.com/?q=$query';
-  }
 }
 
-class _InfoSingleRow extends StatelessWidget {
+class _SummaryCell extends StatelessWidget {
   final String label;
   final String value;
+  final bool multiline;
 
-  const _InfoSingleRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppColors.primary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _InfoDoubleRow extends StatelessWidget {
-  final String leftLabel;
-  final String leftValue;
-  final String rightLabel;
-  final String rightValue;
-
-  const _InfoDoubleRow({
-    required this.leftLabel,
-    required this.leftValue,
-    required this.rightLabel,
-    required this.rightValue,
+  const _SummaryCell({
+    required this.label,
+    required this.value,
+    this.multiline = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _InfoSingleRow(label: leftLabel, value: leftValue),
-        ),
-        Container(
-          height: 38,
-          width: 1,
-          margin: const EdgeInsets.symmetric(horizontal: 10),
-          color: AppColors.divider,
-        ),
-        Expanded(
-          child: _InfoSingleRow(label: rightLabel, value: rightValue),
-        ),
-      ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: multiline ? null : 2,
+            overflow: multiline ? null : TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
     );
+  }
+}
+
+class _ServiceRequirementsCard extends StatelessWidget {
+  final List<MapEntry<String, String>> entries;
+
+  const _ServiceRequirementsCard({required this.entries});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        children: entries
+            .asMap()
+            .entries
+            .map((item) {
+              final index = item.key;
+              final entry = item.value;
+              final isLast = index == entries.length - 1;
+              return Padding(
+                padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        _iconForValue(entry.value),
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.key,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            entry.value,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.35,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            })
+            .toList(growable: false),
+      ),
+    );
+  }
+
+  static IconData _iconForValue(String value) {
+    if (value == 'Yes' || value == 'No') {
+      return Icons.toggle_on_rounded;
+    }
+    if (value == 'Photo attached') {
+      return Icons.photo_camera_outlined;
+    }
+    return Icons.checklist_rtl_rounded;
   }
 }

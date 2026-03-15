@@ -170,3 +170,46 @@ class ProviderPostShimmerList extends StatelessWidget {
     );
   }
 }
+
+class SearchServiceShimmerList extends StatelessWidget {
+  final int count;
+  const SearchServiceShimmerList({super.key, this.count = 4});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(
+        count,
+        (index) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const ShimmerPlaceholder(width: 80, height: 80, borderRadius: 12),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const ShimmerPlaceholder(width: double.infinity, height: 18),
+                    const SizedBox(height: 8),
+                    const ShimmerPlaceholder(width: 150, height: 14),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const ShimmerPlaceholder.circular(size: 16),
+                        const SizedBox(width: 8),
+                        const ShimmerPlaceholder(width: 100, height: 14),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

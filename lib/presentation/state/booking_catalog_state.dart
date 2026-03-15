@@ -35,19 +35,23 @@ class BookingCatalogState {
   static Future<void> initialize() async {
     if (_initialized) return;
     try {
-      final String response = await rootBundle.loadString('assets/data/booking_fields.json');
+      final String response = await rootBundle.loadString(
+        'assets/data/booking_fields.json',
+      );
       final data = json.decode(response);
-      
-      _genericServiceFields = (data['generic'] as List)
+
+      _genericServiceFields = ((data['generic'] as List?) ?? const [])
           .map((f) => BookingFieldDef.fromMap(f))
           .toList();
-          
+
       final servicesMap = data['services'] as Map<String, dynamic>;
-      _serviceFieldsByService = servicesMap.map((key, value) => MapEntry(
-        key,
-        (value as List).map((f) => BookingFieldDef.fromMap(f)).toList(),
-      ));
-      
+      _serviceFieldsByService = servicesMap.map(
+        (key, value) => MapEntry(
+          key,
+          (value as List).map((f) => BookingFieldDef.fromMap(f)).toList(),
+        ),
+      );
+
       _initialized = true;
     } catch (e) {
       debugPrint('Error initializing BookingCatalogState: $e');
@@ -101,7 +105,7 @@ class BookingCatalogState {
           values[field.key] = field.options.isEmpty ? '' : field.options.first;
           break;
         case BookingFieldType.number:
-          values[field.key] = '1';
+          values[field.key] = '';
           break;
         case BookingFieldType.text:
         case BookingFieldType.multiline:
@@ -118,6 +122,8 @@ class BookingCatalogState {
         return 'Air Conditioner Repair';
       case 'Door Repair':
         return 'Door & Window Repair';
+      case 'Pipe Leak Repair':
+        return 'Pipe leaks';
       default:
         return serviceName.trim();
     }

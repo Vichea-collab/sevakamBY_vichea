@@ -114,6 +114,8 @@ class ProfileSettingsState {
     providerProfession.value = await _repository.loadProviderProfession();
     providerCompletedOrders.value = await _repository
         .loadProviderCompletedOrdersFromBackend();
+    providerVerified.value = await _repository
+        .loadProviderVerifiedFromBackend();
   }
 
   static void setBackendToken(String token) {
@@ -148,6 +150,8 @@ class ProfileSettingsState {
             .loadProviderProfessionFromBackend();
         providerCompletedOrders.value = await _repository
             .loadProviderCompletedOrdersFromBackend();
+        providerVerified.value = await _repository
+            .loadProviderVerifiedFromBackend();
       } else {
         finderProfile.value = profile;
         _applyAvatarForRole(profile: profile, isProvider: false);
@@ -164,6 +168,8 @@ class ProfileSettingsState {
           .loadProviderProfessionFromBackend();
       providerCompletedOrders.value = await _repository
           .loadProviderCompletedOrdersFromBackend();
+      providerVerified.value = await _repository
+          .loadProviderVerifiedFromBackend();
       return true;
     } catch (_) {
       return false;
@@ -178,6 +184,17 @@ class ProfileSettingsState {
     } catch (_) {
       return false;
     }
+  }
+
+  static Future<void> submitProviderVerification({
+    required String idFrontUrl,
+    required String idBackUrl,
+  }) async {
+    await _repository.submitProviderVerification(
+      idFrontUrl: idFrontUrl,
+      idBackUrl: idBackUrl,
+    );
+    providerVerified.value = false;
   }
 
   static Future<void> saveProviderProfession(

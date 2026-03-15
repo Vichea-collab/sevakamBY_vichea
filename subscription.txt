@@ -1,6 +1,6 @@
-Business Model: Provider Subscription Tiers (Cambodia Market Optimized)
+Business Model: Provider Subscription Tiers (Current App State + Near-Term Plan)
    * Payment Logic: Providers pay subscription fees only.
-   * Accepted Methods: Credit Card (Stripe) and KHQR (coming soon).
+   * Accepted Methods: Credit Card (Stripe) is live. KHQR is planned / coming soon.
 
    * Basic (Starter) — $0 / month
      - Purpose: Try the platform and build early credibility.
@@ -9,37 +9,54 @@ Business Model: Provider Subscription Tiers (Cambodia Market Optimized)
      - Limits: Accept up to 5 booking requests per month.
      - Search Ranking: 1x (standard).
      - Best For: Freelancers starting out or testing demand.
-     - Actions: Complete profile + KYC, upload 3–5 photos, reply to chats within 24 hours.
+     - Recommended Actions: Complete profile, submit KYC, upload 3–5 photos, reply to chats within 24 hours.
 
    * Professional (Growth / Featured) — $10 / month ($100 / year — save $20)
      - Purpose: Grow steady bookings and improve ranking.
      - Includes: Featured Provider badge (blue), 2x category ranking weight.
-     - Features: Portfolio gallery up to 15 photos, profile analytics, priority KYC verification.
+     - Current Features: Portfolio gallery up to 15 photos, profile analytics dashboard.
+     - Public UI: If KYC is approved, provider shows Verified badge. Subscription badge remains separate from KYC badge.
+     - Planned Feature: Priority KYC review.
      - Limits: Accept up to 25 booking requests per month.
      - Search Ranking: 2x boost.
-     - Quality Gate: KYC complete + 3.5+ rating + 5 completed orders required.
+     - Displayed Quality Gate: KYC complete + 3.5+ rating + 5 completed orders.
+     - Current App Status: This gate is shown in UI text, but it is not yet enforced in checkout logic.
      - Trial: 7-day free trial for new providers (auto-downgrade to Basic if not subscribed).
      - Best For: Full-time professionals building a consistent client base.
-     - Actions: Add case studies, use analytics to optimize profile, reply within 12 hours.
+     - Recommended Actions: Add case studies, use analytics to optimize profile, reply within 12 hours.
 
    * Elite Business (Premium) — $25 / month ($250 / year — save $50)
      - Purpose: Maximum visibility and scale.
      - Includes: Top Tier badge (gold), top-of-list ranking, featured on Home "Top Providers".
-     - Features: Unlimited portfolio photos, broadcast "Special Offers" to past customers, dedicated support manager.
+     - Current Features: Unlimited portfolio photos, premium visibility, home-page exposure.
+     - Public UI: If KYC is approved, provider shows Verified badge plus Elite plan badge in public cards and detail surfaces.
      - Limits: Unlimited booking requests (subject to fair-use policy).
      - Search Ranking: 5x boost + featured on homepage.
-     - Quality Gate: KYC complete + 4.5+ rating + 20 completed orders required.
-     - Upcoming: KHQR direct payment on profile.
+     - Displayed Quality Gate: KYC complete + 4.5+ rating + 20 completed orders.
+     - Current App Status: This gate is shown in UI text, but it is not yet enforced in checkout logic.
+     - Planned / Not Fully Implemented Yet: special-offer broadcasting entitlement, dedicated premium support, KHQR direct payment.
      - Best For: Established companies and teams with multiple workers.
-     - Actions: Launch monthly promotions, maintain 4.5+ rating, use support manager growth plan.
+     - Recommended Actions: Launch monthly promotions, maintain 4.5+ rating, and keep response quality high.
+
+   * KYC Review Flow (Current Real Implementation)
+     - Providers upload front and back images of National ID documents.
+     - Submission marks provider KYC status as pending review.
+     - Admin can open Provider Verification (KYC) in admin dashboard.
+     - Admin can view uploaded KYC documents and approve / reject / reset status.
+     - Approved KYC marks provider as verified.
+     - Verified state should surface in provider portal header and public finder-facing provider cards / detail pages.
+
+   * Role Surfaces (Current Real Implementation)
+     - Finder app: sees provider subscription plan badge on public provider cards, home recommendation tiles, and provider detail page.
+     - Finder app: sees provider Verified badge separately from the subscription badge when admin-approved KYC exists.
+     - Provider app: manages subscription from provider portal and sees current plan in provider profile / subscription / portfolio-related UI.
+     - Admin app: reviews plan, billing state, renewal mode, and period end from the dedicated Subscriptions section.
 
    * Business Rules
      - Annual plan discount: 2 months free on yearly billing.
      - Booking limits: Hard stop at limit with "Upgrade" prompt (no overage charges for MVP).
      - Grace period: Downgraded providers keep features until billing cycle ends.
      - Search ranking factors: subscription tier, rating, response time, completion rate.
-     - Quality gates: Paid tiers require KYC + minimum rating + minimum completed orders.
+     - Quality gates: Paid-tier quality gates are currently product rules / UI guidance, not enforced backend upgrade blockers yet.
      - Monthly reset: Booking counts reset at each billing period start.
      - Cancellation: Takes effect at end of current billing period (no immediate cutoff).
-
-

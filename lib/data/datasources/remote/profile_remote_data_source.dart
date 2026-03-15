@@ -139,6 +139,26 @@ class ProfileRemoteDataSource {
     return parsed;
   }
 
+  Future<bool> fetchProviderVerified() async {
+    final response = await _apiClient.getJson(
+      '/api/providers/provider-profile',
+    );
+    final role = _safeMap(response['data']);
+    final kycStatus = (role['kycStatus'] ?? '').toString().trim().toLowerCase();
+    return role['verified'] == true || kycStatus == 'approved';
+  }
+
+  Future<void> submitProviderVerification({
+    required String idFrontUrl,
+    required String idBackUrl,
+  }) async {
+    await _apiClient.putJson('/api/providers/provider-profile', {
+      'kycStatus': 'pending',
+      'kycIdFrontUrl': idFrontUrl,
+      'kycIdBackUrl': idBackUrl,
+    });
+  }
+
   Future<Map<String, dynamic>> fetchSettings() async {
     final response = await _apiClient.getJson('/api/users/settings');
     return _safeMap(response['data']);

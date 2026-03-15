@@ -83,14 +83,15 @@ class SubscriptionPlan {
       maxPhotos: 15,
       trialDays: 7,
       bestFor: 'Full-time professionals building a consistent client base',
-      qualityGate: 'Requires: KYC complete, 3.5+ rating, 5+ completed orders',
+      qualityGate:
+          'Target requirement: KYC complete, 3.5+ rating, 5+ completed orders',
       features: [
         'Featured Provider badge (blue)',
         '2x search ranking boost',
         'Up to 25 bookings/month',
         'Portfolio gallery up to 15 photos',
         'Profile analytics dashboard',
-        'Priority KYC verification',
+        'Priority KYC review (planned)',
         '7-day free trial for new providers',
       ],
     ),
@@ -107,15 +108,16 @@ class SubscriptionPlan {
       maxPhotos: -1,
       trialDays: 0,
       bestFor: 'Established companies and teams with multiple workers',
-      qualityGate: 'Requires: KYC complete, 4.5+ rating, 20+ completed orders',
+      qualityGate:
+          'Target requirement: KYC complete, 4.5+ rating, 20+ completed orders',
       features: [
         'Top Tier badge (gold) + top-of-list ranking',
         '5x search ranking boost',
         'Unlimited booking requests',
         'Featured on Home "Top Providers"',
         'Unlimited portfolio photos',
-        'Broadcast special offers to past customers',
-        'Dedicated support manager',
+        'Special-offer broadcast entitlement (planned)',
+        'Dedicated premium support (planned)',
       ],
     ),
   ];
@@ -125,6 +127,7 @@ class SubscriptionPlan {
 class SubscriptionStatus {
   final SubscriptionTier tier;
   final String status;
+  final DateTime? currentPeriodStart;
   final DateTime? currentPeriodEnd;
   final bool cancelAtPeriodEnd;
   final int bookingsUsed;
@@ -134,6 +137,7 @@ class SubscriptionStatus {
   const SubscriptionStatus({
     this.tier = SubscriptionTier.basic,
     this.status = 'active',
+    this.currentPeriodStart,
     this.currentPeriodEnd,
     this.cancelAtPeriodEnd = false,
     this.bookingsUsed = 0,
@@ -161,6 +165,9 @@ class SubscriptionStatus {
     return SubscriptionStatus(
       tier: _parseTier(map['tier']),
       status: (map['status'] ?? 'active').toString(),
+      currentPeriodStart: map['currentPeriodStart'] != null
+          ? DateTime.tryParse(map['currentPeriodStart'].toString())
+          : null,
       currentPeriodEnd: map['currentPeriodEnd'] != null
           ? DateTime.tryParse(map['currentPeriodEnd'].toString())
           : null,

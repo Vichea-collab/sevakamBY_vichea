@@ -24,7 +24,6 @@ class BookingDetailsPage extends StatefulWidget {
 }
 
 class _BookingDetailsPageState extends State<BookingDetailsPage> {
-  late HomeType _homeType;
   late DateTime _preferredDate;
   late String _preferredTime;
   late String _selectedService;
@@ -37,7 +36,6 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   void initState() {
     super.initState();
     _currentProvider = widget.draft.provider;
-    _homeType = widget.draft.homeType;
     _preferredDate = _findFirstAvailableDate(
       widget.draft.preferredDate,
       _currentProvider.blockedDates,
@@ -57,7 +55,7 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
     try {
       final latest = await ProviderPostState.findLatestByUid(uid);
       final allServices = await ProviderPostState.aggregateServicesByUid(uid);
-      
+
       if (mounted) {
         setState(() {
           if (latest != null) {
@@ -83,22 +81,26 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
 
   DateTime _findFirstAvailableDate(DateTime start, List<DateTime> blocked) {
     if (blocked.isEmpty) return start;
-    
+
     var candidate = DateTime(start.year, start.month, start.day);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    
+
     if (candidate.isBefore(today)) {
       candidate = today;
     }
 
     for (int i = 0; i < 60; i++) {
       final check = candidate.add(Duration(days: i));
-      final isBlocked = blocked.any((d) => 
-        d.year == check.year && d.month == check.month && d.day == check.day);
+      final isBlocked = blocked.any(
+        (d) =>
+            d.year == check.year &&
+            d.month == check.month &&
+            d.day == check.day,
+      );
       if (!isBlocked) return check;
     }
-    
+
     return candidate;
   }
 
@@ -107,7 +109,6 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final draft = widget.draft.copyWith(
       provider: _currentProvider,
-      homeType: _homeType,
       preferredDate: _preferredDate,
       preferredTimeSlot: _preferredTime,
       serviceName: _selectedService,
@@ -184,19 +185,6 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
                 ],
               ),
               const SizedBox(height: 16),
-              _SectionHeader(title: 'General Details'),
-              const SizedBox(height: 8),
-              Text(
-                _homeTypeQuestionLabel,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(color: AppColors.primary),
-              ),
-              const SizedBox(height: 8),
-              _PickerField(
-                label: _homeTypeLabel(_homeType),
-                onTap: _pickHomeType,
-              ),
             ],
           ),
         ),
@@ -216,10 +204,13 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
                   label: 'Continue',
                   icon: Icons.arrow_forward_rounded,
                   iconTrailing: true,
-                  onPressed: (_serviceError == null && _selectedService.isNotEmpty)
+                  onPressed:
+                      (_serviceError == null && _selectedService.isNotEmpty)
                       ? () => Navigator.push(
                           context,
-                          slideFadeRoute(BookingServiceFieldsPage(draft: draft)),
+                          slideFadeRoute(
+                            BookingServiceFieldsPage(draft: draft),
+                          ),
                         )
                       : null,
                 ),
@@ -257,26 +248,10 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
     return values;
   }
 
-  bool get _isCleaningService {
-    const cleaningServices = {
-      'House Cleaning',
-      'Office Cleaning',
-      'Move-in Cleaning',
-      'Move-in / Move-out Cleaning',
-    };
-    return cleaningServices.contains(_selectedService);
-  }
-
-  String get _homeTypeQuestionLabel {
-    return _isCleaningService
-        ? 'What is the type of your home?*'
-        : 'What is the property type?*';
-  }
-
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final blockedDates = _currentProvider.blockedDates;
-    
+
     final picked = await showAppCalendarDatePicker(
       context,
       initialDate: _preferredDate,
@@ -285,10 +260,11 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
       helpText: 'Choose booking date',
       selectableDayPredicate: (date) {
         if (blockedDates.isEmpty) return true;
-        return !blockedDates.any((blocked) => 
-          blocked.year == date.year && 
-          blocked.month == date.month && 
-          blocked.day == date.day
+        return !blockedDates.any(
+          (blocked) =>
+              blocked.year == date.year &&
+              blocked.month == date.month &&
+              blocked.day == date.day,
         );
       },
     );
@@ -326,27 +302,6 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
       _selectedService = picked;
       _validateService();
     });
-  }
-
-  Future<void> _pickHomeType() async {
-    final picked = await _showOptionSheet<HomeType>(
-      title: 'Home type',
-      options: BookingCatalogState.homeTypeOptions,
-      selected: _homeType,
-      labelBuilder: _homeTypeLabel,
-      iconBuilder: (item) => Icon(
-        switch (item) {
-          HomeType.apartment => Icons.apartment_rounded,
-          HomeType.flat => Icons.location_city_outlined,
-          HomeType.villa => Icons.villa_outlined,
-          HomeType.office => Icons.business_outlined,
-        },
-        size: 17,
-        color: AppColors.primary,
-      ),
-    );
-    if (picked == null) return;
-    setState(() => _homeType = picked);
   }
 
   Future<T?> _showOptionSheet<T>({
@@ -460,19 +415,6 @@ class _BookingDetailsPageState extends State<BookingDetailsPage> {
   String _dateLabel(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
-
-  String _homeTypeLabel(HomeType type) {
-    switch (type) {
-      case HomeType.apartment:
-        return 'Apartment';
-      case HomeType.flat:
-        return 'Flat';
-      case HomeType.villa:
-        return 'Villa';
-      case HomeType.office:
-        return 'Office';
-    }
-  }
 }
 
 class _ProviderCard extends StatelessWidget {
@@ -518,7 +460,9 @@ class _ProviderCard extends StatelessWidget {
                 const Positioned.fill(
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.primary,
+                    ),
                   ),
                 ),
             ],
