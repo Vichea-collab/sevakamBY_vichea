@@ -58,21 +58,6 @@ class _ProviderCategoryPageState extends State<ProviderCategoryPage> {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.lg,
-                  14,
-                  AppSpacing.lg,
-                  0,
-                ),
-                sliver: SliverToBoxAdapter(
-                  child: _CategoryIntroCard(
-                    category: widget.section.category,
-                    count: providers.length,
-                    accent: accent,
-                  ),
-                ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
                   18,
                   AppSpacing.lg,
                   AppSpacing.xl,
@@ -165,6 +150,31 @@ class _CategoryHeaderCard extends StatelessWidget {
                   child: Icon(Icons.arrow_back_rounded, color: accent),
                 ),
               ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_categoryIcon(category), color: accent, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$count available',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -180,58 +190,11 @@ class _CategoryHeaderCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '$count providers in $category',
+            'Browse verified $category specialists and open the profile that fits your job.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CategoryIntroCard extends StatelessWidget {
-  final String category;
-  final int count;
-  final Color accent;
-
-  const _CategoryIntroCard({
-    required this.category,
-    required this.count,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(_categoryIcon(category), color: accent, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Select a provider to view profile, services, and portfolio.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
+              height: 1.4,
             ),
           ),
         ],

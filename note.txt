@@ -12,25 +12,77 @@ implement
 
 
 
-checking for me, is my whole app when refreashing need to have action for refresh for data up to date?
+//checking for me, is my whole app when refreashing need to have action for refresh for data up to date?
 
 account:
 Demo password: Demo@123456
 
 Error:
-- for chat feature, the active and inactive if inactive display how long it inactive like 1 min ago, 39 min ago like that, checking everything make sure everything up to date
-- problem in providers Portofilo page and in finder of provider detail, the portofile not display in ui of those screen.
-- in home page of finder, top tier provider and top recommendation, if it have 2 post ,it should show only 1 newest post for 1 provider in only in home page.
+//- for chat feature, the active and inactive if inactive display how long it inactive like 1 min ago, 39 min ago like that, checking everything make sure everything up to date
+//- problem in providers Portofilo page and in finder of provider detail, the portofile not display in ui of those screen.
+//- in home page of finder, top tier provider and top recommendation, if it have 2 post ,it should show only 1 newest post for 1 provider in only in home page.
 - for address map picker, the currect location, the tracking is not track in current location, it goes default the singe point set in simulator of location
 
-- update the finder and provider too when u get approved from admin of KYC, the provider_card of finder should show badge verified, have connection with subscription plan
+//- update the finder and provider too when u get approved from admin of KYC, the provider_card of finder should show badge verified, have connection with subscription plan
 
 tmr prompts:
-- update the chat feature for me, the notification messages should have between finder/provider and for admin the support with finder/provider
+//- update the chat feature for me, the notification messages should have between finder/provider and for admin the support with finder/provider
 - help me check are the transition is smoothies?, navigation have interaction? app feel smoothies and feel like a real production?
 - checking my whole app features work with ios device yet?
 - in home page of finder of the promotion ads, can u suggest for me how to setup that ads it need provider post or admin add the ads?
-- do one more visual pass to make the plan cards shorter, because they still carry a lot of feature text on mobile.
+//- in subscription do visual pass to make the plan cards shorter, because they still carry a lot of feature text on mobile.
 
-- audit for all screens that need to clean any remaining inconsistent UI.
-- implement that refresh audit pass next and standardize the refresh behavior across finder, provider, and admin.
+//- audit for home and profile screens of both role, is there need to clean any remaining inconsistent UI?
+//- implement that refresh audit pass next and standardize the refresh behavior across finder, provider, and admin.
+
+
+
+
+Best setup: use admin-managed ads, not provider posts directly.
+
+Recommended model:
+
+Provider posts: regular marketplace content
+shown in search, provider detail, recommendations, feed-style sections
+Admin ads/promotions: curated banner carousel
+shown in the home promo slider
+admin chooses which provider/service/campaign to feature
+Best approach is a hybrid:
+
+Admin creates the ad.
+Admin can optionally link that ad to:
+a provider
+a service
+a category
+an internal target page
+Home page reads only active ads from admin data.
+Clicking the ad opens:
+provider detail
+filtered search page
+provider post page
+or a special promo landing
+What admin ad should contain:
+
+title
+subtitle/description
+imageUrl
+badgeLabel like Limited offer
+ctaLabel
+targetType like provider, service, category, search
+targetValue
+startAt
+endAt
+isActive
+sortOrder
+optional city/category targeting
+Good future upgrade:
+
+allow only Elite providers to request promotions
+but admin still approves/publishes them
+that keeps subscription value connected to promotions without losing quality control
+So my recommendation is:
+
+do not make the carousel auto-read provider posts
+make it an admin-managed promotions system
+optionally let admin link promotions to provider content
+

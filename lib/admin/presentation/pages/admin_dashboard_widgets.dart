@@ -2094,9 +2094,16 @@ class _BootstrappingView extends StatelessWidget {
 
 class _MobileTopBar extends StatelessWidget {
   final String email;
+  final _AdminSection section;
+  final ValueChanged<_AdminSection> onSectionChanged;
   final Future<void> Function() onLogout;
 
-  const _MobileTopBar({required this.email, required this.onLogout});
+  const _MobileTopBar({
+    required this.email,
+    required this.section,
+    required this.onSectionChanged,
+    required this.onLogout,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2121,6 +2128,7 @@ class _MobileTopBar extends StatelessWidget {
           ],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: Column(
@@ -2136,9 +2144,85 @@ class _MobileTopBar extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(
                       context,
                     ).textTheme.bodySmall?.copyWith(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 12),
+                  PopupMenuButton<_AdminSection>(
+                    onSelected: onSectionChanged,
+                    color: Colors.white,
+                    itemBuilder: (context) {
+                      return _AdminSection.values
+                          .map((item) {
+                            final selected = item == section;
+                            return PopupMenuItem<_AdminSection>(
+                              value: item,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    item.icon,
+                                    size: 18,
+                                    color: selected
+                                        ? AppColors.primary
+                                        : AppColors.textSecondary,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      item.label,
+                                      style: TextStyle(
+                                        color: selected
+                                            ? AppColors.primaryDark
+                                            : AppColors.textPrimary,
+                                        fontWeight: selected
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          })
+                          .toList(growable: false);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.24),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(section.icon, color: Colors.white, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            section.label,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),

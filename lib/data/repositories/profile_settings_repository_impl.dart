@@ -87,6 +87,15 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
   }
 
   @override
+  Future<String> loadProviderKycStatusFromBackend() async {
+    try {
+      return await _remoteDataSource.fetchProviderKycStatus();
+    } catch (_) {
+      return 'unverified';
+    }
+  }
+
+  @override
   Future<void> submitProviderVerification({
     required String idFrontUrl,
     required String idBackUrl,

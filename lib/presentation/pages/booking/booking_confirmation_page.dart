@@ -8,7 +8,7 @@ import '../../../core/utils/safe_image_provider.dart';
 import '../../../domain/entities/order.dart';
 import '../../state/booking_catalog_state.dart';
 import '../../state/order_state.dart';
-import '../../widgets/booking_step_progress.dart';
+import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 import '../orders/orders_page.dart';
 
@@ -94,10 +94,8 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const BookingStepProgress(
-                currentStep: BookingFlowStep.confirmation,
-              ),
-              const SizedBox(height: 18),
+              const AppTopBar(title: 'Booking Complete', showBack: false),
+              const SizedBox(height: 12),
               _SuccessHero(order: order),
               const SizedBox(height: 22),
               _SectionTitle(title: 'Booking Summary'),

@@ -39,9 +39,7 @@ class _SearchPageState extends State<SearchPage> {
   _SortOption? _sortOption;
   int _visibleCount = 10;
   bool _bootstrapping = true;
-  final List<String> _recentSearches = List<String>.from(
-    CatalogState.defaultRecentSearches,
-  );
+  final List<String> _recentSearches = <String>[];
 
   @override
   void initState() {
@@ -53,6 +51,7 @@ class _SearchPageState extends State<SearchPage> {
     ProviderPostState.allPostsLoading.addListener(_onLiveDataChanged);
     _query = widget.initialQuery.trim();
     _selectedCategory = widget.initialCategory;
+    _recentSearches.addAll(_resolveRecentSearchSeeds());
     unawaited(_primeData());
     if (_query.isNotEmpty) {
       _controller.text = _query;
@@ -73,7 +72,9 @@ class _SearchPageState extends State<SearchPage> {
 
   void _onLiveDataChanged() {
     if (!mounted) return;
-    _safeSetState(() {});
+    _safeSetState(() {
+      _syncRecentSearchLabelsWithCatalog();
+    });
   }
 
   Future<void> _primeData() async {
@@ -90,7 +91,10 @@ class _SearchPageState extends State<SearchPage> {
       // Keep page usable with partial data on transient failures.
     } finally {
       if (mounted) {
-        _safeSetState(() => _bootstrapping = false);
+        _safeSetState(() {
+          _syncRecentSearchLabelsWithCatalog();
+          _bootstrapping = false;
+        });
       }
     }
   }
@@ -221,7 +225,8 @@ class _SearchPageState extends State<SearchPage> {
                           )
                           .toList(),
                     ),
-                    if (_query.trim().isNotEmpty || _selectedCategory != null) ...[
+                    if (_query.trim().isNotEmpty ||
+                        _selectedCategory != null) ...[
                       const SizedBox(height: 14),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -300,8 +305,8 @@ class _SearchPageState extends State<SearchPage> {
                     Text(
                       'Browse all live provider posts in one screen.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).hintColor,
-                          ),
+                        color: Theme.of(context).hintColor,
+                      ),
                     ),
                     const SizedBox(height: 18),
                     Text(
@@ -338,25 +343,24 @@ class _SearchPageState extends State<SearchPage> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    if (_bootstrapping || (CatalogState.loading.value && visibleServices.isEmpty))
+                    if (_bootstrapping ||
+                        (CatalogState.loading.value && visibleServices.isEmpty))
                       const SearchServiceShimmerList()
                     else ...[
-                      ...visibleServices.map(
-                        (item) {
-                          final matchedProvider = _findMatchedProvider(
-                            item.category,
-                            item.title,
-                            query,
-                          );
-                          return _ServiceListTile(
-                            item: item,
-                            providerUid: matchedProvider?.uid,
-                            providerName: matchedProvider?.name,
-                            providerRating: matchedProvider?.rating,
-                            onTap: () => _openServiceResult(item, query),
-                          );
-                        },
-                      ),
+                      ...visibleServices.map((item) {
+                        final matchedProvider = _findMatchedProvider(
+                          item.category,
+                          item.title,
+                          query,
+                        );
+                        return _ServiceListTile(
+                          item: item,
+                          providerUid: matchedProvider?.uid,
+                          providerName: matchedProvider?.name,
+                          providerRating: matchedProvider?.rating,
+                          onTap: () => _openServiceResult(item, query),
+                        );
+                      }),
                       if (filteredPopular.length > _visibleCount)
                         Padding(
                           padding: const EdgeInsets.only(top: 6, bottom: 8),
@@ -477,7 +481,7 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _onSearchSubmitted(String value) {
-    final text = value.trim();
+    final text = _canonicalServiceSearch(value);
     if (text.isEmpty) return;
     setState(() {
       _query = text;
@@ -580,13 +584,19 @@ class _SearchPageState extends State<SearchPage> {
         .toList(growable: false);
 
     if (normalizedService.isNotEmpty) {
-      providers = providers.where((provider) {
-        final key = provider.uid.trim().isNotEmpty 
-            ? provider.uid.trim().toLowerCase() 
-            : provider.name.trim().toLowerCase();
-        final posts = providersByKey[key] ?? [];
-        return posts.any((post) => post.serviceList.any((s) => _normalizeKey(s) == normalizedService));
-      }).toList(growable: false);
+      providers = providers
+          .where((provider) {
+            final key = provider.uid.trim().isNotEmpty
+                ? provider.uid.trim().toLowerCase()
+                : provider.name.trim().toLowerCase();
+            final posts = providersByKey[key] ?? [];
+            return posts.any(
+              (post) => post.serviceList.any(
+                (s) => _normalizeKey(s) == normalizedService,
+              ),
+            );
+          })
+          .toList(growable: false);
     }
     if (normalizedQuery.isNotEmpty) {
       providers = providers
@@ -618,6 +628,68 @@ class _SearchPageState extends State<SearchPage> {
         .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
         .replaceAll(RegExp(r'_+'), '_')
         .replaceAll(RegExp(r'^_|_$'), '');
+  }
+
+  void _syncRecentSearchLabelsWithCatalog() {
+    if (CatalogState.services.value.isEmpty) return;
+    final mapped = _recentSearches
+        .map(_canonicalServiceSearch)
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    _recentSearches
+      ..clear()
+      ..addAll(_dedupePreservingOrder(mapped));
+    if (_recentSearches.isEmpty) {
+      _recentSearches.addAll(_resolveRecentSearchSeeds());
+    }
+  }
+
+  List<String> _resolveRecentSearchSeeds() {
+    final seeds = CatalogState.defaultRecentSearches
+        .map(_canonicalServiceSearch)
+        .where((item) => item.isNotEmpty)
+        .toList(growable: true);
+    if (CatalogState.services.value.isNotEmpty) {
+      for (final service in CatalogState.popularServices(limit: 8)) {
+        seeds.add(service.title);
+      }
+    }
+    return _dedupePreservingOrder(seeds).take(8).toList(growable: false);
+  }
+
+  String _canonicalServiceSearch(String value) {
+    final text = value.trim();
+    if (text.isEmpty) return '';
+    final services = CatalogState.services.value;
+    if (services.isEmpty) return text;
+
+    final normalized = _normalizeKey(text);
+    for (final service in services) {
+      if (_normalizeKey(service.title) == normalized) {
+        return service.title;
+      }
+    }
+    for (final service in services) {
+      final serviceKey = _normalizeKey(service.title);
+      if (serviceKey.contains(normalized) || normalized.contains(serviceKey)) {
+        return service.title;
+      }
+    }
+    return text;
+  }
+
+  List<String> _dedupePreservingOrder(List<String> items) {
+    final seen = <String>{};
+    final values = <String>[];
+    for (final item in items) {
+      final text = item.trim();
+      if (text.isEmpty) continue;
+      final key = text.toLowerCase();
+      if (seen.add(key)) {
+        values.add(text);
+      }
+    }
+    return values;
   }
 }
 
@@ -764,7 +836,9 @@ class _ServiceListTile extends StatelessWidget {
                 offset: const Offset(0, 4),
               ),
             ],
-            border: Border.all(color: Theme.of(context).dividerColor.withValues(alpha: 0.5)),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -803,10 +877,11 @@ class _ServiceListTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             item.title,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
                           ),
                         ),
                         if (providerUid != null)
@@ -817,19 +892,28 @@ class _ServiceListTile extends StatelessWidget {
                               return Material(
                                 color: Colors.transparent,
                                 child: InkWell(
-                                  onTap: () => FavoriteState.toggleFavorite(providerUid!),
+                                  onTap: () => FavoriteState.toggleFavorite(
+                                    providerUid!,
+                                  ),
                                   borderRadius: BorderRadius.circular(20),
                                   child: Container(
                                     padding: const EdgeInsets.all(6),
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: isFav
-                                          ? AppColors.danger.withValues(alpha: 0.1)
-                                          : Theme.of(context).dividerColor.withValues(alpha: 0.05),
+                                          ? AppColors.danger.withValues(
+                                              alpha: 0.1,
+                                            )
+                                          : Theme.of(context).dividerColor
+                                                .withValues(alpha: 0.05),
                                     ),
                                     child: Icon(
-                                      isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                                      color: isFav ? AppColors.danger : AppColors.textSecondary,
+                                      isFav
+                                          ? Icons.favorite_rounded
+                                          : Icons.favorite_border_rounded,
+                                      color: isFav
+                                          ? AppColors.danger
+                                          : AppColors.textSecondary,
                                       size: 16,
                                     ),
                                   ),
@@ -842,14 +926,19 @@ class _ServiceListTile extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF59E0B)),
+                        const Icon(
+                          Icons.star_rounded,
+                          size: 16,
+                          color: Color(0xFFF59E0B),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           displayRating.toStringAsFixed(1),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFFF59E0B),
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFFF59E0B),
+                              ),
                         ),
                         const SizedBox(width: 8),
                         Container(
@@ -861,7 +950,9 @@ class _ServiceListTile extends StatelessWidget {
                         Icon(
                           item.available ? Icons.circle : Icons.circle_outlined,
                           size: 8,
-                          color: item.available ? const Color(0xFF10B981) : Colors.grey,
+                          color: item.available
+                              ? const Color(0xFF10B981)
+                              : Colors.grey,
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -869,7 +960,9 @@ class _ServiceListTile extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: item.available ? const Color(0xFF10B981) : Colors.grey,
+                            color: item.available
+                                ? const Color(0xFF10B981)
+                                : Colors.grey,
                           ),
                         ),
                       ],
@@ -894,10 +987,11 @@ class _ServiceListTile extends StatelessWidget {
                           Expanded(
                             child: Text(
                               providerName!,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
                           ),
                         ],
@@ -915,9 +1009,8 @@ class _ServiceListTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             '${item.location} • ${item.etaHours}h arrival',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).hintColor,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: Theme.of(context).hintColor),
                           ),
                         ),
                       ],
@@ -959,7 +1052,9 @@ class _SortPill extends StatelessWidget {
             color: active ? AppColors.primary : Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: active ? AppColors.primary : Theme.of(context).dividerColor,
+              color: active
+                  ? AppColors.primary
+                  : Theme.of(context).dividerColor,
               width: 1.5,
             ),
             boxShadow: active
@@ -986,10 +1081,10 @@ class _SortPill extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: active ? Colors.white : AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                    ),
+                  color: active ? Colors.white : AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
               ),
               const SizedBox(width: 8),
               Icon(
@@ -1036,9 +1131,9 @@ class _ActiveSortPill extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(width: 10),
           PressableScale(

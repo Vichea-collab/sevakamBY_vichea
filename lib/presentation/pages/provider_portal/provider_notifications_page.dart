@@ -12,6 +12,7 @@ import 'package:servicefinder/presentation/widgets/app_top_bar.dart';
 import 'package:servicefinder/presentation/widgets/pressable_scale.dart';
 import 'package:servicefinder/presentation/pages/chat/chat_list_page.dart';
 import 'package:servicefinder/presentation/pages/main_shell_page.dart';
+import 'package:servicefinder/presentation/pages/profile/help_support_page.dart';
 import 'package:servicefinder/presentation/widgets/app_bottom_nav.dart';
 import 'provider_orders_page.dart';
 
@@ -138,6 +139,28 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                                             ),
                                           ),
                                         );
+                                      } else if (notice.source ==
+                                          'chat_message') {
+                                        Navigator.pushNamed(
+                                          context,
+                                          ChatListPage.routeName,
+                                        );
+                                        unawaited(
+                                          UserNotificationState.clear(
+                                            _providerAdminStateKey(notice.key),
+                                          ),
+                                        );
+                                      } else if (notice.source ==
+                                          'support_message') {
+                                        Navigator.pushNamed(
+                                          context,
+                                          HelpSupportPage.routeName,
+                                        );
+                                        unawaited(
+                                          UserNotificationState.clear(
+                                            _providerAdminStateKey(notice.key),
+                                          ),
+                                        );
                                       } else {
                                         unawaited(
                                           UserNotificationState.clear(
@@ -170,7 +193,8 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                               AppTopBar(
                                 title: 'Notifications',
                                 showBack: true,
-                                onBack: () => MainShellPage.activeTab.value = AppBottomTab.home,
+                                onBack: () => MainShellPage.activeTab.value =
+                                    AppBottomTab.home,
                                 actions: [
                                   IconButton(
                                     onPressed: () => _openMessenger(context),
@@ -180,10 +204,8 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                                     tooltip: 'Messenger',
                                   ),
                                   TextButton(
-                                    onPressed: () => _confirmClearAll(
-                                      context,
-                                      backendItems,
-                                    ),
+                                    onPressed: () =>
+                                        _confirmClearAll(context, backendItems),
                                     child: const Text('Clear all'),
                                   ),
                                 ],
@@ -258,6 +280,8 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
     return sorted
         .map((item) {
           final isOrderStatus = item.source == 'order_status';
+          final isChatMessage = item.source == 'chat_message';
+          final isSupportMessage = item.source == 'support_message';
           final lifecycle = item.lifecycle;
           final stateLabel = lifecycle == 'active'
               ? 'Active'
@@ -269,6 +293,8 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
           final code = item.promoCode.trim();
           final description = isOrderStatus
               ? item.message
+              : (isChatMessage || isSupportMessage)
+              ? item.message
               : item.isPromo
               ? code.isEmpty
                     ? '${item.message} • $stateLabel'
@@ -276,6 +302,10 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
               : '${item.message} • $stateLabel';
           final color = isOrderStatus
               ? _orderStatusColor(item.orderStatus)
+              : isChatMessage
+              ? AppColors.primary
+              : isSupportMessage
+              ? const Color(0xFFF59E0B)
               : item.isPromo
               ? (lifecycle == 'active'
                     ? AppColors.success
@@ -290,10 +320,15 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
             timeLabel: _timeAgo(item.createdAt),
             icon: isOrderStatus
                 ? _orderStatusIcon(item.orderStatus)
+                : isChatMessage
+                ? Icons.chat_bubble_outline_rounded
+                : isSupportMessage
+                ? Icons.support_agent_rounded
                 : item.isPromo
                 ? Icons.local_offer_rounded
                 : Icons.campaign_rounded,
             color: color,
+            source: item.source,
             tab: isOrderStatus
                 ? _orderStatusTab(item.orderStatus)
                 : ProviderOrderTab.active,
@@ -380,6 +415,7 @@ class _ProviderNoticeEntry {
   final String timeLabel;
   final IconData icon;
   final Color color;
+  final String source;
   final ProviderOrderTab tab;
 
   const _ProviderNoticeEntry({
@@ -389,6 +425,7 @@ class _ProviderNoticeEntry {
     required this.timeLabel,
     required this.icon,
     required this.color,
+    required this.source,
     required this.tab,
   });
 }

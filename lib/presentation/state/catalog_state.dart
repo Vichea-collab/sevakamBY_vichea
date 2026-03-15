@@ -57,7 +57,7 @@ class CatalogState {
 
       // No fallback for services, only from API
       services.value = loadedServices;
-      
+
       _lastHydratedAt = DateTime.now();
     } catch (_) {
       categories.value = await _loadCategoriesFromAssets();
@@ -70,12 +70,18 @@ class CatalogState {
 
   static Future<List<Category>> _loadCategoriesFromAssets() async {
     try {
-      final String response = await rootBundle.loadString('assets/data/categories.json');
+      final String response = await rootBundle.loadString(
+        'assets/data/categories.json',
+      );
       final List<dynamic> data = json.decode(response);
-      return data.map((json) => Category(
-        name: json['name'].toString(),
-        icon: json['icon'].toString(),
-      )).toList();
+      return data
+          .map(
+            (json) => Category(
+              name: json['name'].toString(),
+              icon: json['icon'].toString(),
+            ),
+          )
+          .toList();
     } catch (e) {
       debugPrint('Error loading categories from assets: $e');
       return const <Category>[];
@@ -180,13 +186,16 @@ class CatalogState {
                 ? 'Trusted'
                 : 'Pro';
 
-            final imageFromApi = (row['image'] ?? row['imageUrl'] ?? '').toString();
+            final imageFromApi = (row['image'] ?? row['imageUrl'] ?? '')
+                .toString();
 
             return ServiceItem(
               title: title,
               subtitle: 'Starts in \$${rate.toStringAsFixed(0)}/hr',
               badge: badge,
-              imagePath: imageFromApi.isNotEmpty ? imageFromApi : _imageForCategory(categoryName),
+              imagePath: imageFromApi.isNotEmpty
+                  ? imageFromApi
+                  : _imageForCategory(categoryName),
               rating: rating,
               category: categoryName,
               location: 'Phnom Penh, Cambodia',
@@ -263,11 +272,21 @@ class CatalogState {
 
   static String _imageForCategory(String category) {
     final value = category.trim().toLowerCase();
-    if (value.contains('plumb')) return 'assets/images/plumber/pipe-leak.jpg';
-    if (value.contains('electric')) return 'assets/images/electrician/wiring-repair.jpg';
-    if (value.contains('clean')) return 'assets/images/cleaning/house-cleaning.jpg';
-    if (value.contains('appliance')) return 'assets/images/home_appliance_repair/ac-repair.jpg';
-    if (value.contains('maintenance')) return 'assets/images/home_maintenance/furniture-repair.jpg';
+    if (value.contains('plumb')) {
+      return 'assets/images/plumber/pipe-leak.jpg';
+    }
+    if (value.contains('electric')) {
+      return 'assets/images/electrician/wiring-repair.jpg';
+    }
+    if (value.contains('clean')) {
+      return 'assets/images/cleaning/house-cleaning.jpg';
+    }
+    if (value.contains('appliance')) {
+      return 'assets/images/home_appliance_repair/ac-repair.jpg';
+    }
+    if (value.contains('maintenance')) {
+      return 'assets/images/home_maintenance/furniture-repair.jpg';
+    }
     return 'assets/images/plumber_category.jpg';
   }
 
@@ -306,9 +325,9 @@ class CatalogState {
 
   static const List<String> defaultRecentSearches = <String>[
     'House Cleaning',
-    'Pipe Leak Repair',
+    'Pipe leaks',
     'Wiring Repair',
     'Air Conditioner Repair',
-    'Door & Window Repair',
+    'Furniture Fixing',
   ];
 }

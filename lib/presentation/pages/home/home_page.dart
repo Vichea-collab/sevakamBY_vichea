@@ -247,6 +247,7 @@ class _TopHeader extends StatefulWidget {
 
 class _TopHeaderState extends State<_TopHeader> {
   Timer? _chatRefreshTimer;
+  bool _syncingProfile = true;
 
   @override
   void initState() {
@@ -254,6 +255,7 @@ class _TopHeaderState extends State<_TopHeader> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(ChatState.refreshUnreadCount());
+      unawaited(_syncProfile());
     });
     _chatRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (!mounted) return;
@@ -265,6 +267,16 @@ class _TopHeaderState extends State<_TopHeader> {
   void dispose() {
     _chatRefreshTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _syncProfile() async {
+    if (mounted) {
+      setState(() => _syncingProfile = true);
+    }
+    await ProfileSettingsState.syncRoleProfileFromBackend(isProvider: false);
+    if (mounted) {
+      setState(() => _syncingProfile = false);
+    }
   }
 
   @override
@@ -289,215 +301,133 @@ class _TopHeaderState extends State<_TopHeader> {
           final city = profile.city.trim().isEmpty
               ? 'Phnom Penh'
               : profile.city.trim();
+          final hasProfileContent =
+              profile.name.trim().isNotEmpty || profile.city.trim().isNotEmpty;
           return Container(
-            padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
                 colors: [AppColors.splashStart, AppColors.splashEnd],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.only(
+              borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(20),
                 bottomRight: Radius.circular(20),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 28),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
             child: SafeArea(
               bottom: false,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 230),
-                          shape: BoxShape.circle,
-                        ),
-                        child: ValueListenableBuilder(
-                          valueListenable: ProfileImageState.listenableForRole(
-                            isProvider: false,
-                          ),
-                          builder: (context, value, child) {
-                            final image = ProfileImageState.avatarProvider(
-                              isProvider: false,
-                            );
-                            return CircleAvatar(
-                              radius: 19,
-                              backgroundColor: AppColors.background,
-                              backgroundImage: image,
-                              child: image == null
-                                  ? const Icon(
-                                      Icons.person_rounded,
-                                      color: AppColors.primary,
-                                      size: 20,
-                                    )
-                                  : null,
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+              child: _syncingProfile && !hasProfileContent
+                  ? const _FinderHeaderLoading()
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Text(
-                              'Welcome Finder',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: Colors.white70),
+                            Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 230),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 64),
+                                ),
+                              ),
+                              child: ValueListenableBuilder(
+                                valueListenable:
+                                    ProfileImageState.listenableForRole(
+                                      isProvider: false,
+                                    ),
+                                builder: (context, value, child) {
+                                  final image =
+                                      ProfileImageState.avatarProvider(
+                                        isProvider: false,
+                                      );
+                                  return CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: AppColors.background,
+                                    backgroundImage: image,
+                                    child: image == null
+                                        ? const Icon(
+                                            Icons.person_rounded,
+                                            color: AppColors.primary,
+                                            size: 22,
+                                          )
+                                        : null,
+                                  );
+                                },
+                              ),
                             ),
-                            Text(
-                              displayName,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                      ),
-                      PressableScale(
-                        onTap: openChats,
-                        child: InkWell(
-                          onTap: openChats,
-                          borderRadius: BorderRadius.circular(10),
-                          child: ValueListenableBuilder<int>(
-                            valueListenable: ChatState.unreadCount,
-                            builder: (context, unreadThreads, _) {
-                              return Stack(
-                                clipBehavior: Clip.none,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    height: 34,
-                                    width: 34,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primaryDark,
-                                      borderRadius: BorderRadius.circular(10),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: Color(0x20000000),
-                                          blurRadius: 6,
-                                          offset: Offset(0, 3),
+                                  Text(
+                                    'Welcome Finder',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: Colors.white.withValues(
+                                            alpha: 220,
+                                          ),
                                         ),
-                                      ],
-                                    ),
-                                    child: const Icon(
-                                      Icons.message_outlined,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
                                   ),
-                                  if (unreadThreads > 0)
-                                    Positioned(
-                                      top: -4,
-                                      right: -4,
-                                      child: Container(
-                                        constraints: const BoxConstraints(
-                                          minWidth: 16,
-                                          minHeight: 16,
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
                                         ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFEF4444),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 1.2,
-                                          ),
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          unreadThreads > 99
-                                              ? '99+'
-                                              : '$unreadThreads',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelSmall
-                                              ?.copyWith(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 9,
-                                              ),
-                                        ),
-                                      ),
-                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _HeaderLocationPill(city: city),
                                 ],
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      PressableScale(
-                        onTap: openFavorites,
-                        child: InkWell(
-                          onTap: openFavorites,
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            height: 34,
-                            width: 34,
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryDark,
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x20000000),
-                                  blurRadius: 6,
-                                  offset: Offset(0, 3),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              children: [
+                                ValueListenableBuilder<int>(
+                                  valueListenable: ChatState.unreadCount,
+                                  builder: (context, unreadThreads, _) {
+                                    return _HeaderActionButton(
+                                      icon: Icons.message_outlined,
+                                      onTap: openChats,
+                                      badgeText: unreadThreads > 0
+                                          ? (unreadThreads > 99
+                                                ? '99+'
+                                                : '$unreadThreads')
+                                          : null,
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 10),
+                                _HeaderActionButton(
+                                  icon: Icons.favorite_border_rounded,
+                                  onTap: openFavorites,
                                 ),
                               ],
                             ),
-                            child: const Icon(
-                              Icons.favorite_border_rounded,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x18000000),
-                          blurRadius: 6,
-                          offset: Offset(0, 3),
+                          ],
                         ),
                       ],
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.location_on_outlined,
-                          size: 16,
-                          color: AppColors.primaryDark,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          city,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: AppColors.primaryDark),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
             ),
           );
         },
@@ -515,22 +445,51 @@ class _SearchBar extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       onTap: () => Navigator.push(context, slideFadeRoute(const SearchPage())),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Theme.of(context).dividerColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 10),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            const Icon(Icons.search, color: AppColors.textSecondary),
-            const SizedBox(width: 8),
+            Container(
+              height: 36,
+              width: 36,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 20),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.search, color: Colors.white),
+            ),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                'Search services',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Search services',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Providers, categories, or tasks',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 10),
@@ -538,15 +497,11 @@ class _SearchBar extends StatelessWidget {
               height: 36,
               width: 36,
               decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x22000000),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
+                color: AppColors.primary.withValues(alpha: 20),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 38),
+                ),
               ),
               child: const Icon(Icons.tune, color: Colors.white, size: 18),
             ),
@@ -557,18 +512,172 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-class _FeaturedBanner extends StatelessWidget {
+class _FeaturedBanner extends StatefulWidget {
   const _FeaturedBanner();
+
+  @override
+  State<_FeaturedBanner> createState() => _FeaturedBannerState();
+}
+
+class _FeaturedBannerState extends State<_FeaturedBanner> {
+  static const _promoSlides = <_PromoSlide>[
+    _PromoSlide(
+      label: 'Limited offer',
+      title: 'House Cleaning this week',
+      description: 'Book trusted house cleaning with faster response today.',
+      buttonLabel: 'Book cleaning',
+      imageAsset: 'assets/images/cleaning/house-cleaning.jpg',
+      category: 'Cleaner',
+      query: 'House Cleaning',
+      colors: [Color(0xFFE8F0FF), Color(0xFF4D7CFE)],
+    ),
+    _PromoSlide(
+      label: 'Fast response',
+      title: 'Pipe leaks fixed today',
+      description: 'Find plumbers for urgent pipe leaks around your area.',
+      buttonLabel: 'Find plumber',
+      imageAsset: 'assets/images/plumber/pipe-leak.jpg',
+      category: 'Plumber',
+      query: 'Pipe leaks',
+      colors: [Color(0xFFEFFBF6), Color(0xFF18B77A)],
+    ),
+    _PromoSlide(
+      label: 'Home comfort',
+      title: 'Air Conditioner Repair',
+      description: 'Keep your home cool with quick repair this week.',
+      buttonLabel: 'Explore repair',
+      imageAsset: 'assets/images/home_appliance_repair/ac-repair.jpg',
+      category: 'Home Appliance',
+      query: 'Air Conditioner Repair',
+      colors: [Color(0xFFF2F0FF), Color(0xFF7C5CFF)],
+    ),
+    _PromoSlide(
+      label: 'Popular now',
+      title: 'Power Outage Fixes',
+      description: 'Restore power safely with electricians available now.',
+      buttonLabel: 'View electricians',
+      imageAsset: 'assets/images/electrician/power-outages-fix.jpg',
+      category: 'Electrician',
+      query: 'Power Outage Fixes',
+      colors: [Color(0xFFFFF3E8), Color(0xFFFF9A3C)],
+    ),
+    _PromoSlide(
+      label: 'Weekend ready',
+      title: 'Furniture Fixing made easy',
+      description: 'Quick help for shelves, doors, and furniture repairs.',
+      buttonLabel: 'See options',
+      imageAsset: 'assets/images/home_maintenance/furniture-repair.jpg',
+      category: 'Home Maintenance',
+      query: 'Furniture Fixing',
+      colors: [Color(0xFFFFF8E8), Color(0xFFE6B325)],
+    ),
+  ];
+
+  late final PageController _pageController;
+  Timer? _autoScrollTimer;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(
+      viewportFraction: 1,
+      initialPage: _promoSlides.length * 200,
+    );
+    _startAutoScroll();
+  }
+
+  @override
+  void dispose() {
+    _autoScrollTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _startAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || !_pageController.hasClients) return;
+      final nextPage = _pageController.page!.round() + 1;
+      _pageController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 278,
+      child: Column(
+        children: [
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              onPageChanged: (page) {
+                final nextIndex = page % _promoSlides.length;
+                if (_currentIndex != nextIndex) {
+                  setState(() => _currentIndex = nextIndex);
+                }
+              },
+              itemBuilder: (context, page) {
+                final promo = _promoSlides[page % _promoSlides.length];
+                return _PromoBannerCard(
+                  slide: promo,
+                  onTap: () => Navigator.push(
+                    context,
+                    slideFadeRoute(
+                      SearchPage(
+                        initialQuery: promo.query,
+                        initialCategory: promo.category,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              _promoSlides.length,
+              (index) => _PromoDot(active: index == _currentIndex),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PromoBannerCard extends StatelessWidget {
+  final _PromoSlide slide;
+  final VoidCallback onTap;
+
+  const _PromoBannerCard({required this.slide, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primaryDark, AppColors.primary],
+        gradient: LinearGradient(
+          colors: slide.colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 16),
+            blurRadius: 20,
+            spreadRadius: -6,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -579,60 +688,261 @@ class _FeaturedBanner extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: 4,
+                    vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFDE68A),
-                    borderRadius: BorderRadius.circular(20),
+                    color: const Color(0xFFFFE17A),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    'Limited offer',
+                    slide.label,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.primaryDark,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                Text(
+                  slide.title,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: const Color(0xFF10203A),
+                    fontWeight: FontWeight.w800,
+                    height: 1.05,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Text(
-                  '25% off cleaning',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(color: Colors.white),
+                  slide.description,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: const Color(0xFF536277),
+                    height: 1.35,
+                  ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Book now and get fast support today.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
-                ),
-                const SizedBox(height: 12),
+                const Spacer(),
                 SizedBox(
-                  height: 34,
-                  child: OutlinedButton(
-                    onPressed: () {},
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white70),
+                  height: 38,
+                  child: ElevatedButton(
+                    onPressed: onTap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1656E8),
                       foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
                     ),
-                    child: const Text('Book now'),
+                    child: Text(slide.buttonLabel),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Image.asset(
-              'assets/images/plumber_category.jpg',
-              width: 96,
-              height: 96,
-              fit: BoxFit.cover,
+            borderRadius: BorderRadius.circular(24),
+            child: Stack(
+              children: [
+                Image.asset(
+                  slide.imageAsset,
+                  width: 118,
+                  height: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withValues(alpha: 24),
+                          Colors.black.withValues(alpha: 24),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PromoDot extends StatelessWidget {
+  final bool active;
+
+  const _PromoDot({required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      height: 8,
+      width: active ? 22 : 8,
+      decoration: BoxDecoration(
+        color: active ? AppColors.primary : const Color(0xFFD1D9E7),
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+}
+
+class _PromoSlide {
+  final String label;
+  final String title;
+  final String description;
+  final String buttonLabel;
+  final String imageAsset;
+  final String category;
+  final String query;
+  final List<Color> colors;
+
+  const _PromoSlide({
+    required this.label,
+    required this.title,
+    required this.description,
+    required this.buttonLabel,
+    required this.imageAsset,
+    required this.category,
+    required this.query,
+    required this.colors,
+  });
+}
+
+class _FinderHeaderLoading extends StatelessWidget {
+  const _FinderHeaderLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const ShimmerPlaceholder.circular(size: 50),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              ShimmerPlaceholder(width: 110, height: 14, borderRadius: 999),
+              SizedBox(height: 8),
+              ShimmerPlaceholder(width: 160, height: 22, borderRadius: 999),
+              SizedBox(height: 10),
+              ShimmerPlaceholder(width: 120, height: 28, borderRadius: 999),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          children: const [
+            ShimmerPlaceholder(width: 40, height: 40, borderRadius: 12),
+            SizedBox(height: 10),
+            ShimmerPlaceholder(width: 40, height: 40, borderRadius: 12),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _HeaderLocationPill extends StatelessWidget {
+  final String city;
+
+  const _HeaderLocationPill({required this.city});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 230),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.location_on_outlined,
+            size: 16,
+            color: AppColors.primaryDark,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            city,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.primaryDark,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderActionButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? badgeText;
+
+  const _HeaderActionButton({
+    required this.icon,
+    required this.onTap,
+    this.badgeText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              height: 40,
+              width: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 36),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 52)),
+              ),
+              child: Icon(icon, color: AppColors.primaryDark, size: 20),
+            ),
+            if (badgeText != null)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white, width: 1.2),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    badgeText!,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 9,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -194,9 +194,7 @@ class ProviderCard extends StatelessWidget {
                               Expanded(
                                 child: _InfoPill(
                                   icon: Icons.radio_button_checked_rounded,
-                                  label: provider.isVerified
-                                      ? 'Verified'
-                                      : 'Open now',
+                                  label: 'Open now',
                                   background: accent.withValues(alpha: 0.10),
                                   foreground: accent,
                                   compact: compact,

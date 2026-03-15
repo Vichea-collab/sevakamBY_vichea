@@ -148,6 +148,16 @@ class ProfileRemoteDataSource {
     return role['verified'] == true || kycStatus == 'approved';
   }
 
+  Future<String> fetchProviderKycStatus() async {
+    final response = await _apiClient.getJson(
+      '/api/providers/provider-profile',
+    );
+    final role = _safeMap(response['data']);
+    final status = (role['kycStatus'] ?? '').toString().trim().toLowerCase();
+    if (status.isEmpty) return 'unverified';
+    return status;
+  }
+
   Future<void> submitProviderVerification({
     required String idFrontUrl,
     required String idBackUrl,

@@ -578,20 +578,26 @@ class AdminTicketRow {
   final String userUid;
   final String userName;
   final String userEmail;
+  final String userRole;
   final String title;
   final String message;
   final String status;
   final DateTime? createdAt;
+  final DateTime? lastMessageAt;
+  final String lastMessageSenderRole;
 
   const AdminTicketRow({
     required this.id,
     required this.userUid,
     required this.userName,
     required this.userEmail,
+    required this.userRole,
     required this.title,
     required this.message,
     required this.status,
     required this.createdAt,
+    required this.lastMessageAt,
+    required this.lastMessageSenderRole,
   });
 
   factory AdminTicketRow.fromMap(Map<String, dynamic> row) {
@@ -600,10 +606,16 @@ class AdminTicketRow {
       userUid: _AdminParser.text(row['userUid']),
       userName: _AdminParser.text(row['userName'], fallback: 'User'),
       userEmail: _AdminParser.text(row['userEmail']),
+      userRole: _AdminParser.text(row['userRole'], fallback: 'finder'),
       title: _AdminParser.text(row['title'], fallback: 'Support request'),
       message: _AdminParser.text(row['message']),
       status: _AdminParser.text(row['status'], fallback: 'open'),
       createdAt: _AdminParser.parseDate(row['createdAt']),
+      lastMessageAt: _AdminParser.parseDate(row['lastMessageAt']),
+      lastMessageSenderRole: _AdminParser.text(
+        row['lastMessageSenderRole'],
+        fallback: '',
+      ),
     );
   }
 }

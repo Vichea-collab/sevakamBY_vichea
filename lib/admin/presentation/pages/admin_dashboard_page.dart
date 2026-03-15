@@ -227,39 +227,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
                   return Column(
                     children: [
-                      _MobileTopBar(email: email, onLogout: _logout),
-                      SizedBox(
-                        height: 52,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _AdminSection.values.length,
-                          separatorBuilder: (_, _) => const SizedBox(width: 8),
-                          itemBuilder: (context, index) {
-                            final item = _AdminSection.values[index];
-                            final selected = item == _section;
-                            return ChoiceChip(
-                              selected: selected,
-                              label: Text(item.label),
-                              avatar: Icon(item.icon, size: 20),
-                              onSelected: (_) => _onSectionChanged(item),
-                              selectedColor: AppColors.primary.withValues(
-                                alpha: 0.16,
-                              ),
-                              side: BorderSide(
-                                color: selected
-                                    ? AppColors.primary
-                                    : const Color(0xFFD7E1F3),
-                              ),
-                              labelStyle: TextStyle(
-                                color: selected
-                                    ? AppColors.primaryDark
-                                    : AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            );
-                          },
-                        ),
+                      _MobileTopBar(
+                        email: email,
+                        section: _section,
+                        onSectionChanged: _onSectionChanged,
+                        onLogout: _logout,
                       ),
                       Expanded(child: _buildMainContent(desktop: false)),
                     ],
@@ -2520,7 +2492,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         'Message',
         'Requester',
         'Status',
-        'Created',
+        'Latest activity',
         'Action',
       ],
       emptyText: 'No tickets found for this page.',
@@ -2534,12 +2506,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         final closed = items
             .where((item) => item.status.toLowerCase() == 'closed')
             .length;
+        final waitingOnAdmin = items
+            .where(
+              (item) =>
+                  item.status.toLowerCase() != 'closed' &&
+                  item.lastMessageSenderRole.toLowerCase() != 'admin',
+            )
+            .length;
         return [
           _MetricChipData(label: 'Page tickets', value: '${items.length}'),
           _MetricChipData(
             label: 'Open',
             value: '$open',
             color: AppColors.warning,
+          ),
+          _MetricChipData(
+            label: 'Waiting on admin',
+            value: '$waitingOnAdmin',
+            color: AppColors.primary,
           ),
           _MetricChipData(
             label: 'Resolved',
@@ -2570,10 +2554,35 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             .toList(growable: false);
       },
       rowCells: (item) {
+        final hasNewReply =
+            item.status.toLowerCase() != 'closed' &&
+            item.lastMessageSenderRole.toLowerCase() ==
+                item.userRole.toLowerCase();
         return [
           DataCell(_cellText(item.title, width: 170)),
           DataCell(
-            _cellText(item.message.isEmpty ? '-' : item.message, width: 230),
+            SizedBox(
+              width: 230,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    item.message.isEmpty ? '-' : item.message,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                  ),
+                  if (hasNewReply) ...[
+                    const SizedBox(height: 6),
+                    const _Pill(text: 'New reply', color: Color(0xFF0EA5E9)),
+                  ],
+                ],
+              ),
+            ),
           ),
           DataCell(
             SizedBox(
@@ -2591,7 +2600,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
+                  _Pill(
+                    text: _prettyRole(item.userRole),
+                    color: item.userRole.toLowerCase() == 'provider'
+                        ? const Color(0xFF7C3AED)
+                        : AppColors.primary,
+                  ),
+                  const SizedBox(height: 6),
                   Text(
                     item.userEmail.isEmpty ? item.userUid : item.userEmail,
                     maxLines: 1,
@@ -2611,7 +2627,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               color: _statusColor(item.status),
             ),
           ),
-          DataCell(_cellText(_formatDateTime(item.createdAt))),
+          DataCell(
+            _cellText(_formatDateTime(item.lastMessageAt ?? item.createdAt)),
+          ),
           DataCell(
             _actionMenu(
               actions: [

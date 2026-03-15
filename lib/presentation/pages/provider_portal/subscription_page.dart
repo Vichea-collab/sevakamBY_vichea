@@ -147,6 +147,7 @@ class _SubscriptionPageState extends State<SubscriptionPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F6FB),
       body: SafeArea(
         child: ValueListenableBuilder<SubscriptionStatus>(
           valueListenable: SubscriptionState.status,
@@ -191,19 +192,12 @@ class _SubscriptionPageState extends State<SubscriptionPage>
                 _CurrentPlanCard(status: status),
                 const SizedBox(height: 22),
                 Text(
-                  'Choose Your Plan',
+                  'Plans',
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Compare visibility, booking limits, and portfolio capacity.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
                 ...SubscriptionPlan.all.map(
                   (plan) => Padding(
                     padding: const EdgeInsets.only(bottom: 14),
@@ -333,24 +327,6 @@ class _CurrentPlanCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _CurrentPlanMetric(label: 'Bookings', value: status.usageLabel),
-              _CurrentPlanMetric(
-                label: 'Ranking',
-                value: '${plan.searchRankMultiplier}x priority',
-              ),
-              _CurrentPlanMetric(
-                label: 'Portfolio',
-                value: plan.maxPhotos < 0
-                    ? 'Unlimited'
-                    : '${plan.maxPhotos} photos',
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           Text(
             'Booking usage',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -478,46 +454,6 @@ class _CurrentPlanCard extends StatelessWidget {
   }
 }
 
-class _CurrentPlanMetric extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _CurrentPlanMetric({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.78),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _PlanCard extends StatelessWidget {
   final SubscriptionPlan plan;
   final bool isCurrentPlan;
@@ -534,6 +470,16 @@ class _PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFree = plan.tier == SubscriptionTier.basic;
+    final visibleFeatures = plan.features.take(3).toList(growable: false);
+    final highlightStats = <String>[
+      plan.bookingLimit < 0
+          ? 'Unlimited bookings'
+          : '${plan.bookingLimit} bookings/mo',
+      '${plan.searchRankMultiplier}x ranking',
+      plan.maxPhotos < 0
+          ? 'Unlimited portfolio'
+          : '${plan.maxPhotos} portfolio photos',
+    ];
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       decoration: BoxDecoration(
@@ -559,7 +505,7 @@ class _PlanCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: plan.badgeColor.withValues(alpha: 0.06),
               borderRadius: const BorderRadius.vertical(
@@ -570,15 +516,15 @@ class _PlanCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     color: plan.badgeColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(plan.badgeIcon, color: plan.badgeColor, size: 22),
+                  child: Icon(plan.badgeIcon, color: plan.badgeColor, size: 20),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -614,12 +560,12 @@ class _PlanCard extends StatelessWidget {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         plan.tagline,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.textSecondary,
-                          height: 1.3,
+                          height: 1.2,
                         ),
                       ),
                     ],
@@ -637,7 +583,7 @@ class _PlanCard extends StatelessWidget {
                     ),
                     if (plan.annualPriceLabel.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           plan.annualPriceLabel,
                           textAlign: TextAlign.right,
@@ -654,13 +600,40 @@ class _PlanCard extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ...plan.features.map((feature) {
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: highlightStats
+                      .map(
+                        (item) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: plan.badgeColor.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            item,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: plan.badgeColor,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+                const SizedBox(height: 10),
+                ...visibleFeatures.map((feature) {
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.only(bottom: 6),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -668,29 +641,39 @@ class _PlanCard extends StatelessWidget {
                           padding: const EdgeInsets.only(top: 2),
                           child: Icon(
                             Icons.check_circle_rounded,
-                            size: 18,
+                            size: 16,
                             color: plan.badgeColor,
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             feature,
                             style: Theme.of(
                               context,
-                            ).textTheme.bodyMedium?.copyWith(height: 1.28),
+                            ).textTheme.bodySmall?.copyWith(height: 1.22),
                           ),
                         ),
                       ],
                     ),
                   );
                 }),
+                if (plan.features.length > visibleFeatures.length) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '+${plan.features.length - visibleFeatures.length} more benefits',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
                 if (plan.qualityGate != null) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                      horizontal: 10,
+                      vertical: 8,
                     ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFEF3C7),
@@ -711,11 +694,13 @@ class _PlanCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             plan.qualityGate!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.labelSmall
                                 ?.copyWith(
                                   color: const Color(0xFF92400E),
                                   fontWeight: FontWeight.w600,
-                                  height: 1.3,
+                                  height: 1.2,
                                 ),
                           ),
                         ),
@@ -724,7 +709,7 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ],
                 if (plan.bestFor.isNotEmpty) ...[
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -741,8 +726,10 @@ class _PlanCard extends StatelessWidget {
                               ?.copyWith(
                                 color: AppColors.textSecondary,
                                 fontStyle: FontStyle.italic,
-                                height: 1.3,
+                                height: 1.2,
                               ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
@@ -753,7 +740,7 @@ class _PlanCard extends StatelessWidget {
           ),
           if (!isFree || isCurrentPlan)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
+              padding: const EdgeInsets.fromLTRB(14, 2, 14, 14),
               child: Column(
                 children: [
                   if (!isCurrentPlan && !isFree)

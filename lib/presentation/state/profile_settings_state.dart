@@ -36,6 +36,9 @@ class ProfileSettingsState {
       ValueNotifier(ProviderProfessionData.defaults());
   static final ValueNotifier<int> providerCompletedOrders = ValueNotifier(0);
   static final ValueNotifier<bool> providerVerified = ValueNotifier(false);
+  static final ValueNotifier<String> providerKycStatus = ValueNotifier(
+    'unverified',
+  );
 
   static final ValueNotifier<NotificationPreference> finderNotification =
       ValueNotifier(NotificationPreference.defaults());
@@ -116,6 +119,8 @@ class ProfileSettingsState {
         .loadProviderCompletedOrdersFromBackend();
     providerVerified.value = await _repository
         .loadProviderVerifiedFromBackend();
+    providerKycStatus.value = await _repository
+        .loadProviderKycStatusFromBackend();
   }
 
   static void setBackendToken(String token) {
@@ -152,6 +157,8 @@ class ProfileSettingsState {
             .loadProviderCompletedOrdersFromBackend();
         providerVerified.value = await _repository
             .loadProviderVerifiedFromBackend();
+        providerKycStatus.value = await _repository
+            .loadProviderKycStatusFromBackend();
       } else {
         finderProfile.value = profile;
         _applyAvatarForRole(profile: profile, isProvider: false);
@@ -170,6 +177,8 @@ class ProfileSettingsState {
           .loadProviderCompletedOrdersFromBackend();
       providerVerified.value = await _repository
           .loadProviderVerifiedFromBackend();
+      providerKycStatus.value = await _repository
+          .loadProviderKycStatusFromBackend();
       return true;
     } catch (_) {
       return false;
@@ -195,6 +204,7 @@ class ProfileSettingsState {
       idBackUrl: idBackUrl,
     );
     providerVerified.value = false;
+    providerKycStatus.value = 'pending';
   }
 
   static Future<void> saveProviderProfession(

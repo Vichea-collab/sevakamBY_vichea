@@ -12,6 +12,7 @@ import '../../widgets/app_top_bar.dart';
 import '../../widgets/pressable_scale.dart';
 import '../chat/chat_list_page.dart';
 import '../main_shell_page.dart';
+import '../profile/help_support_page.dart';
 import '../../widgets/app_bottom_nav.dart';
 
 enum _NoticeFilter { all, orders, system, promos }
@@ -162,8 +163,7 @@ class _NotificationsPageState extends State<NotificationsPage>
                                           isLast:
                                               index ==
                                               visibleUpdates.length - 1,
-                                          onTap: () =>
-                                              _markUpdateAsRead(item.key),
+                                          onTap: () => _handleUpdateTap(item),
                                         );
                                       },
                                     ),
@@ -247,15 +247,28 @@ class _NotificationsPageState extends State<NotificationsPage>
                                     ),
                                     tooltip: 'Messenger',
                                   ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        _markAllAsRead(updates, promos),
-                                    child: const Text('Mark all'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        _confirmClearAllNotifications(context),
-                                    child: const Text('Clear all'),
+                                  PopupMenuButton<String>(
+                                    tooltip: 'More actions',
+                                    onSelected: (value) {
+                                      if (value == 'read') {
+                                        _markAllAsRead(updates, promos);
+                                        return;
+                                      }
+                                      if (value == 'clear') {
+                                        _confirmClearAllNotifications(context);
+                                      }
+                                    },
+                                    itemBuilder: (context) => const [
+                                      PopupMenuItem<String>(
+                                        value: 'read',
+                                        child: Text('Mark all as read'),
+                                      ),
+                                      PopupMenuItem<String>(
+                                        value: 'clear',
+                                        child: Text('Clear order updates'),
+                                      ),
+                                    ],
+                                    icon: const Icon(Icons.more_horiz_rounded),
                                   ),
                                 ],
                               ),
@@ -363,6 +376,20 @@ class _NotificationsPageState extends State<NotificationsPage>
     unawaited(UserNotificationState.markRead(_updateStateKey(key)));
   }
 
+  void _handleUpdateTap(_NotificationUpdate item) {
+    _markUpdateAsRead(item.key);
+    switch (item.source) {
+      case 'chat_message':
+        Navigator.pushNamed(context, ChatListPage.routeName);
+        return;
+      case 'support_message':
+        Navigator.pushNamed(context, HelpSupportPage.routeName);
+        return;
+      default:
+        return;
+    }
+  }
+
   void _markPromoAsRead(String id) {
     unawaited(UserNotificationState.markRead(_promoStateKey(id)));
   }
@@ -447,6 +474,7 @@ class _NotificationsPageState extends State<NotificationsPage>
           icon: icon,
           iconColor: color,
           kind: _NoticeFilter.orders,
+          source: 'order_status',
           unread: false,
         ),
       );
@@ -503,18 +531,30 @@ class _NotificationsPageState extends State<NotificationsPage>
             return right.compareTo(left);
           });
     return systems
-        .map(
-          (item) => _NotificationUpdate(
+        .map((item) {
+          final (icon, color) = switch (item.source) {
+            'chat_message' => (
+              Icons.chat_bubble_outline_rounded,
+              AppColors.primary,
+            ),
+            'support_message' => (
+              Icons.support_agent_rounded,
+              const Color(0xFFF59E0B),
+            ),
+            _ => (Icons.campaign_outlined, const Color(0xFF4B5563)),
+          };
+          return _NotificationUpdate(
             key: 'system:${item.id}',
             title: item.title,
             description: item.message,
             timeLabel: _timeAgo(item.createdAt ?? DateTime.now()),
-            icon: Icons.campaign_outlined,
-            iconColor: const Color(0xFF4B5563),
+            icon: icon,
+            iconColor: color,
             kind: _NoticeFilter.system,
+            source: item.source,
             unread: false,
-          ),
-        )
+          );
+        })
         .toList(growable: false);
   }
 
@@ -621,7 +661,7 @@ class _HeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.splashStart, AppColors.splashEnd],
@@ -657,9 +697,10 @@ class _HeroCard extends StatelessWidget {
                       : '$unreadCount unread notification${unreadCount > 1 ? 's' : ''} out of $totalCount',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Colors.white.withValues(alpha: 0.86),
+                    height: 1.35,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -803,18 +844,16 @@ class _UpdateTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      item.title,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
-                        Expanded(
-                          child: Text(
-                            item.title,
-                            style: Theme.of(context).textTheme.bodyLarge
-                                ?.copyWith(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        ),
                         Container(
                           height: 8,
                           width: 8,
@@ -832,11 +871,12 @@ class _UpdateTile extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           item.timeLabel,
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textSecondary),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Text(
                       item.description,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -883,6 +923,7 @@ class _PromoTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Text(
@@ -918,6 +959,7 @@ class _PromoTile extends StatelessWidget {
                 item.description,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.textSecondary,
+                  height: 1.35,
                 ),
               ),
               if (item.dateRange != null) ...[
@@ -945,6 +987,7 @@ class _NotificationUpdate {
   final IconData icon;
   final Color iconColor;
   final _NoticeFilter kind;
+  final String source;
   final bool unread;
 
   const _NotificationUpdate({
@@ -955,6 +998,7 @@ class _NotificationUpdate {
     required this.icon,
     required this.iconColor,
     required this.kind,
+    required this.source,
     required this.unread,
   });
 
@@ -967,6 +1011,7 @@ class _NotificationUpdate {
       icon: icon,
       iconColor: iconColor,
       kind: kind,
+      source: source,
       unread: unread ?? this.unread,
     );
   }
