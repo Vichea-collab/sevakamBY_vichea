@@ -6,6 +6,7 @@ import '../../../core/utils/responsive.dart';
 import '../../../core/utils/safe_image_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/constants/location_options.dart';
 import '../../../domain/entities/home_promotion.dart';
 import '../../../domain/entities/provider.dart';
 import '../../../domain/entities/profile_settings.dart';
@@ -439,6 +440,8 @@ class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return InkWell(
       borderRadius: BorderRadius.circular(rs.radius(16)),
@@ -446,12 +449,12 @@ class _SearchBar extends StatelessWidget {
       child: Container(
         padding: rs.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(rs.radius(16)),
-          border: Border.all(color: Theme.of(context).dividerColor),
+          border: Border.all(color: theme.dividerColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 10),
+              color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.10),
               blurRadius: rs.space(12),
               offset: Offset(0, rs.space(4)),
             ),
@@ -477,7 +480,7 @@ class _SearchBar extends StatelessWidget {
                   Text(
                     'Search services',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.textPrimary,
+                      color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -485,7 +488,7 @@ class _SearchBar extends StatelessWidget {
                   Text(
                     'Providers, categories, or tasks',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
+                      color: theme.textTheme.bodyMedium?.color,
                     ),
                   ),
                 ],
@@ -1087,10 +1090,13 @@ class _HeaderLocationPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 230),
+        color: isDark
+            ? const Color(0xFFEEF4FF).withValues(alpha: 0.16)
+            : Colors.white.withValues(alpha: 230),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -1105,7 +1111,7 @@ class _HeaderLocationPill extends StatelessWidget {
           Text(
             city,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.primaryDark,
+              color: isDark ? Colors.white : AppColors.primaryDark,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1128,6 +1134,7 @@ class _HeaderActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return PressableScale(
       onTap: onTap,
       child: InkWell(
@@ -1140,11 +1147,21 @@ class _HeaderActionButton extends StatelessWidget {
               height: 40,
               width: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 36),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.10)
+                    : Colors.white.withValues(alpha: 36),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 52)),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.16)
+                      : Colors.white.withValues(alpha: 52),
+                ),
               ),
-              child: Icon(icon, color: AppColors.primaryDark, size: 20),
+              child: Icon(
+                icon,
+                color: isDark ? Colors.white : AppColors.primaryDark,
+                size: 20,
+              ),
             ),
             if (badgeText != null)
               Positioned(
@@ -1159,7 +1176,10 @@ class _HeaderActionButton extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFFEF4444),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white, width: 1.2),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                      width: 1.2,
+                    ),
                   ),
                   alignment: Alignment.center,
                   child: Text(
@@ -1231,6 +1251,8 @@ class _ProviderPostTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final tierStr = post.subscriptionTier.toLowerCase().trim();
     final isElite = tierStr == 'elite';
     final isProfessional = tierStr == 'professional';
@@ -1242,10 +1264,10 @@ class _ProviderPostTile extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isElite
-            ? const Color(0xFFFFF8EC)
+            ? (isDark ? const Color(0xFF2A2112) : const Color(0xFFFFF8EC))
             : accentColor != null
-            ? accentColor.withValues(alpha: 0.04)
-            : Theme.of(context).cardColor,
+            ? accentColor.withValues(alpha: isDark ? 0.12 : 0.04)
+            : theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1263,7 +1285,7 @@ class _ProviderPostTile extends StatelessWidget {
             : Border.all(
                 color: accentColor != null
                     ? accentColor.withValues(alpha: 0.5)
-                    : Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                    : theme.dividerColor.withValues(alpha: 0.5),
                 width: isProfessional ? 1.5 : 1,
               ),
       ),
@@ -1276,7 +1298,7 @@ class _ProviderPostTile extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: AppColors.background,
+                color: isDark ? const Color(0xFF162133) : AppColors.background,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
@@ -1318,7 +1340,7 @@ class _ProviderPostTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                     ),
@@ -1376,7 +1398,7 @@ class _ProviderPostTile extends StatelessWidget {
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: post.availableNow
                             ? const Color(0xFF10B981)
-                            : AppColors.textSecondary,
+                            : theme.textTheme.bodyMedium?.color,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1387,7 +1409,9 @@ class _ProviderPostTile extends StatelessWidget {
                   children: [
                     _HomePostPill(text: post.category),
                     const SizedBox(width: 8),
-                    _HomePostPill(text: post.area),
+                    _HomePostPill(
+                      text: LocationOptions.districtFromArea(post.area),
+                    ),
                   ],
                 ),
               ],

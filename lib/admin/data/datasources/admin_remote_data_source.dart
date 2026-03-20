@@ -99,6 +99,7 @@ class AdminRemoteDataSource {
     int limit = defaultPageSize,
     String query = '',
     String status = '',
+    String category = '',
   }) {
     return _fetchPaginated(
       '/api/admin/tickets',
@@ -107,6 +108,7 @@ class AdminRemoteDataSource {
       query: {
         if (query.trim().isNotEmpty) 'q': query.trim(),
         if (status.trim().isNotEmpty) 'status': status.trim(),
+        if (category.trim().isNotEmpty) 'category': category.trim(),
       },
     );
   }
@@ -326,7 +328,10 @@ class AdminRemoteDataSource {
     if (endAtIso != null && endAtIso.trim().isNotEmpty) {
       body['endAt'] = endAtIso.trim();
     }
-    final response = await _apiClient.postJson('/api/admin/promotions', body: body);
+    final response = await _apiClient.postJson(
+      '/api/admin/promotions',
+      body: body,
+    );
     return _safeMap(response['data']);
   }
 
@@ -347,12 +352,6 @@ class AdminRemoteDataSource {
     required String message,
     required List<String> targetRoles,
     required bool active,
-    String promoCode = '',
-    String discountType = 'percent',
-    double discountValue = 0,
-    double minSubtotal = 0,
-    double maxDiscount = 0,
-    int usageLimit = 0,
     String? startAtIso,
     String? endAtIso,
   }) async {
@@ -363,14 +362,6 @@ class AdminRemoteDataSource {
       'targetRoles': targetRoles,
       'active': active,
     };
-    if (promoCode.trim().isNotEmpty) {
-      body['promoCode'] = promoCode.trim().toUpperCase();
-      body['discountType'] = discountType;
-      body['discountValue'] = discountValue;
-      body['minSubtotal'] = minSubtotal;
-      body['maxDiscount'] = maxDiscount;
-      body['usageLimit'] = usageLimit;
-    }
     if (startAtIso != null && startAtIso.trim().isNotEmpty) {
       body['startAt'] = startAtIso.trim();
     }

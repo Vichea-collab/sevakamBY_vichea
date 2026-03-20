@@ -104,12 +104,14 @@ class AdminRepositoryImpl implements AdminRepository {
     int limit = 10,
     String query = '',
     String status = '',
+    String category = '',
   }) async {
     final result = await _remoteDataSource.fetchTickets(
       page: page,
       limit: limit,
       query: query,
       status: status,
+      category: category,
     );
     return AdminPage(
       items: result.items.map(AdminTicketRow.fromMap).toList(growable: false),
@@ -389,12 +391,6 @@ class AdminRepositoryImpl implements AdminRepository {
     required String message,
     required List<String> targetRoles,
     required bool active,
-    String promoCode = '',
-    String discountType = 'percent',
-    double discountValue = 0,
-    double minSubtotal = 0,
-    double maxDiscount = 0,
-    int usageLimit = 0,
     String? startAtIso,
     String? endAtIso,
   }) async {
@@ -404,12 +400,6 @@ class AdminRepositoryImpl implements AdminRepository {
       message: message,
       targetRoles: targetRoles,
       active: active,
-      promoCode: promoCode,
-      discountType: discountType,
-      discountValue: discountValue,
-      minSubtotal: minSubtotal,
-      maxDiscount: maxDiscount,
-      usageLimit: usageLimit,
       startAtIso: startAtIso,
       endAtIso: endAtIso,
     );

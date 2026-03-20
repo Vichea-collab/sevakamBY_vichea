@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/support_ticket_options.dart';
 import '../../../core/firebase/firebase_storage_service.dart';
 import '../../../core/utils/safe_image_provider.dart';
 import '../../../domain/entities/subscription.dart';
@@ -76,7 +78,7 @@ extension _AdminSectionX on _AdminSection {
       case _AdminSection.promotions:
         return 'Curate finder home carousel ads and campaign windows';
       case _AdminSection.broadcasts:
-        return 'System announcements and promo-code campaigns';
+        return 'System announcements and promotion campaigns';
     }
   }
 
@@ -127,6 +129,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   String _orderStatusFilter = 'all';
   String _postTypeFilter = 'all';
   String _ticketStatusFilter = 'all';
+  String _ticketCategoryFilter = 'all';
   String _serviceStateFilter = 'all';
   String _promotionPlacementFilter = 'finder_home';
   String _promotionTargetTypeFilter = 'all';
@@ -136,7 +139,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   String _broadcastRoleFilter = 'all';
   String _undoHistoryStateFilter = 'all';
   String _broadcastComposerType = 'system';
-  String _broadcastComposerDiscountType = 'percent';
   String _promotionComposerPlacement = 'finder_home';
   String _promotionComposerTargetType = 'search';
   bool _broadcastComposerFinder = true;
@@ -150,14 +152,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   int _undoHistoryPage = 1;
   late final TextEditingController _broadcastTitleController;
   late final TextEditingController _broadcastMessageController;
-  late final TextEditingController _broadcastPromoCodeController;
-  late final TextEditingController _broadcastDiscountValueController;
-  late final TextEditingController _broadcastMinSubtotalController;
-  late final TextEditingController _broadcastMaxDiscountController;
-  late final TextEditingController _broadcastUsageLimitController;
   late final TextEditingController _promotionBadgeController;
   late final TextEditingController _promotionTitleController;
-  late final TextEditingController _promotionDescriptionController;
   late final TextEditingController _promotionCtaController;
   late final TextEditingController _promotionTargetValueController;
   late final TextEditingController _promotionQueryController;
@@ -175,14 +171,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _searchController = TextEditingController();
     _broadcastTitleController = TextEditingController();
     _broadcastMessageController = TextEditingController();
-    _broadcastPromoCodeController = TextEditingController();
-    _broadcastDiscountValueController = TextEditingController(text: '10');
-    _broadcastMinSubtotalController = TextEditingController(text: '0');
-    _broadcastMaxDiscountController = TextEditingController(text: '0');
-    _broadcastUsageLimitController = TextEditingController(text: '0');
     _promotionBadgeController = TextEditingController(text: 'Featured');
     _promotionTitleController = TextEditingController();
-    _promotionDescriptionController = TextEditingController();
     _promotionCtaController = TextEditingController(text: 'Explore');
     _promotionTargetValueController = TextEditingController();
     _promotionQueryController = TextEditingController();
@@ -205,14 +195,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _searchController.dispose();
     _broadcastTitleController.dispose();
     _broadcastMessageController.dispose();
-    _broadcastPromoCodeController.dispose();
-    _broadcastDiscountValueController.dispose();
-    _broadcastMinSubtotalController.dispose();
-    _broadcastMaxDiscountController.dispose();
-    _broadcastUsageLimitController.dispose();
     _promotionBadgeController.dispose();
     _promotionTitleController.dispose();
-    _promotionDescriptionController.dispose();
     _promotionCtaController.dispose();
     _promotionTargetValueController.dispose();
     _promotionQueryController.dispose();
@@ -427,6 +411,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           page: page,
           query: _searchQuery,
           status: _ticketStatusFilter == 'all' ? '' : _ticketStatusFilter,
+          category: _ticketCategoryFilter == 'all' ? '' : _ticketCategoryFilter,
         ),
       );
     } catch (error) {
@@ -1046,10 +1031,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                                     message.senderRole
                                                         .toLowerCase() ==
                                                     'admin';
+                                                final isAutoReply =
+                                                    message.type
+                                                        .toLowerCase() ==
+                                                    'auto_reply';
                                                 return Align(
-                                                  alignment: fromAdmin
-                                                      ? Alignment.centerRight
-                                                      : Alignment.centerLeft,
+                                                  alignment: isAutoReply
+                                                      ? Alignment.centerLeft
+                                                      : (fromAdmin
+                                                            ? Alignment
+                                                                  .centerRight
+                                                            : Alignment
+                                                                  .centerLeft),
                                                   child: Container(
                                                     constraints:
                                                         const BoxConstraints(
@@ -1063,25 +1056,37 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                                           8,
                                                         ),
                                                     decoration: BoxDecoration(
-                                                      color: fromAdmin
-                                                          ? AppColors.primary
-                                                                .withValues(
-                                                                  alpha: 0.14,
-                                                                )
-                                                          : Colors.white,
+                                                      color: isAutoReply
+                                                          ? const Color(
+                                                              0xFFF7FAFF,
+                                                            )
+                                                          : (fromAdmin
+                                                                ? AppColors
+                                                                      .primary
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.14,
+                                                                      )
+                                                                : Colors.white),
                                                       borderRadius:
                                                           BorderRadius.circular(
                                                             10,
                                                           ),
                                                       border: Border.all(
-                                                        color: fromAdmin
-                                                            ? AppColors.primary
-                                                                  .withValues(
-                                                                    alpha: 0.28,
-                                                                  )
-                                                            : const Color(
-                                                                0xFFD6DEED,
-                                                              ),
+                                                        color: isAutoReply
+                                                            ? const Color(
+                                                                0xFFBFDBFE,
+                                                              )
+                                                            : (fromAdmin
+                                                                  ? AppColors
+                                                                        .primary
+                                                                        .withValues(
+                                                                          alpha:
+                                                                              0.28,
+                                                                        )
+                                                                  : const Color(
+                                                                      0xFFD6DEED,
+                                                                    )),
                                                       ),
                                                     ),
                                                     child: Column(
@@ -1090,13 +1095,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                                               .start,
                                                       children: [
                                                         Text(
-                                                          message.senderName,
+                                                          isAutoReply
+                                                              ? 'Support assistant'
+                                                              : message
+                                                                    .senderName,
                                                           style: TextStyle(
-                                                            color: fromAdmin
+                                                            color: isAutoReply
                                                                 ? AppColors
-                                                                      .primaryDark
-                                                                : AppColors
-                                                                      .textSecondary,
+                                                                      .primary
+                                                                : (fromAdmin
+                                                                      ? AppColors
+                                                                            .primaryDark
+                                                                      : AppColors
+                                                                            .textSecondary),
                                                             fontSize: 12,
                                                             fontWeight:
                                                                 FontWeight.w700,
@@ -1110,6 +1121,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                                           style: const TextStyle(
                                                             color: AppColors
                                                                 .textPrimary,
+                                                            height: 1.4,
                                                           ),
                                                         ),
                                                         const SizedBox(
@@ -1172,6 +1184,31 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           },
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _ticketQuickReplies(ticket)
+                          .map(
+                            (reply) => ActionChip(
+                              label: Text(reply),
+                              onPressed: sending
+                                  ? null
+                                  : () {
+                                      inputController.text = reply;
+                                      inputController.selection =
+                                          TextSelection.fromPosition(
+                                            TextPosition(
+                                              offset:
+                                                  inputController.text.length,
+                                            ),
+                                          );
+                                      setDialogState(() {});
+                                    },
+                            ),
+                          )
+                          .toList(growable: false),
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -1263,37 +1300,41 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         Expanded(
           child: RefreshIndicator(
             onRefresh: _refreshAll,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                desktop ? 22 : 14,
-                4,
-                desktop ? 22 : 14,
-                22,
-              ),
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 240),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  transitionBuilder: (child, animation) {
-                    final slide = Tween<Offset>(
-                      begin: const Offset(0, 0.02),
-                      end: Offset.zero,
-                    ).animate(animation);
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(position: slide, child: child),
-                    );
-                  },
-                  child: KeyedSubtree(
-                    key: ValueKey<String>(
-                      '${_section.name}_${_searchQuery.trim()}-$_userRoleFilter-$_userKycFilter-$_userPlanFilter-$_subscriptionPlanFilter-$_subscriptionStatusFilter-$_orderStatusFilter-$_postTypeFilter-$_ticketStatusFilter-$_serviceStateFilter-$_promotionPlacementFilter-$_promotionTargetTypeFilter-$_promotionStatusFilter-$_broadcastTypeFilter-$_broadcastStatusFilter-$_broadcastRoleFilter-$_undoHistoryStateFilter',
-                    ),
-                    child: _buildActiveSection(),
-                  ),
+            child: ScrollConfiguration(
+              behavior: const _AdminScrollBehavior(),
+              child: ListView(
+                primary: true,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  desktop ? 22 : 14,
+                  4,
+                  desktop ? 22 : 14,
+                  22,
                 ),
-              ],
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      final slide = Tween<Offset>(
+                        begin: const Offset(0, 0.02),
+                        end: Offset.zero,
+                      ).animate(animation);
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(position: slide, child: child),
+                      );
+                    },
+                    child: KeyedSubtree(
+                      key: ValueKey<String>(
+                        '${_section.name}_${_searchQuery.trim()}-$_userRoleFilter-$_userKycFilter-$_userPlanFilter-$_subscriptionPlanFilter-$_subscriptionStatusFilter-$_orderStatusFilter-$_postTypeFilter-$_ticketStatusFilter-$_serviceStateFilter-$_promotionPlacementFilter-$_promotionTargetTypeFilter-$_promotionStatusFilter-$_broadcastTypeFilter-$_broadcastStatusFilter-$_broadcastRoleFilter-$_undoHistoryStateFilter',
+                      ),
+                      child: _buildActiveSection(),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1348,6 +1389,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         if (_ticketStatusFilter != 'all') {
           values.add('Status: ${_prettyStatus(_ticketStatusFilter)}');
         }
+        if (_ticketCategoryFilter != 'all') {
+          values.add(
+            'Category: ${supportTicketCategoryLabel(_ticketCategoryFilter)}',
+          );
+        }
         break;
       case _AdminSection.services:
         if (_serviceStateFilter != 'all') {
@@ -1396,6 +1442,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       _orderStatusFilter = 'all';
       _postTypeFilter = 'all';
       _ticketStatusFilter = 'all';
+      _ticketCategoryFilter = 'all';
       _serviceStateFilter = 'all';
       _promotionPlacementFilter = 'finder_home';
       _promotionTargetTypeFilter = 'all';
@@ -2311,6 +2358,75 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return safe[0].toUpperCase() + safe.substring(1);
   }
 
+  String _prettyTicketPriority(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'high':
+        return 'High priority';
+      case 'low':
+        return 'Low priority';
+      default:
+        return 'Normal priority';
+    }
+  }
+
+  Color _ticketPriorityColor(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'high':
+        return const Color(0xFFDC2626);
+      case 'low':
+        return const Color(0xFF64748B);
+      default:
+        return const Color(0xFF0EA5E9);
+    }
+  }
+
+  List<String> _ticketQuickReplies(AdminTicketRow ticket) {
+    switch (ticket.category.trim().toLowerCase()) {
+      case 'payment_charge':
+        return const [
+          'Please send the payment screenshot and payment reference so we can verify the charge.',
+          'We are checking the billing logs now and will update you shortly.',
+          'Please confirm the charged amount and the expected amount.',
+        ];
+      case 'provider_issue':
+      case 'finder_issue':
+        return const [
+          'Please share the related booking ID so we can review the case.',
+          'Please attach screenshots or chat evidence if available.',
+          'We have started reviewing this service dispute and will update you soon.',
+        ];
+      case 'booking_problem':
+        return const [
+          'Please tell us the exact booking status shown in the app.',
+          'Please share the booking ID and a screenshot of the problem screen.',
+          'We are reviewing the booking timeline now and will update you shortly.',
+        ];
+      case 'subscription_upgrade':
+        return const [
+          'Please share your plan name and payment screenshot so we can verify activation.',
+          'We are checking your subscription payment and activation status now.',
+          'Please confirm the account email used for this subscription.',
+        ];
+      case 'account_verification':
+        return const [
+          'Please confirm the account email and the current verification status shown in the app.',
+          'Please attach a screenshot of the verification or login error.',
+          'We are reviewing your account verification details now.',
+        ];
+      case 'app_bug':
+        return const [
+          'Please share the screen name and the steps to reproduce this issue.',
+          'Please attach a screenshot or screen recording if available.',
+          'We have logged this technical issue and are reviewing it now.',
+        ];
+      default:
+        return const [
+          'Thank you. Please share any screenshot or reference ID that can help us review this faster.',
+          'We are reviewing your request and will update you shortly.',
+        ];
+    }
+  }
+
   double _subscriptionMonthlyPrice(String tier) {
     final normalized = tier.trim().toLowerCase();
     for (final plan in SubscriptionPlan.all) {
@@ -2591,181 +2707,522 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Widget _buildTicketsSection() {
-    return _AdminTableCard<AdminTicketRow>(
-      title: 'Help Tickets',
-      subtitle: 'Monitor support backlog and resolution trends.',
-      loadingListenable: AdminDashboardState.loadingTickets,
-      rowsListenable: AdminDashboardState.tickets,
-      paginationListenable: AdminDashboardState.ticketsPagination,
-      onPageSelected: _loadTickets,
-      controls: [
-        _DropdownFilter(
-          label: 'Ticket status',
-          value: _ticketStatusFilter,
-          options: const [
-            _DropdownOption(value: 'all', label: 'All statuses'),
-            _DropdownOption(value: 'open', label: 'Open'),
-            _DropdownOption(value: 'resolved', label: 'Resolved'),
-            _DropdownOption(value: 'closed', label: 'Closed'),
-          ],
-          onChanged: (value) {
-            setState(() => _ticketStatusFilter = value);
-            unawaited(_loadTickets(1));
-          },
-        ),
-      ],
-      columns: const [
-        'Title',
-        'Message',
-        'Requester',
-        'Status',
-        'Latest activity',
-        'Action',
-      ],
-      emptyText: 'No tickets found for this page.',
-      summaryBuilder: (items) {
-        final open = items
-            .where((item) => item.status.toLowerCase() == 'open')
-            .length;
-        final resolved = items
-            .where((item) => item.status.toLowerCase() == 'resolved')
-            .length;
-        final closed = items
-            .where((item) => item.status.toLowerCase() == 'closed')
-            .length;
-        final waitingOnAdmin = items
-            .where(
-              (item) =>
-                  item.status.toLowerCase() != 'closed' &&
-                  item.lastMessageSenderRole.toLowerCase() != 'admin',
-            )
-            .length;
-        return [
-          _MetricChipData(label: 'Page tickets', value: '${items.length}'),
-          _MetricChipData(
-            label: 'Open',
-            value: '$open',
-            color: AppColors.warning,
-          ),
-          _MetricChipData(
-            label: 'Waiting on admin',
-            value: '$waitingOnAdmin',
-            color: AppColors.primary,
-          ),
-          _MetricChipData(
-            label: 'Resolved',
-            value: '$resolved',
-            color: AppColors.success,
-          ),
-          _MetricChipData(
-            label: 'Closed',
-            value: '$closed',
-            color: const Color(0xFF64748B),
-          ),
-        ];
-      },
-      filterRows: (items) {
-        final query = _searchQuery.trim().toLowerCase();
-        return items
-            .where((item) {
-              final status = item.status.toLowerCase();
-              final statusMatch =
-                  _ticketStatusFilter == 'all' || status == _ticketStatusFilter;
-              if (!statusMatch) return false;
-              if (query.isEmpty) return true;
-              final haystack =
-                  '${item.title} ${item.message} ${item.userUid} ${item.userName} ${item.userEmail} ${item.status}'
-                      .toLowerCase();
-              return haystack.contains(query);
-            })
-            .toList(growable: false);
-      },
-      rowCells: (item) {
-        final hasNewReply =
-            item.status.toLowerCase() != 'closed' &&
-            item.lastMessageSenderRole.toLowerCase() ==
-                item.userRole.toLowerCase();
-        return [
-          DataCell(_cellText(item.title, width: 170)),
-          DataCell(
-            SizedBox(
-              width: 230,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    item.message.isEmpty ? '-' : item.message,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 13,
-                    ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: AdminDashboardState.loadingTickets,
+      builder: (context, isLoading, _) {
+        return ValueListenableBuilder<List<AdminTicketRow>>(
+          valueListenable: AdminDashboardState.tickets,
+          builder: (context, rows, _) {
+            return ValueListenableBuilder<AdminPagination>(
+              valueListenable: AdminDashboardState.ticketsPagination,
+              builder: (context, pageMeta, _) {
+                final filteredRows = _filterTicketRows(rows);
+                final summaries = _buildTicketSummaries(rows);
+                final initialLoading = isLoading && rows.isEmpty;
+
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFD8E3F6)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x120F172A),
+                        blurRadius: 20,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
                   ),
-                  if (hasNewReply) ...[
-                    const SizedBox(height: 6),
-                    const _Pill(text: 'New reply', color: Color(0xFF0EA5E9)),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          DataCell(
-            SizedBox(
-              width: 200,
-              child: Column(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Help Tickets',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Handle support requests with clearer context and next actions.',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isLoading && !initialLoading)
+                            const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                        ],
+                      ),
+                      if (isLoading && !initialLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 10),
+                          child: LinearProgressIndicator(minHeight: 2),
+                        ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _DropdownFilter(
+                            label: 'Ticket status',
+                            value: _ticketStatusFilter,
+                            options: const [
+                              _DropdownOption(
+                                value: 'all',
+                                label: 'All statuses',
+                              ),
+                              _DropdownOption(
+                                value: 'waiting_on_admin',
+                                label: 'Waiting on admin',
+                              ),
+                              _DropdownOption(
+                                value: 'waiting_on_user',
+                                label: 'Waiting on user',
+                              ),
+                              _DropdownOption(
+                                value: 'resolved',
+                                label: 'Resolved',
+                              ),
+                              _DropdownOption(value: 'closed', label: 'Closed'),
+                              _DropdownOption(
+                                value: 'open',
+                                label: 'Open (legacy)',
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() => _ticketStatusFilter = value);
+                              unawaited(_loadTickets(1));
+                            },
+                          ),
+                          _DropdownFilter(
+                            label: 'Category',
+                            value: _ticketCategoryFilter,
+                            options: [
+                              const _DropdownOption(
+                                value: 'all',
+                                label: 'All categories',
+                              ),
+                              ...supportTicketCategories.map(
+                                (item) => _DropdownOption(
+                                  value: item.id,
+                                  label: item.label,
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() => _ticketCategoryFilter = value);
+                              unawaited(_loadTickets(1));
+                            },
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFF),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFDCE6F7),
+                              ),
+                            ),
+                            child: Text(
+                              'Search uses the section search bar above.',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (summaries.isNotEmpty && !initialLoading) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: summaries
+                              .map(
+                                (item) => _Pill(
+                                  text: '${item.label}: ${item.value}',
+                                  color: item.color,
+                                ),
+                              )
+                              .toList(growable: false),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      if (initialLoading)
+                        const SizedBox(
+                          height: 280,
+                          child: Center(
+                            child: _AdminLoadingPanel(
+                              title: 'Loading tickets',
+                              message:
+                                  'Please wait while we fetch support requests.',
+                            ),
+                          ),
+                        )
+                      else if (filteredRows.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Text(
+                            rows.isEmpty
+                                ? 'No tickets found for this page.'
+                                : 'No tickets matched your search/filter in this page.',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: AppColors.textSecondary),
+                          ),
+                        )
+                      else
+                        Column(
+                          children: [
+                            for (
+                              var index = 0;
+                              index < filteredRows.length;
+                              index++
+                            ) ...[
+                              _buildTicketRequestCard(filteredRows[index]),
+                              if (index < filteredRows.length - 1)
+                                const SizedBox(height: 12),
+                            ],
+                          ],
+                        ),
+                      if (!initialLoading) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Page ${pageMeta.page} • ${filteredRows.length}/${rows.length} visible • ${pageMeta.totalItems} total items',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 10),
+                        _CompactPager(
+                          page: pageMeta.page,
+                          totalPages: pageMeta.totalPages,
+                          loading: isLoading,
+                          onPageSelected: _loadTickets,
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  List<_MetricChipData> _buildTicketSummaries(List<AdminTicketRow> items) {
+    final waitingOnAdmin = items.where((item) {
+      final status = item.status.toLowerCase();
+      return status == 'waiting_on_admin' || status == 'open';
+    }).length;
+    final waitingOnUser = items
+        .where((item) => item.status.toLowerCase() == 'waiting_on_user')
+        .length;
+    final resolved = items
+        .where((item) => item.status.toLowerCase() == 'resolved')
+        .length;
+    final closed = items
+        .where((item) => item.status.toLowerCase() == 'closed')
+        .length;
+    return [
+      _MetricChipData(label: 'Page tickets', value: '${items.length}'),
+      _MetricChipData(
+        label: 'Waiting on admin',
+        value: '$waitingOnAdmin',
+        color: AppColors.primary,
+      ),
+      _MetricChipData(
+        label: 'Waiting on user',
+        value: '$waitingOnUser',
+        color: const Color(0xFF7C3AED),
+      ),
+      _MetricChipData(
+        label: 'Resolved',
+        value: '$resolved',
+        color: AppColors.success,
+      ),
+      _MetricChipData(
+        label: 'Closed',
+        value: '$closed',
+        color: const Color(0xFF64748B),
+      ),
+    ];
+  }
+
+  List<AdminTicketRow> _filterTicketRows(List<AdminTicketRow> items) {
+    final query = _searchQuery.trim().toLowerCase();
+    return items
+        .where((item) {
+          final status = item.status.toLowerCase();
+          final statusMatch =
+              _ticketStatusFilter == 'all' || status == _ticketStatusFilter;
+          if (!statusMatch) return false;
+          final categoryMatch =
+              _ticketCategoryFilter == 'all' ||
+              item.category.toLowerCase() == _ticketCategoryFilter;
+          if (!categoryMatch) return false;
+          if (query.isEmpty) return true;
+          final haystack =
+              '${item.title} ${item.message} ${item.userUid} ${item.userName} ${item.userEmail} ${item.status} ${item.category} ${item.subcategory} ${item.priority}'
+                  .toLowerCase();
+          return haystack.contains(query);
+        })
+        .toList(growable: false);
+  }
+
+  Widget _buildTicketRequestCard(AdminTicketRow item) {
+    final status = item.status.toLowerCase();
+    final hasNewReply =
+        status != 'closed' &&
+        item.lastMessageSenderRole.toLowerCase() == item.userRole.toLowerCase();
+    final roleColor = item.userRole.toLowerCase() == 'provider'
+        ? const Color(0xFF7C3AED)
+        : AppColors.primary;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: hasNewReply
+            ? const Color(0xFFF7FBFF)
+            : Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: hasNewReply
+              ? const Color(0xFFBFDBFE)
+              : const Color(0xFFDCE6F7),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 760;
+              final titleBlock = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    item.userName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    item.title,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  _Pill(
-                    text: _prettyRole(item.userRole),
-                    color: item.userRole.toLowerCase() == 'provider'
-                        ? const Color(0xFF7C3AED)
-                        : AppColors.primary,
-                  ),
-                  const SizedBox(height: 6),
                   Text(
-                    item.userEmail.isEmpty ? item.userUid : item.userEmail,
-                    maxLines: 1,
+                    item.message.isEmpty
+                        ? 'No message preview yet.'
+                        : item.message,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 12,
+                      fontSize: 13,
+                      height: 1.45,
+                    ),
+                  ),
+                  if (item.subcategory.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      supportTicketSubcategoryLabel(
+                        categoryId: item.category,
+                        subcategoryId: item.subcategory,
+                      ),
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
+              );
+              final badgeWrap = Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _Pill(
+                    text: supportTicketCategoryLabel(item.category),
+                    color: const Color(0xFF2563EB),
+                  ),
+                  _Pill(
+                    text: _prettyTicketPriority(item.priority),
+                    color: _ticketPriorityColor(item.priority),
+                  ),
+                  if (hasNewReply)
+                    const _Pill(
+                      text: 'Waiting on admin',
+                      color: Color(0xFF0EA5E9),
+                    ),
+                  _Pill(
+                    text: _prettyStatus(item.status),
+                    color: _statusColor(item.status),
+                  ),
+                ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildTicketLeadingIcon(hasNewReply),
+                        const SizedBox(width: 12),
+                        Expanded(child: titleBlock),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    badgeWrap,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTicketLeadingIcon(hasNewReply),
+                  const SizedBox(width: 12),
+                  Expanded(child: titleBlock),
+                  const SizedBox(width: 12),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 240),
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: badgeWrap,
                     ),
                   ),
                 ],
-              ),
-            ),
+              );
+            },
           ),
-          DataCell(
-            _Pill(
-              text: _prettyStatus(item.status),
-              color: _statusColor(item.status),
-            ),
-          ),
-          DataCell(
-            _cellText(_formatDateTime(item.lastMessageAt ?? item.createdAt)),
-          ),
-          DataCell(
-            _actionMenu(
-              actions: [
-                _ActionMenuItem(
-                  label: 'Chat',
-                  onTap: () => _openTicketChat(item),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              Container(
+                constraints: const BoxConstraints(minWidth: 280, maxWidth: 360),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFF),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFDCE6F7)),
                 ),
-                _ActionMenuItem(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Requester',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      item.userName,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    _Pill(text: _prettyRole(item.userRole), color: roleColor),
+                    const SizedBox(height: 8),
+                    Text(
+                      item.userEmail.isEmpty ? item.userUid : item.userEmail,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                constraints: const BoxConstraints(minWidth: 240, maxWidth: 320),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBF2),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFF6DDB4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Activity',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Latest reply: ${_formatDateTime(item.lastMessageAt ?? item.createdAt)}',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Created: ${_formatDateTime(item.createdAt)}',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _ticketActionButton(
+                label: 'Open chat',
+                icon: Icons.chat_bubble_outline_rounded,
+                color: AppColors.primary,
+                onTap: () => _openTicketChat(item),
+              ),
+              if (status != 'resolved' && status != 'closed')
+                _ticketActionButton(
                   label: 'Resolve',
+                  icon: Icons.task_alt_rounded,
+                  color: AppColors.success,
                   onTap: () => _runSafeAction(
                     dialogTitle: 'Resolve ticket ${item.id}?',
                     actionLabel: 'Resolve',
@@ -2777,8 +3234,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     ),
                   ),
                 ),
-                _ActionMenuItem(
+              if (status != 'closed')
+                _ticketActionButton(
                   label: 'Close',
+                  icon: Icons.lock_outline_rounded,
+                  color: const Color(0xFF64748B),
                   onTap: () => _runSafeAction(
                     dialogTitle: 'Close ticket ${item.id}?',
                     actionLabel: 'Close',
@@ -2790,11 +3250,46 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     ),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
-        ];
-      },
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTicketLeadingIcon(bool hasNewReply) {
+    return Container(
+      height: 46,
+      width: 46,
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF4FF),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(
+        hasNewReply
+            ? Icons.mark_email_unread_rounded
+            : Icons.support_agent_rounded,
+        color: hasNewReply ? AppColors.primary : const Color(0xFF64748B),
+      ),
+    );
+  }
+
+  Widget _ticketActionButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required Future<void> Function() onTap,
+  }) {
+    return TextButton.icon(
+      onPressed: () => unawaited(onTap()),
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        backgroundColor: color.withValues(alpha: 0.1),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      icon: Icon(icon, size: 18),
+      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
     );
   }
 
@@ -2897,7 +3392,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Future<void> _submitPromotionComposer() async {
     final title = _promotionTitleController.text.trim();
-    final description = _promotionDescriptionController.text.trim();
     final targetValue = _promotionTargetValueController.text.trim();
     if (title.length < 3 ||
         _promotionImageBytes == null ||
@@ -2935,7 +3429,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           placement: _promotionComposerPlacement,
           badgeLabel: _promotionBadgeController.text.trim(),
           title: title,
-          description: description,
+          description: '',
           imageUrl: imageUrl,
           ctaLabel: _promotionCtaController.text.trim(),
           targetType: _promotionComposerTargetType,
@@ -2958,7 +3452,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
       _promotionBadgeController.text = 'Featured';
       _promotionTitleController.clear();
-      _promotionDescriptionController.clear();
       _promotionCtaController.text = 'Explore';
       _promotionTargetValueController.clear();
       _promotionQueryController.clear();
@@ -3239,18 +3732,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       decoration: const InputDecoration(
                         labelText: 'End at',
                         hintText: '2026-04-15',
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 520,
-                    child: TextField(
-                      controller: _promotionDescriptionController,
-                      minLines: 2,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Description (Optional)',
-                        hintText: 'Not shown on the finder home banner layout',
                       ),
                     ),
                   ),
@@ -3580,28 +4061,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       return;
     }
 
-    final isPromo = _broadcastComposerType == 'promotion';
-    final promoCode = _broadcastPromoCodeController.text.trim().toUpperCase();
-    final discountValue =
-        double.tryParse(_broadcastDiscountValueController.text.trim()) ?? 0;
-    final minSubtotal =
-        double.tryParse(_broadcastMinSubtotalController.text.trim()) ?? 0;
-    final maxDiscount =
-        double.tryParse(_broadcastMaxDiscountController.text.trim()) ?? 0;
-    final usageLimit =
-        int.tryParse(_broadcastUsageLimitController.text.trim()) ?? 0;
-
-    if (isPromo) {
-      if (promoCode.isEmpty) {
-        _showError(const AdminApiException('Promo code is required.'));
-        return;
-      }
-      if (discountValue <= 0) {
-        _showError(const AdminApiException('Discount value must be > 0.'));
-        return;
-      }
-    }
-
     setState(() => _broadcastComposerSaving = true);
     try {
       await _runAuthed(
@@ -3611,24 +4070,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           message: message,
           targetRoles: targetRoles,
           active: _broadcastComposerActive,
-          promoCode: isPromo ? promoCode : '',
-          discountType: _broadcastComposerDiscountType,
-          discountValue: isPromo ? discountValue : 0,
-          minSubtotal: isPromo ? minSubtotal : 0,
-          maxDiscount: isPromo ? maxDiscount : 0,
-          usageLimit: isPromo ? usageLimit : 0,
         ),
       );
 
       _broadcastTitleController.clear();
       _broadcastMessageController.clear();
-      _broadcastPromoCodeController.clear();
-      _broadcastDiscountValueController.text = '10';
-      _broadcastMinSubtotalController.text = '0';
-      _broadcastMaxDiscountController.text = '0';
-      _broadcastUsageLimitController.text = '0';
       _broadcastComposerType = 'system';
-      _broadcastComposerDiscountType = 'percent';
       _broadcastComposerActive = true;
       _broadcastComposerFinder = true;
       _broadcastComposerProvider = true;
@@ -3682,22 +4129,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       children: [
         _BroadcastComposerCard(
           type: _broadcastComposerType,
-          discountType: _broadcastComposerDiscountType,
           finderSelected: _broadcastComposerFinder,
           providerSelected: _broadcastComposerProvider,
           active: _broadcastComposerActive,
           saving: _broadcastComposerSaving,
           titleController: _broadcastTitleController,
           messageController: _broadcastMessageController,
-          promoCodeController: _broadcastPromoCodeController,
-          discountValueController: _broadcastDiscountValueController,
-          minSubtotalController: _broadcastMinSubtotalController,
-          maxDiscountController: _broadcastMaxDiscountController,
-          usageLimitController: _broadcastUsageLimitController,
           onTypeChanged: (value) =>
               setState(() => _broadcastComposerType = value),
-          onDiscountTypeChanged: (value) =>
-              setState(() => _broadcastComposerDiscountType = value),
           onFinderToggle: () => setState(
             () => _broadcastComposerFinder = !_broadcastComposerFinder,
           ),
@@ -3711,7 +4150,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         const SizedBox(height: 12),
         _AdminTableCard<AdminBroadcastRow>(
           title: 'Broadcast Feed',
-          subtitle: 'Monitor system notices and promo campaign lifecycle.',
+          subtitle: 'Monitor system notices and promotion lifecycle.',
           loadingListenable: AdminDashboardState.loadingBroadcasts,
           rowsListenable: AdminDashboardState.broadcasts,
           paginationListenable: AdminDashboardState.broadcastsPagination,
@@ -3764,7 +4203,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             'Title',
             'Audience',
             'Lifecycle',
-            'Promo',
             'Created',
             'Action',
           ],
@@ -3822,7 +4260,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   if (!roleMatch) return false;
                   if (query.isEmpty) return true;
                   final haystack =
-                      '${item.type} ${item.title} ${item.message} ${item.promoCode} ${item.lifecycle} ${item.targetRoles.join(' ')}'
+                      '${item.type} ${item.title} ${item.message} ${item.lifecycle} ${item.targetRoles.join(' ')}'
                           .toLowerCase();
                   return haystack.contains(query);
                 })
@@ -3842,9 +4280,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   text: _prettyStatus(item.lifecycle),
                   color: _statusColor(item.lifecycle),
                 ),
-              ),
-              DataCell(
-                _cellText(item.promoCode.isEmpty ? '-' : item.promoCode),
               ),
               DataCell(_cellText(_formatDateTime(item.createdAt), width: 150)),
               DataCell(

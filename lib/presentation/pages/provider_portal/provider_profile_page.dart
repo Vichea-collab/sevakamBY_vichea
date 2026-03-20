@@ -56,7 +56,9 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
   Future<void> _fetchProviderStats() async {
     final providerUid = AuthState.currentUser.value?.uid.trim() ?? '';
     if (providerUid.isEmpty) return;
-    final cached = OrderState.peekProviderReviewSummary(providerUid: providerUid);
+    final cached = OrderState.peekProviderReviewSummary(
+      providerUid: providerUid,
+    );
     if (cached != null && mounted) {
       setState(() {
         _providerRating = cached.averageRating;
@@ -76,7 +78,8 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
       }
       if (ProfileSettingsState.providerCompletedOrders.value !=
           summary.completedJobs) {
-        ProfileSettingsState.providerCompletedOrders.value = summary.completedJobs;
+        ProfileSettingsState.providerCompletedOrders.value =
+            summary.completedJobs;
       }
     } catch (_) {
       if (_providerCompletedOrders == null && mounted) {
@@ -91,7 +94,7 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F6FB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _handleRefresh,
@@ -245,7 +248,10 @@ class _ProviderProfilePageState extends State<ProviderProfilePage> {
       setState(() => _loadingProfile = true);
     }
     await ProfileSettingsState.syncRoleProfileFromBackend(isProvider: true);
-    await Future.wait<void>([_fetchProviderStats(), SubscriptionState.fetchStatus()]);
+    await Future.wait<void>([
+      _fetchProviderStats(),
+      SubscriptionState.fetchStatus(),
+    ]);
     if (mounted) {
       setState(() => _loadingProfile = false);
     }
@@ -303,6 +309,8 @@ class _ProviderHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return ValueListenableBuilder(
       valueListenable: ProfileSettingsState.providerProfile,
       builder: (context, profile, _) {
@@ -314,12 +322,12 @@ class _ProviderHero extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFDDE7F5)),
-            boxShadow: const [
+            border: Border.all(color: theme.dividerColor),
+            boxShadow: [
               BoxShadow(
-                color: Color(0x110F172A),
+                color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.07),
                 blurRadius: 20,
                 spreadRadius: -12,
                 offset: Offset(0, 14),
@@ -349,7 +357,9 @@ class _ProviderHero extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEAF1FF),
+                        color: isDark
+                            ? const Color(0xFF1A2840)
+                            : const Color(0xFFEAF1FF),
                         shape: BoxShape.circle,
                       ),
                       child: ValueListenableBuilder(
@@ -358,7 +368,9 @@ class _ProviderHero extends StatelessWidget {
                           final image = ProfileImageState.avatarProvider();
                           return CircleAvatar(
                             radius: 34,
-                            backgroundColor: const Color(0xFFF7FAFF),
+                            backgroundColor: isDark
+                                ? const Color(0xFF111C2D)
+                                : const Color(0xFFF7FAFF),
                             backgroundImage: image,
                             child: image == null
                                 ? const Icon(
@@ -387,7 +399,7 @@ class _ProviderHero extends StatelessWidget {
                                     : profile.name.trim(),
                                 style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(
-                                      color: AppColors.textPrimary,
+                                      color: theme.colorScheme.onSurface,
                                       fontWeight: FontWeight.w800,
                                     ),
                               ),
@@ -397,7 +409,11 @@ class _ProviderHero extends StatelessWidget {
                                   vertical: 5,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFEAF1FF),
+                                  color: isDark
+                                      ? AppColors.primary.withValues(
+                                          alpha: 0.18,
+                                        )
+                                      : const Color(0xFFEAF1FF),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Text(
@@ -451,8 +467,7 @@ class _ProviderHero extends StatelessWidget {
                                 _MetricPill(
                                   icon: Icons.task_alt_rounded,
                                   iconColor: AppColors.success,
-                                  text:
-                                      '${completedOrders ?? 0} completed',
+                                  text: '${completedOrders ?? 0} completed',
                                 ),
                               ],
                             ),
@@ -511,9 +526,11 @@ class _MetricPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF162133)
+            : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -523,7 +540,7 @@ class _MetricPill extends StatelessWidget {
           Text(
             text,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textPrimary,
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -561,7 +578,7 @@ class _ActionTile extends StatelessWidget {
                 child: Text(
                   label,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.textPrimary,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -605,12 +622,16 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider),
-        boxShadow: const [
+        border: Border.all(color: Theme.of(context).dividerColor),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x110F172A),
+            color: Colors.black.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.24
+                  : 0.07,
+            ),
             blurRadius: 20,
             spreadRadius: -12,
             offset: Offset(0, 14),
@@ -626,7 +647,7 @@ class _SectionCard extends StatelessWidget {
 class _ActionDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return const Divider(height: 1, color: AppColors.divider);
+    return Divider(height: 1, color: Theme.of(context).dividerColor);
   }
 }
 
@@ -668,12 +689,16 @@ class _DangerActionCard extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: AppColors.danger.withValues(alpha: 0.25)),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x110F172A),
+                color: Colors.black.withValues(
+                  alpha: Theme.of(context).brightness == Brightness.dark
+                      ? 0.24
+                      : 0.07,
+                ),
                 blurRadius: 20,
                 spreadRadius: -12,
                 offset: Offset(0, 14),

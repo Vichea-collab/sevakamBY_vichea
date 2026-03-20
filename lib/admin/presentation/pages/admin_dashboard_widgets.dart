@@ -3,6 +3,19 @@ part of 'admin_dashboard_page.dart';
 const Color _adminFieldBorderColor = Color(0xFFD3DDEF);
 const Color _adminFieldFillColor = Color(0xFFF8FAFF);
 
+class _AdminScrollBehavior extends MaterialScrollBehavior {
+  const _AdminScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.invertedStylus,
+    PointerDeviceKind.trackpad,
+  };
+}
+
 InputDecoration _adminFieldDecoration({
   String? labelText,
   String? hintText,
@@ -570,28 +583,31 @@ class _AdminTableCard<T> extends StatelessWidget {
                           ),
                         )
                       else
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            headingRowColor: WidgetStatePropertyAll(
-                              const Color(0xFFF4F7FF),
-                            ),
-                            columns: columns
-                                .map(
-                                  (name) => DataColumn(
-                                    label: Text(
-                                      name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.textPrimary,
+                        ScrollConfiguration(
+                          behavior: const _AdminScrollBehavior(),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: DataTable(
+                              headingRowColor: WidgetStatePropertyAll(
+                                const Color(0xFFF4F7FF),
+                              ),
+                              columns: columns
+                                  .map(
+                                    (name) => DataColumn(
+                                      label: Text(
+                                        name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.textPrimary,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                )
-                                .toList(growable: false),
-                            rows: filteredRows
-                                .map((row) => DataRow(cells: rowCells(row)))
-                                .toList(growable: false),
+                                  )
+                                  .toList(growable: false),
+                              rows: filteredRows
+                                  .map((row) => DataRow(cells: rowCells(row)))
+                                  .toList(growable: false),
+                            ),
                           ),
                         ),
                       if (!initialLoading) ...[
@@ -623,20 +639,13 @@ class _AdminTableCard<T> extends StatelessWidget {
 
 class _BroadcastComposerCard extends StatelessWidget {
   final String type;
-  final String discountType;
   final bool finderSelected;
   final bool providerSelected;
   final bool active;
   final bool saving;
   final TextEditingController titleController;
   final TextEditingController messageController;
-  final TextEditingController promoCodeController;
-  final TextEditingController discountValueController;
-  final TextEditingController minSubtotalController;
-  final TextEditingController maxDiscountController;
-  final TextEditingController usageLimitController;
   final ValueChanged<String> onTypeChanged;
-  final ValueChanged<String> onDiscountTypeChanged;
   final VoidCallback onFinderToggle;
   final VoidCallback onProviderToggle;
   final ValueChanged<bool> onActiveChanged;
@@ -644,20 +653,13 @@ class _BroadcastComposerCard extends StatelessWidget {
 
   const _BroadcastComposerCard({
     required this.type,
-    required this.discountType,
     required this.finderSelected,
     required this.providerSelected,
     required this.active,
     required this.saving,
     required this.titleController,
     required this.messageController,
-    required this.promoCodeController,
-    required this.discountValueController,
-    required this.minSubtotalController,
-    required this.maxDiscountController,
-    required this.usageLimitController,
     required this.onTypeChanged,
-    required this.onDiscountTypeChanged,
     required this.onFinderToggle,
     required this.onProviderToggle,
     required this.onActiveChanged,
@@ -699,7 +701,7 @@ class _BroadcastComposerCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Publish system messages and promo campaigns to finder/provider notifications.',
+                      'Publish system messages and promotion campaigns to finder/provider notifications.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -728,7 +730,7 @@ class _BroadcastComposerCard extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _composerControls(context, isPromo),
+                    _composerControls(context),
                     const SizedBox(height: 10),
                     _composerInputs(context, isPromo),
                   ],
@@ -737,10 +739,7 @@ class _BroadcastComposerCard extends StatelessWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    width: 320,
-                    child: _composerControls(context, isPromo),
-                  ),
+                  SizedBox(width: 320, child: _composerControls(context)),
                   const SizedBox(width: 12),
                   Expanded(child: _composerInputs(context, isPromo)),
                 ],
@@ -761,7 +760,7 @@ class _BroadcastComposerCard extends StatelessWidget {
     );
   }
 
-  Widget _composerControls(BuildContext context, bool isPromo) {
+  Widget _composerControls(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -828,28 +827,6 @@ class _BroadcastComposerCard extends StatelessWidget {
           subtitle: const Text('Turn off to save as inactive'),
           onChanged: onActiveChanged,
         ),
-        if (isPromo) ...[
-          const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            initialValue: discountType,
-            isExpanded: true,
-            dropdownColor: _adminFieldFillColor,
-            borderRadius: BorderRadius.circular(12),
-            icon: const Icon(Icons.keyboard_arrow_down_rounded),
-            decoration: _adminFieldDecoration(
-              labelText: 'Discount type',
-              dense: true,
-            ),
-            items: const [
-              DropdownMenuItem(value: 'percent', child: Text('Percent (%)')),
-              DropdownMenuItem(value: 'fixed', child: Text('Fixed (USD)')),
-            ],
-            onChanged: (next) {
-              if (next == null) return;
-              onDiscountTypeChanged(next);
-            },
-          ),
-        ],
       ],
     );
   }
@@ -871,150 +848,26 @@ class _BroadcastComposerCard extends StatelessWidget {
           maxLines: 4,
           decoration: _adminFieldDecoration(
             labelText: 'Message',
-            hintText: 'Write announcement or promo details',
+            hintText: 'Write announcement or promotion details',
           ),
         ),
         if (isPromo) ...[
           const SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 760;
-              if (!wide) {
-                return Column(
-                  children: [
-                    TextField(
-                      controller: promoCodeController,
-                      decoration: _adminFieldDecoration(
-                        labelText: 'Promo code',
-                        hintText: 'PROMO20',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: discountValueController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: _adminFieldDecoration(
-                              labelText: 'Discount',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: minSubtotalController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: _adminFieldDecoration(
-                              labelText: 'Min subtotal',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: maxDiscountController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: _adminFieldDecoration(
-                              labelText: 'Max discount',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: usageLimitController,
-                            keyboardType: TextInputType.number,
-                            decoration: _adminFieldDecoration(
-                              labelText: 'Usage limit',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              }
-              return Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextField(
-                          controller: promoCodeController,
-                          decoration: _adminFieldDecoration(
-                            labelText: 'Promo code',
-                            hintText: 'PROMO20',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: discountValueController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: _adminFieldDecoration(
-                            labelText: 'Discount',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: minSubtotalController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: _adminFieldDecoration(
-                            labelText: 'Min subtotal',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: maxDiscountController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          decoration: _adminFieldDecoration(
-                            labelText: 'Max discount',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: usageLimitController,
-                          keyboardType: TextInputType.number,
-                          decoration: _adminFieldDecoration(
-                            labelText: 'Usage limit (0 = unlimited)',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7FAFF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFD8E3F6)),
+            ),
+            child: Text(
+              'Promotion broadcasts now publish title and message only. Promo codes have been removed from the system.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+                height: 1.35,
+              ),
+            ),
           ),
         ],
       ],
@@ -2328,6 +2181,8 @@ Color _statusColor(String status) {
     'started' => const Color(0xFF0284C7),
     'cancelled' => AppColors.danger,
     'declined' => const Color(0xFFE11D48),
+    'waiting_on_admin' => AppColors.warning,
+    'waiting_on_user' => AppColors.primary,
     'resolved' => AppColors.success,
     'closed' => const Color(0xFF64748B),
     'active' => AppColors.success,

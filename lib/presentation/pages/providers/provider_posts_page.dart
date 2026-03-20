@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/location_options.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../core/utils/safe_image_provider.dart';
@@ -63,7 +64,8 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
               builder: (context, pagination, _) {
                 final query = _query.trim().toLowerCase();
                 final filtered = posts.where((post) {
-                  final matchesQuery = query.isEmpty ||
+                  final matchesQuery =
+                      query.isEmpty ||
                       post.providerName.toLowerCase().contains(query) ||
                       post.category.toLowerCase().contains(query) ||
                       post.serviceList.any(
@@ -109,36 +111,34 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
                                     ),
                                   )
                                 : filtered.isEmpty
-                                    ? Center(
-                                        child: AppStatePanel.empty(
-                                          title: 'No offers found',
-                                          message:
-                                              'Try adjusting your search or category filter.',
-                                        ),
-                                      )
-                                    : RefreshIndicator(
-                                        onRefresh: () =>
-                                            ProviderPostState.refresh(page: 1),
-                                        child: ListView.separated(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 24,
-                                          ),
-                                          itemCount: filtered.length,
-                                          separatorBuilder: (context, index) =>
-                                              const SizedBox(height: 16),
-                                          itemBuilder: (context, index) {
-                                            return _PostOfferCard(
-                                              post: filtered[index],
-                                              onTap: () => _openProvider(
-                                                filtered[index],
-                                              ),
-                                              onChat: () => _openChat(
-                                                filtered[index],
-                                              ),
-                                            );
-                                          },
-                                        ),
+                                ? Center(
+                                    child: AppStatePanel.empty(
+                                      title: 'No offers found',
+                                      message:
+                                          'Try adjusting your search or category filter.',
+                                    ),
+                                  )
+                                : RefreshIndicator(
+                                    onRefresh: () =>
+                                        ProviderPostState.refresh(page: 1),
+                                    child: ListView.separated(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 24,
                                       ),
+                                      itemCount: filtered.length,
+                                      separatorBuilder: (context, index) =>
+                                          const SizedBox(height: 16),
+                                      itemBuilder: (context, index) {
+                                        return _PostOfferCard(
+                                          post: filtered[index],
+                                          onTap: () =>
+                                              _openProvider(filtered[index]),
+                                          onChat: () =>
+                                              _openChat(filtered[index]),
+                                        );
+                                      },
+                                    ),
+                                  ),
                           ),
                           if (pagination != null &&
                               pagination.totalPages > 1 &&
@@ -221,8 +221,9 @@ class _ProviderPostsPageState extends State<ProviderPostsPage> {
 
   List<String> _servicesForProvider(ProviderPostItem seed) {
     final allPosts = ProviderPostState.allPosts.value;
-    final lookupPosts =
-        allPosts.isNotEmpty ? allPosts : ProviderPostState.posts.value;
+    final lookupPosts = allPosts.isNotEmpty
+        ? allPosts
+        : ProviderPostState.posts.value;
     final seedUid = seed.providerUid.trim().toLowerCase();
     final seedName = seed.providerName.trim().toLowerCase();
 
@@ -266,7 +267,9 @@ class _PostOfferCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Theme.of(context).dividerColor.withValues(alpha: 0.5)),
+          border: Border.all(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -285,7 +288,10 @@ class _PostOfferCard extends StatelessWidget {
                   height: 44,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.1), width: 2),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      width: 2,
+                    ),
                   ),
                   child: ClipOval(
                     child: SafeImage(
@@ -312,22 +318,28 @@ class _PostOfferCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 14,
+                            color: Color(0xFFF59E0B),
+                          ),
                           const SizedBox(width: 2),
                           Text(
                             post.rating.toStringAsFixed(1),
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFFF59E0B),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFFF59E0B),
+                                ),
                           ),
                           const SizedBox(width: 6),
                           Text(
                             post.category,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).hintColor,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context).hintColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                         ],
                       ),
@@ -372,7 +384,7 @@ class _PostOfferCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  post.area,
+                  LocationOptions.districtFromArea(post.area),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w500,
@@ -386,11 +398,16 @@ class _PostOfferCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: onChat,
-                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                    icon: const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 16,
+                    ),
                     label: const Text('Chat'),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
+                      side: BorderSide(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

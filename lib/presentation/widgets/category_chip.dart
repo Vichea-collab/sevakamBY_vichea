@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/utils/responsive.dart';
 import '../../core/utils/category_utils.dart';
 import '../../domain/entities/category.dart';
@@ -14,8 +13,12 @@ class CategoryChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final accent = accentForCategory(category.name);
-    final softTint = Color.lerp(accent, Colors.white, 0.86)!;
+    final softTint = isDark
+        ? Color.lerp(accent, const Color(0xFF0F172A), 0.74)!
+        : Color.lerp(accent, Colors.white, 0.86)!;
     return PressableScale(
       onTap: onTap,
       child: InkWell(
@@ -67,7 +70,9 @@ class CategoryChip extends StatelessWidget {
                     height: rs.dimension(42),
                     width: rs.dimension(42),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.72),
+                      color: isDark
+                          ? const Color(0xFF0F172A).withValues(alpha: 0.72)
+                          : Colors.white.withValues(alpha: 0.72),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -89,7 +94,7 @@ class CategoryChip extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                      color: theme.colorScheme.onSurface,
                       fontSize: rs.text(11.8),
                       height: 1.18,
                       letterSpacing: -0.1,

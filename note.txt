@@ -44,3 +44,10 @@ tmr prompts:
 //- fix my address picker in ios, it not working at all
 - address picker i think it should auto detect to Cambodia default and when u click track current location, it track ur currect location for both os and it Available in Cambodia country only
 //- update the promotion in home page of finder for me, i think it too much text and it no space for images/photos
+
+//- the status have booked, cornfimed, started, completed
+//- finder booked and waiting for comfirmed of provider when provider confirm status is at in progress section
+//- provider in incoming section have incoming status that finder booked when u accept the status should be confirm so it goes to in progress correct?
+
+- i want to ask the promotion, how the provider can request to admin to get post promotion, or just chat with admin?
+- 

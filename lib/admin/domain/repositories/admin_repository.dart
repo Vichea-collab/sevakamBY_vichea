@@ -34,6 +34,7 @@ abstract class AdminRepository {
     int limit = 10,
     String query = '',
     String status = '',
+    String category = '',
   });
   Future<AdminPage<AdminTicketMessageRow>> fetchTicketMessages({
     required String userUid,
@@ -135,12 +136,6 @@ abstract class AdminRepository {
     required String message,
     required List<String> targetRoles,
     required bool active,
-    String promoCode,
-    String discountType,
-    double discountValue,
-    double minSubtotal,
-    double maxDiscount,
-    int usageLimit,
     String? startAtIso,
     String? endAtIso,
   });

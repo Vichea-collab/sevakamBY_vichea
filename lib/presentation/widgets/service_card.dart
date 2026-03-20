@@ -14,6 +14,8 @@ class ServiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return PressableScale(
       onTap: onTap,
       child: InkWell(
@@ -104,7 +106,7 @@ class ServiceCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
               rs.gapH(10),
@@ -127,7 +129,9 @@ class ServiceCard extends StatelessWidget {
                   Container(
                     padding: rs.all(6),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
+                      color: isDark
+                          ? AppColors.primary.withValues(alpha: 0.18)
+                          : AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(rs.radius(10)),
                     ),
                     child: Icon(

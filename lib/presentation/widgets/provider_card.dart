@@ -25,6 +25,8 @@ class ProviderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final effectiveHeroTag = heroTag ?? 'provider-card-${provider.uid}';
 
     return LayoutBuilder(
@@ -38,7 +40,13 @@ class ProviderCard extends StatelessWidget {
         final tier = provider.subscriptionTier.toLowerCase().trim();
         final isElite = tier == 'elite';
         final accent = _tierAccent(tier) ?? provider.accentColor;
-        final softTint = isElite
+        final softTint = isDark
+            ? Color.lerp(
+                accent,
+                const Color(0xFF0F172A),
+                isElite ? 0.68 : 0.76,
+              )!
+            : isElite
             ? const Color(0xFFFFF4D6)
             : Color.lerp(accent, Colors.white, 0.82)!;
         final serviceChips = _serviceChips(
@@ -51,7 +59,7 @@ class ProviderCard extends StatelessWidget {
             : provider.name.trim();
         final card = Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF101B2D) : Colors.white,
             borderRadius: BorderRadius.circular(rs.radius(26)),
             border: isElite
                 ? null
@@ -102,7 +110,9 @@ class ProviderCard extends StatelessWidget {
                               colors: [
                                 softTint,
                                 isElite
-                                    ? const Color(0xFFFFF9EA)
+                                    ? (isDark
+                                          ? const Color(0xFF1D2433)
+                                          : const Color(0xFFFFF9EA))
                                     : accent.withValues(alpha: 0.14),
                               ],
                               begin: Alignment.topLeft,
@@ -211,7 +221,7 @@ class ProviderCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
-                                  color: AppColors.textPrimary,
+                                  color: theme.colorScheme.onSurface,
                                   fontSize: veryCompact
                                       ? rs.text(15.5)
                                       : compact
@@ -235,7 +245,7 @@ class ProviderCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                                  color: AppColors.textSecondary,
+                                  color: theme.textTheme.bodyMedium?.color,
                                   fontSize: veryCompact
                                       ? rs.text(11.5)
                                       : compact
@@ -298,12 +308,14 @@ class ProviderCard extends StatelessWidget {
                                   : rs.space(12),
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
+                              color: isDark
+                                  ? const Color(0xFF162133)
+                                  : const Color(0xFFF8FAFC),
                               borderRadius: BorderRadius.circular(
                                 rs.radius(18),
                               ),
                               border: Border.all(
-                                color: AppColors.divider.withValues(
+                                color: theme.dividerColor.withValues(
                                   alpha: 0.75,
                                 ),
                               ),
@@ -319,7 +331,7 @@ class ProviderCard extends StatelessWidget {
                                         .textTheme
                                         .bodyMedium
                                         ?.copyWith(
-                                          color: AppColors.textPrimary,
+                                          color: theme.colorScheme.onSurface,
                                           fontWeight: FontWeight.w700,
                                           fontSize: veryCompact
                                               ? rs.text(12)
@@ -430,6 +442,7 @@ class _ProviderAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final resolvedSize = compact ? rs.dimension(66) : rs.dimension(74);
 
     return Container(
@@ -437,7 +450,10 @@ class _ProviderAvatar extends StatelessWidget {
       height: resolvedSize,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 4),
+        border: Border.all(
+          color: isDark ? const Color(0xFF101B2D) : Colors.white,
+          width: 4,
+        ),
         boxShadow: [
           BoxShadow(
             color: accent.withValues(alpha: 0.18),
@@ -448,7 +464,9 @@ class _ProviderAvatar extends StatelessWidget {
       ),
       child: imagePath.trim().isEmpty
           ? CircleAvatar(
-              backgroundColor: const Color(0xFFEAF1FF),
+              backgroundColor: isDark
+                  ? const Color(0xFF1B2840)
+                  : const Color(0xFFEAF1FF),
               child: Icon(
                 Icons.person_rounded,
                 color: accent,
@@ -476,6 +494,7 @@ class _FavoriteButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ValueListenableBuilder<Set<String>>(
       valueListenable: FavoriteState.favoriteUids,
       builder: (context, favorites, _) {
@@ -486,7 +505,9 @@ class _FavoriteButton extends StatelessWidget {
             width: rs.dimension(40),
             height: rs.dimension(40),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.94),
+              color: isDark
+                  ? const Color(0xFF172233).withValues(alpha: 0.96)
+                  : Colors.white.withValues(alpha: 0.94),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(

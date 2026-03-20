@@ -581,6 +581,9 @@ class AdminTicketRow {
   final String userRole;
   final String title;
   final String message;
+  final String category;
+  final String subcategory;
+  final String priority;
   final String status;
   final DateTime? createdAt;
   final DateTime? lastMessageAt;
@@ -594,6 +597,9 @@ class AdminTicketRow {
     required this.userRole,
     required this.title,
     required this.message,
+    required this.category,
+    required this.subcategory,
+    required this.priority,
     required this.status,
     required this.createdAt,
     required this.lastMessageAt,
@@ -609,6 +615,12 @@ class AdminTicketRow {
       userRole: _AdminParser.text(row['userRole'], fallback: 'finder'),
       title: _AdminParser.text(row['title'], fallback: 'Support request'),
       message: _AdminParser.text(row['message']),
+      category: _AdminParser.text(row['category'], fallback: 'other'),
+      subcategory: _AdminParser.text(
+        row['subcategory'],
+        fallback: 'other_issue',
+      ),
+      priority: _AdminParser.text(row['priority'], fallback: 'normal'),
       status: _AdminParser.text(row['status'], fallback: 'open'),
       createdAt: _AdminParser.parseDate(row['createdAt']),
       lastMessageAt: _AdminParser.parseDate(row['lastMessageAt']),
@@ -767,8 +779,6 @@ class AdminBroadcastRow {
   final String title;
   final String message;
   final List<String> targetRoles;
-  final String promoCode;
-  final String promoCodeId;
   final bool active;
   final String lifecycle;
   final DateTime? startAt;
@@ -784,8 +794,6 @@ class AdminBroadcastRow {
     required this.title,
     required this.message,
     required this.targetRoles,
-    required this.promoCode,
-    required this.promoCodeId,
     required this.active,
     required this.lifecycle,
     required this.startAt,
@@ -803,8 +811,6 @@ class AdminBroadcastRow {
       title: _AdminParser.text(row['title'], fallback: 'Broadcast'),
       message: _AdminParser.text(row['message']),
       targetRoles: _AdminParser.parseStringList(row['targetRoles']),
-      promoCode: _AdminParser.text(row['promoCode']),
-      promoCodeId: _AdminParser.text(row['promoCodeId']),
       active: _AdminParser.parseBool(row['active'], true),
       lifecycle: _AdminParser.text(row['lifecycle'], fallback: 'active'),
       startAt: _AdminParser.parseDate(row['startAt']),

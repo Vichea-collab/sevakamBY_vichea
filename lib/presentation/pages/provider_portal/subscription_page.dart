@@ -12,6 +12,8 @@ import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
 
+enum _SubscriptionPaymentMethod { card, khqr }
+
 class SubscriptionPage extends StatefulWidget {
   const SubscriptionPage({super.key});
 
@@ -23,6 +25,7 @@ class _SubscriptionPageState extends State<SubscriptionPage>
     with WidgetsBindingObserver {
   bool _loading = false;
   bool _waitingForCheckout = false;
+  bool _checkoutLeftForeground = false;
   String? _lastSessionId;
 
   @override
@@ -40,8 +43,19 @@ class _SubscriptionPageState extends State<SubscriptionPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _waitingForCheckout) {
+    if (_waitingForCheckout &&
+        (state == AppLifecycleState.inactive ||
+            state == AppLifecycleState.hidden ||
+            state == AppLifecycleState.paused)) {
+      _checkoutLeftForeground = true;
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed &&
+        _waitingForCheckout &&
+        _checkoutLeftForeground) {
       _waitingForCheckout = false;
+      _checkoutLeftForeground = false;
       final sessionId = _lastSessionId;
       _lastSessionId = null;
       _verifyAfterCheckout(sessionId);
@@ -59,12 +73,23 @@ class _SubscriptionPageState extends State<SubscriptionPage>
       final planName = SubscriptionState.status.value.plan.name;
       AppToast.success(context, 'Your $planName plan is now active.');
     } else {
-      AppToast.info(context, 'Payment confirmed. We are finalizing your plan.');
+      AppToast.info(
+        context,
+        'We are still checking your payment status. If payment succeeded, your plan will update shortly.',
+      );
     }
   }
 
   Future<void> _handleUpgrade(SubscriptionTier tier) async {
     if (tier == SubscriptionTier.basic) return;
+
+    final plan = SubscriptionPlan.all.firstWhere((item) => item.tier == tier);
+    final paymentMethod = await _selectPaymentMethod(plan);
+    if (!mounted || paymentMethod == null) return;
+    if (paymentMethod == _SubscriptionPaymentMethod.khqr) {
+      AppToast.info(context, 'KHQR payment is coming soon.');
+      return;
+    }
 
     setState(() => _loading = true);
     try {
@@ -81,29 +106,23 @@ class _SubscriptionPageState extends State<SubscriptionPage>
       final uri = Uri.parse(url);
       var launched = false;
       try {
-        launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
       } catch (_) {}
-      if (!launched) {
-        try {
-          launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
-        } catch (_) {}
-      }
       if (!launched) {
         try {
           launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
         } catch (_) {}
       }
+      if (!launched) {
+        try {
+          launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } catch (_) {}
+      }
 
       if (launched) {
         _waitingForCheckout = true;
+        _checkoutLeftForeground = false;
         _lastSessionId = sessionId;
-        if (mounted) {
-          AppToast.success(
-            context,
-            'Complete payment in browser. Your plan will refresh automatically.',
-          );
-        }
-        unawaited(SubscriptionState.refreshAfterCheckout(sessionId: sessionId));
       } else if (mounted) {
         AppToast.error(context, 'Could not open checkout page.');
       }
@@ -114,6 +133,94 @@ class _SubscriptionPageState extends State<SubscriptionPage>
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<_SubscriptionPaymentMethod?> _selectPaymentMethod(
+    SubscriptionPlan plan,
+  ) {
+    return showModalBottomSheet<_SubscriptionPaymentMethod>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD6DCE8),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Choose payment method',
+                    style: Theme.of(sheetContext).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Upgrade to ${plan.name} and select how you want to pay.',
+                    style: Theme.of(sheetContext).textTheme.bodyMedium
+                        ?.copyWith(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 18),
+                  _PaymentMethodTile(
+                    icon: Icons.credit_card_rounded,
+                    iconBackground: const Color(0xFFE0EAFF),
+                    iconColor: AppColors.primary,
+                    title: 'Credit card',
+                    subtitle: 'Pay securely with Stripe inside the app.',
+                    badgeLabel: 'Available',
+                    badgeColor: const Color(0xFFDCFCE7),
+                    badgeTextColor: const Color(0xFF166534),
+                    onTap: () => Navigator.of(
+                      sheetContext,
+                    ).pop(_SubscriptionPaymentMethod.card),
+                  ),
+                  const SizedBox(height: 12),
+                  _PaymentMethodTile(
+                    icon: Icons.qr_code_2_rounded,
+                    iconBackground: const Color(0xFFFFF3D6),
+                    iconColor: const Color(0xFFD97706),
+                    title: 'KHQR',
+                    subtitle: 'Local QR payment support is being prepared.',
+                    badgeLabel: 'Feature incoming',
+                    badgeColor: const Color(0xFFFEE2E2),
+                    badgeTextColor: const Color(0xFF991B1B),
+                    onTap: () => Navigator.of(
+                      sheetContext,
+                    ).pop(_SubscriptionPaymentMethod.khqr),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _handleCancel() async {
@@ -816,6 +923,111 @@ class _PlanCard extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _PaymentMethodTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconBackground;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final String badgeLabel;
+  final Color badgeColor;
+  final Color badgeTextColor;
+  final VoidCallback onTap;
+
+  const _PaymentMethodTile({
+    required this.icon,
+    required this.iconBackground,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.badgeLabel,
+    required this.badgeColor,
+    required this.badgeTextColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: iconBackground,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: badgeColor,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            badgeLabel,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: badgeTextColor,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

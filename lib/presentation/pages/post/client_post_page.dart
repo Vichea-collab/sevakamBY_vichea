@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:servicefinder/core/constants/app_colors.dart';
 import 'package:servicefinder/core/constants/location_options.dart';
 import 'package:servicefinder/core/constants/app_spacing.dart';
+import 'package:servicefinder/core/utils/app_calendar_picker.dart';
 import 'package:servicefinder/core/utils/app_toast.dart';
 import 'package:servicefinder/domain/entities/provider_portal.dart';
 import 'package:servicefinder/presentation/state/auth_state.dart';
@@ -485,12 +486,13 @@ class _ClientPostPageState extends State<ClientPostPage> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate:
-          _preferredDate ?? DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 90)),
+    final now = DateTime.now();
+    final picked = await showAppCalendarDatePicker(
+      context,
+      initialDate: _preferredDate ?? now.add(const Duration(days: 1)),
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: now.add(const Duration(days: 90)),
+      helpText: 'Choose preferred date',
     );
     if (picked == null) return;
     setState(() => _preferredDate = picked);

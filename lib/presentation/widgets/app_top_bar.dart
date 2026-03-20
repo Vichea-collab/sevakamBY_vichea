@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/utils/responsive.dart';
 
 class AppTopBar extends StatelessWidget {
@@ -23,6 +22,7 @@ class AppTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
     final header = Padding(
       padding: EdgeInsets.fromLTRB(
         rs.space(4),
@@ -45,8 +45,8 @@ class AppTopBar extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.textPrimary,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -73,7 +73,7 @@ class AppTopBar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         header,
-        Container(height: 1, color: AppColors.divider),
+        Container(height: 1, color: theme.dividerColor),
       ],
     );
   }
@@ -87,6 +87,8 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return InkWell(
       borderRadius: BorderRadius.circular(rs.radius(12)),
       onTap: onTap,
@@ -94,21 +96,21 @@ class _BackButton extends StatelessWidget {
         height: rs.dimension(38),
         width: rs.dimension(38),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF172233) : Colors.white,
           borderRadius: BorderRadius.circular(rs.radius(12)),
-          border: Border.all(color: AppColors.divider),
-          boxShadow: const [
+          border: Border.all(color: theme.dividerColor),
+          boxShadow: [
             BoxShadow(
-              color: Color(0x110F172A),
+              color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.07),
               blurRadius: 10,
               offset: Offset(0, 4),
             ),
           ],
         ),
-        child: const Icon(
+        child: Icon(
           Icons.arrow_back_rounded,
           size: 19,
-          color: AppColors.primary,
+          color: theme.colorScheme.primary,
         ),
       ),
     );

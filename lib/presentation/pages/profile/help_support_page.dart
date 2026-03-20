@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/constants/support_ticket_options.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/page_transition.dart';
 import '../../../domain/entities/pagination.dart';
@@ -28,14 +29,21 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _detailOneController = TextEditingController();
+  final TextEditingController _detailTwoController = TextEditingController();
   Timer? _pollTimer;
   int _activePage = 1;
   bool _sending = false;
   bool _paging = false;
+  late String _selectedCategoryId;
+  late String _selectedSubcategoryId;
 
   @override
   void initState() {
     super.initState();
+    _selectedCategoryId = supportTicketCategories.first.id;
+    _selectedSubcategoryId =
+        supportTicketCategories.first.subcategories.first.id;
     _activePage = 1;
     unawaited(
       ProfileSettingsState.refreshCurrentHelpTickets(page: _activePage),
@@ -48,11 +56,20 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     _pollTimer?.cancel();
     _titleController.dispose();
     _messageController.dispose();
+    _detailOneController.dispose();
+    _detailTwoController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final category = supportTicketCategoryById(_selectedCategoryId);
+    final subcategory = supportTicketSubcategoryById(
+      categoryId: _selectedCategoryId,
+      subcategoryId: _selectedSubcategoryId,
+    );
+    final guidedFields = _guidedFieldsForSelection();
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -89,6 +106,139 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7FAFF),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFD8E4F6)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Choose a support topic first',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'This helps admin route your ticket faster and sends an instant support guide.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildSelectField(
+                      label: 'Category',
+                      value: _selectedCategoryId,
+                      items: supportTicketCategories
+                          .map(
+                            (item) => DropdownMenuItem<String>(
+                              value: item.id,
+                              child: Text(item.label),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        final next = supportTicketCategoryById(value);
+                        setState(() {
+                          _selectedCategoryId = value;
+                          _selectedSubcategoryId = next.subcategories.first.id;
+                          _detailOneController.clear();
+                          _detailTwoController.clear();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildSelectField(
+                      label: 'Subcategory',
+                      value: _selectedSubcategoryId,
+                      items: category.subcategories
+                          .map(
+                            (item) => DropdownMenuItem<String>(
+                              value: item.id,
+                              child: Text(item.label),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          _selectedSubcategoryId = value;
+                          _detailOneController.clear();
+                          _detailTwoController.clear();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFFFF),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFD9E6FA)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                category.icon,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  category.label,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                              ),
+                              _priorityPill(subcategory.priority),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            category.description,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Auto reply preview',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            subcategory.autoReply,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.textSecondary,
+                                  height: 1.45,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
               Form(
                 key: _formKey,
@@ -96,21 +246,40 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Title',
+                      'Subject',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 6),
                     AppTextField(
-                      hint: 'Enter the title of your issue',
+                      hint: 'Briefly describe the issue',
                       controller: _titleController,
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
-                          return 'Title is required';
+                          return 'Subject is required';
                         }
                         return null;
                       },
                     ),
                     const SizedBox(height: 12),
+                    for (
+                      var index = 0;
+                      index < guidedFields.length;
+                      index++
+                    ) ...[
+                      Text(
+                        guidedFields[index].label,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      AppTextField(
+                        hint: guidedFields[index].hint,
+                        controller: index == 0
+                            ? _detailOneController
+                            : _detailTwoController,
+                        keyboardType: guidedFields[index].keyboardType,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Text(
                       'Write in below box',
                       style: Theme.of(context).textTheme.bodyMedium,
@@ -247,11 +416,35 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   Future<void> _sendTicket() async {
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
+    final guidedFields = _guidedFieldsForSelection();
+    final guidedControllers = [_detailOneController, _detailTwoController];
+    for (var index = 0; index < guidedFields.length; index++) {
+      if (guidedControllers[index].text.trim().isEmpty) {
+        AppToast.error(context, '${guidedFields[index].label} is required.');
+        return;
+      }
+    }
     setState(() => _sending = true);
+    final detailLines = <String>[];
+    for (var index = 0; index < guidedFields.length; index++) {
+      final value = guidedControllers[index].text.trim();
+      if (value.isEmpty) continue;
+      detailLines.add('${guidedFields[index].label}: $value');
+    }
+    final message = _messageController.text.trim();
+    final enhancedMessage = detailLines.isEmpty
+        ? message
+        : '$message\n\nSupport details:\n${detailLines.map((item) => '- $item').join('\n')}';
     final created = await ProfileSettingsState.addCurrentHelpTicket(
       HelpSupportTicket(
         title: _titleController.text.trim(),
-        message: _messageController.text.trim(),
+        message: enhancedMessage,
+        category: _selectedCategoryId,
+        subcategory: _selectedSubcategoryId,
+        priority: supportTicketPriority(
+          categoryId: _selectedCategoryId,
+          subcategoryId: _selectedSubcategoryId,
+        ),
         createdAt: DateTime.now(),
       ),
     );
@@ -261,6 +454,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     setState(() => _sending = false);
     _titleController.clear();
     _messageController.clear();
+    _detailOneController.clear();
+    _detailTwoController.clear();
     AppToast.success(context, 'Your request has been saved.');
     await _openChat(created);
   }
@@ -292,6 +487,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     final statusColor = switch (normalized) {
       'resolved' => AppColors.success,
       'closed' => AppColors.textSecondary,
+      'waiting_on_user' => AppColors.primary,
       _ => AppColors.warning,
     };
     return Padding(
@@ -310,17 +506,19 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Expanded(
-                    child: Text(
-                      ticket.title,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
+                  _ticketMetaPill(
+                    supportTicketCategoryLabel(ticket.category),
+                    const Color(0xFF2563EB),
+                  ),
+                  const SizedBox(width: 6),
+                  _ticketMetaPill(
+                    _prettyPriority(ticket.priority),
+                    _priorityColor(ticket.priority),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -332,7 +530,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      normalized.isEmpty ? 'open' : normalized,
+                      _prettySupportStatus(normalized),
                       style: TextStyle(
                         color: statusColor,
                         fontWeight: FontWeight.w700,
@@ -342,7 +540,30 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
+              Text(
+                ticket.title,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+              if (ticket.subcategory.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  supportTicketSubcategoryLabel(
+                    categoryId: ticket.category,
+                    subcategoryId: ticket.subcategory,
+                  ),
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 6),
               Text(
                 ticket.lastMessageText.isEmpty
                     ? ticket.message
@@ -415,4 +636,189 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
   }
+
+  List<_GuidedSupportField> _guidedFieldsForSelection() {
+    switch (_selectedCategoryId) {
+      case 'payment_charge':
+        return const [
+          _GuidedSupportField(
+            label: 'Booking or payment ID',
+            hint: 'Enter the booking ID or payment reference',
+          ),
+          _GuidedSupportField(
+            label: 'Charged amount',
+            hint: 'Enter the amount charged or expected',
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
+          ),
+        ];
+      case 'provider_issue':
+        return const [
+          _GuidedSupportField(
+            label: 'Booking ID',
+            hint: 'Enter the related booking ID',
+          ),
+          _GuidedSupportField(
+            label: 'Provider name',
+            hint: 'Enter the provider name',
+          ),
+        ];
+      case 'finder_issue':
+        return const [
+          _GuidedSupportField(
+            label: 'Booking ID',
+            hint: 'Enter the related booking ID',
+          ),
+          _GuidedSupportField(
+            label: 'Finder name',
+            hint: 'Enter the finder name',
+          ),
+        ];
+      case 'booking_problem':
+        return const [
+          _GuidedSupportField(
+            label: 'Booking ID',
+            hint: 'Enter the booking ID if available',
+          ),
+          _GuidedSupportField(
+            label: 'Screen or action',
+            hint: 'Which screen or action caused the issue?',
+          ),
+        ];
+      case 'subscription_upgrade':
+        return const [
+          _GuidedSupportField(
+            label: 'Plan name',
+            hint: 'Basic, Professional, or Elite',
+          ),
+          _GuidedSupportField(
+            label: 'Payment reference or email',
+            hint: 'Enter payment reference or account email',
+          ),
+        ];
+      case 'account_verification':
+        return const [
+          _GuidedSupportField(
+            label: 'Account email',
+            hint: 'Enter the email used in this account',
+          ),
+          _GuidedSupportField(
+            label: 'Current status or error',
+            hint: 'What status or error is shown?',
+          ),
+        ];
+      case 'app_bug':
+        return const [
+          _GuidedSupportField(
+            label: 'Screen name',
+            hint: 'Which screen has the issue?',
+          ),
+          _GuidedSupportField(
+            label: 'Device or steps',
+            hint: 'What device or steps reproduce the issue?',
+          ),
+        ];
+      default:
+        return const [
+          _GuidedSupportField(
+            label: 'Reference ID',
+            hint: 'Booking, payment, or account reference if any',
+          ),
+        ];
+    }
+  }
+
+  Widget _buildSelectField({
+    required String label,
+    required String value,
+    required List<DropdownMenuItem<String>> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          key: ValueKey<String>('support_select_${label}_$value'),
+          initialValue: value,
+          items: items,
+          onChanged: onChanged,
+          decoration: const InputDecoration(
+            suffixIcon: Icon(Icons.keyboard_arrow_down_rounded),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _priorityPill(String priority) {
+    return _ticketMetaPill(_prettyPriority(priority), _priorityColor(priority));
+  }
+
+  Widget _ticketMetaPill(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  String _prettyPriority(String value) {
+    switch (value.toLowerCase()) {
+      case 'high':
+        return 'High priority';
+      case 'low':
+        return 'Low priority';
+      default:
+        return 'Normal priority';
+    }
+  }
+
+  Color _priorityColor(String value) {
+    switch (value.toLowerCase()) {
+      case 'high':
+        return const Color(0xFFDC2626);
+      case 'low':
+        return const Color(0xFF64748B);
+      default:
+        return const Color(0xFF0EA5E9);
+    }
+  }
+
+  String _prettySupportStatus(String value) {
+    switch (value.toLowerCase()) {
+      case 'waiting_on_admin':
+        return 'Waiting for admin';
+      case 'waiting_on_user':
+        return 'Waiting for your reply';
+      case 'resolved':
+        return 'Resolved';
+      case 'closed':
+        return 'Closed';
+      default:
+        return 'Open';
+    }
+  }
+}
+
+class _GuidedSupportField {
+  final String label;
+  final String hint;
+  final TextInputType? keyboardType;
+
+  const _GuidedSupportField({
+    required this.label,
+    required this.hint,
+    this.keyboardType,
+  });
 }

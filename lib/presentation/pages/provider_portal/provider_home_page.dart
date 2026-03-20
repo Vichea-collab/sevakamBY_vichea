@@ -475,15 +475,17 @@ class _ProviderSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: rs.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(rs.radius(16)),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: theme.dividerColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 10),
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.10),
             blurRadius: rs.space(12),
             offset: Offset(0, rs.space(4)),
           ),
@@ -512,7 +514,7 @@ class _ProviderSearchBar extends StatelessWidget {
                 isDense: true,
                 hintText: 'Search client, service, or location',
                 hintStyle: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: theme.textTheme.bodyMedium?.color,
                   fontSize: rs.text(14),
                 ),
               ),
@@ -524,7 +526,7 @@ class _ProviderSearchBar extends StatelessWidget {
               child: Icon(
                 Icons.close_rounded,
                 size: rs.icon(20),
-                color: AppColors.textSecondary,
+                color: theme.textTheme.bodyMedium?.color,
               ),
             ),
           rs.gapW(8),
@@ -554,17 +556,19 @@ class _ResultsCountPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: rs.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF162133) : Colors.white,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: theme.dividerColor),
       ),
       child: Text(
         '$count results',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: AppColors.textSecondary,
+          color: theme.textTheme.bodyMedium?.color,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -607,10 +611,13 @@ class _ProviderHeaderLocationPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 230),
+        color: isDark
+            ? const Color(0xFFEEF4FF).withValues(alpha: 0.16)
+            : Colors.white.withValues(alpha: 230),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -625,7 +632,7 @@ class _ProviderHeaderLocationPill extends StatelessWidget {
           Text(
             city,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.primaryDark,
+              color: isDark ? Colors.white : AppColors.primaryDark,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -648,6 +655,7 @@ class _ProviderHeaderActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return PressableScale(
       onTap: onTap,
       child: InkWell(
@@ -660,11 +668,21 @@ class _ProviderHeaderActionButton extends StatelessWidget {
               height: 40,
               width: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 36),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.10)
+                    : Colors.white.withValues(alpha: 36),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 52)),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.16)
+                      : Colors.white.withValues(alpha: 52),
+                ),
               ),
-              child: Icon(icon, color: AppColors.primaryDark, size: 20),
+              child: Icon(
+                icon,
+                color: isDark ? Colors.white : AppColors.primaryDark,
+                size: 20,
+              ),
             ),
             if (badgeText != null)
               Positioned(
@@ -679,7 +697,10 @@ class _ProviderHeaderActionButton extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFFEF4444),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white, width: 1.2),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                      width: 1.2,
+                    ),
                   ),
                   alignment: Alignment.center,
                   child: Text(
@@ -774,7 +795,9 @@ class _FinderPostTile extends StatelessWidget {
                             style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                 ),
                           ),
                         ),
@@ -794,7 +817,7 @@ class _FinderPostTile extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
                         height: 1.3,
                       ),
                     ),

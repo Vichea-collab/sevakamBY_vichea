@@ -235,6 +235,8 @@ class _ChatThreadTile extends StatelessWidget {
     final rs = context.rs;
     final hasUnread = thread.unreadCount > 0;
     const accentColor = AppColors.primary;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final isActive =
         DateTime.now().difference(thread.lastActiveAt.toLocal()).inMinutes < 2;
 
@@ -266,7 +268,7 @@ class _ChatThreadTile extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: hasUnread
-                ? accentColor.withValues(alpha: 0.03)
+                ? accentColor.withValues(alpha: isDark ? 0.12 : 0.03)
                 : Colors.transparent,
           ),
           child: Row(
@@ -275,7 +277,9 @@ class _ChatThreadTile extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: rs.dimension(28),
-                    backgroundColor: AppColors.background,
+                    backgroundColor: isDark
+                        ? const Color(0xFF162133)
+                        : AppColors.background,
                     backgroundImage: thread.avatarPath.trim().isNotEmpty
                         ? safeImageProvider(thread.avatarPath)
                         : null,
@@ -298,7 +302,12 @@ class _ChatThreadTile extends StatelessWidget {
                             ? AppColors.success
                             : const Color(0xFFCBD5E1),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2.5),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF0F172A)
+                              : Colors.white,
+                          width: 2.5,
+                        ),
                       ),
                     ),
                   ),
@@ -316,7 +325,7 @@ class _ChatThreadTile extends StatelessWidget {
                             thread.title,
                             style: Theme.of(context).textTheme.bodyLarge
                                 ?.copyWith(
-                                  color: const Color(0xFF0F172A),
+                                  color: theme.colorScheme.onSurface,
                                   fontWeight: hasUnread
                                       ? FontWeight.w800
                                       : FontWeight.w700,
@@ -331,7 +340,7 @@ class _ChatThreadTile extends StatelessWidget {
                               ?.copyWith(
                                 color: hasUnread
                                     ? accentColor
-                                    : const Color(0xFF64748B),
+                                    : theme.textTheme.bodyMedium?.color,
                                 fontWeight: hasUnread
                                     ? FontWeight.w700
                                     : FontWeight.w500,
@@ -353,8 +362,8 @@ class _ChatThreadTile extends StatelessWidget {
                                       ? FontWeight.w600
                                       : FontWeight.w400,
                                   color: hasUnread
-                                      ? const Color(0xFF1E293B)
-                                      : const Color(0xFF64748B),
+                                      ? theme.colorScheme.onSurface
+                                      : theme.textTheme.bodyMedium?.color,
                                   fontSize: rs.text(14),
                                 ),
                           ),

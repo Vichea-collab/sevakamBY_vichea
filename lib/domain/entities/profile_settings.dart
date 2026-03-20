@@ -231,6 +231,9 @@ class HelpSupportTicket {
   final String id;
   final String title;
   final String message;
+  final String category;
+  final String subcategory;
+  final String priority;
   final String status;
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -241,6 +244,9 @@ class HelpSupportTicket {
     this.id = '',
     required this.title,
     required this.message,
+    this.category = 'other',
+    this.subcategory = 'other_issue',
+    this.priority = 'normal',
     this.status = 'open',
     required this.createdAt,
     this.updatedAt,
@@ -256,6 +262,9 @@ class HelpSupportTicket {
       id: (map['id'] ?? '').toString(),
       title: (map['title'] ?? '').toString(),
       message: message,
+      category: (map['category'] ?? 'other').toString(),
+      subcategory: (map['subcategory'] ?? 'other_issue').toString(),
+      priority: (map['priority'] ?? 'normal').toString(),
       status: (map['status'] ?? 'open').toString(),
       createdAt: createdAt,
       updatedAt: _parseDateDynamic(map['updatedAt']),
@@ -269,6 +278,9 @@ class HelpSupportTicket {
       'id': id,
       'title': title,
       'message': message,
+      'category': category,
+      'subcategory': subcategory,
+      'priority': priority,
       'status': status,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),

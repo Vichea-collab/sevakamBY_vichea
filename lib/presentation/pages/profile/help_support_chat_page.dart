@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/constants/support_ticket_options.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/profile_settings.dart';
@@ -87,20 +88,33 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       _StatusPill(status: widget.ticket.status),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Ticket ID: ${widget.ticket.id.isEmpty ? 'Pending sync' : widget.ticket.id}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppColors.textSecondary),
+                      _MetaPill(
+                        text: supportTicketCategoryLabel(
+                          widget.ticket.category,
                         ),
+                        color: AppColors.primary,
                       ),
+                      if (widget.ticket.priority.isNotEmpty)
+                        _MetaPill(
+                          text: _prettyPriority(widget.ticket.priority),
+                          color: _priorityColor(widget.ticket.priority),
+                        ),
                     ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ticket ID: ${widget.ticket.id.isEmpty ? 'Pending sync' : widget.ticket.id}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -159,10 +173,15 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                                         final fromAdmin =
                                             item.senderRole.toLowerCase() ==
                                             'admin';
+                                        final isAutoReply =
+                                            item.type.toLowerCase() ==
+                                            'auto_reply';
                                         return Align(
-                                          alignment: fromAdmin
+                                          alignment: isAutoReply
                                               ? Alignment.centerLeft
-                                              : Alignment.centerRight,
+                                              : (fromAdmin
+                                                    ? Alignment.centerLeft
+                                                    : Alignment.centerRight),
                                           child: Container(
                                             constraints: const BoxConstraints(
                                               maxWidth: 320,
@@ -174,21 +193,29 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                                               8,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: fromAdmin
-                                                  ? const Color(0xFFF3F6FC)
-                                                  : AppColors.primary
-                                                        .withValues(
-                                                          alpha: 0.12,
-                                                        ),
+                                              color: isAutoReply
+                                                  ? const Color(0xFFF7FAFF)
+                                                  : (fromAdmin
+                                                        ? const Color(
+                                                            0xFFF3F6FC,
+                                                          )
+                                                        : AppColors.primary
+                                                              .withValues(
+                                                                alpha: 0.12,
+                                                              )),
                                               borderRadius:
                                                   BorderRadius.circular(12),
                                               border: Border.all(
-                                                color: fromAdmin
-                                                    ? const Color(0xFFD8E2F3)
-                                                    : AppColors.primary
-                                                          .withValues(
-                                                            alpha: 0.30,
-                                                          ),
+                                                color: isAutoReply
+                                                    ? const Color(0xFFBFDBFE)
+                                                    : (fromAdmin
+                                                          ? const Color(
+                                                              0xFFD8E2F3,
+                                                            )
+                                                          : AppColors.primary
+                                                                .withValues(
+                                                                  alpha: 0.30,
+                                                                )),
                                               ),
                                             ),
                                             child: Column(
@@ -196,12 +223,17 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  item.senderName,
+                                                  isAutoReply
+                                                      ? 'Support assistant'
+                                                      : item.senderName,
                                                   style: TextStyle(
-                                                    color: fromAdmin
-                                                        ? AppColors
-                                                              .textSecondary
-                                                        : AppColors.primaryDark,
+                                                    color: isAutoReply
+                                                        ? AppColors.primary
+                                                        : (fromAdmin
+                                                              ? AppColors
+                                                                    .textSecondary
+                                                              : AppColors
+                                                                    .primaryDark),
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w700,
                                                   ),
@@ -212,6 +244,7 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                                                   style: const TextStyle(
                                                     color:
                                                         AppColors.textPrimary,
+                                                    height: 1.4,
                                                   ),
                                                 ),
                                                 const SizedBox(height: 4),
@@ -357,6 +390,28 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
   }
+
+  String _prettyPriority(String value) {
+    switch (value.toLowerCase()) {
+      case 'high':
+        return 'High priority';
+      case 'low':
+        return 'Low priority';
+      default:
+        return 'Normal priority';
+    }
+  }
+
+  Color _priorityColor(String value) {
+    switch (value.toLowerCase()) {
+      case 'high':
+        return const Color(0xFFDC2626);
+      case 'low':
+        return const Color(0xFF64748B);
+      default:
+        return const Color(0xFF0EA5E9);
+    }
+  }
 }
 
 class _StatusPill extends StatelessWidget {
@@ -370,6 +425,7 @@ class _StatusPill extends StatelessWidget {
     final color = switch (normalized) {
       'resolved' => AppColors.success,
       'closed' => AppColors.textSecondary,
+      'waiting_on_user' => AppColors.primary,
       _ => AppColors.warning,
     };
     return Container(
@@ -379,10 +435,44 @@ class _StatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        normalized.isEmpty ? 'open' : normalized,
+        switch (normalized) {
+          'waiting_on_admin' => 'Waiting for admin',
+          'waiting_on_user' => 'Waiting for your reply',
+          'resolved' => 'Resolved',
+          'closed' => 'Closed',
+          _ => 'Open',
+        },
         style: TextStyle(
           color: color,
           fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaPill extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _MetaPill({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
           fontWeight: FontWeight.w700,
         ),
       ),

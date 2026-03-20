@@ -136,13 +136,20 @@ class AppTheme {
     final base = ThemeData.dark();
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.bgDark,
+      canvasColor: AppColors.bgDark,
+      shadowColor: Colors.black,
       dividerColor: AppColors.dividerDark,
       colorScheme: base.colorScheme.copyWith(
         primary: AppColors.primary,
         secondary: AppColors.accent,
         surface: AppColors.surfaceDark,
+        primaryContainer: const Color(0xFF172554),
+        secondaryContainer: const Color(0xFF0F3A44),
         onPrimary: Colors.white,
         onSurface: AppColors.textPrimaryDark,
+        onSecondary: Colors.white,
+        onPrimaryContainer: const Color(0xFFDCE8FF),
+        onSecondaryContainer: const Color(0xFFC8FFF7),
       ),
       textTheme: GoogleFonts.poppinsTextTheme(base.textTheme).copyWith(
         titleLarge: GoogleFonts.poppins(
@@ -169,6 +176,7 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: AppColors.surfaceDark,
         elevation: 0,
+        shadowColor: Colors.black.withValues(alpha: 0.35),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_radius(18, scale)),
           side: const BorderSide(color: AppColors.dividerDark),
@@ -196,6 +204,36 @@ class AppTheme {
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: AppColors.textPrimaryDark,
+      ),
+      switchTheme: SwitchThemeData(
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return AppColors.primary.withValues(alpha: 0.5);
+          }
+          return const Color(0xFF243244);
+        }),
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return AppColors.primaryLight;
+          }
+          return const Color(0xFFBAC7D9);
+        }),
+      ),
+      chipTheme: base.chipTheme.copyWith(
+        backgroundColor: const Color(0xFF182335),
+        selectedColor: AppColors.primary.withValues(alpha: 0.2),
+        side: const BorderSide(color: AppColors.dividerDark),
+        labelStyle: GoogleFonts.poppins(
+          color: AppColors.textPrimaryDark,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: AppColors.textPrimaryDark,
+          backgroundColor: const Color(0xFF172233),
+          disabledBackgroundColor: const Color(0xFF111827),
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -239,7 +277,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceDark,
+        fillColor: const Color(0xFF111C2D),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(_radius(14, scale)),
           borderSide: const BorderSide(color: AppColors.dividerDark),
@@ -256,6 +294,14 @@ class AppTheme {
           horizontal: _space(16, scale),
           vertical: _space(14, scale),
         ),
+        hintStyle: GoogleFonts.poppins(
+          color: AppColors.textSecondaryDark,
+          fontSize: _font(14, scale),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        iconColor: AppColors.textPrimaryDark,
+        textColor: AppColors.textPrimaryDark,
       ),
     );
   }

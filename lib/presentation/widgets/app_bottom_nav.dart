@@ -26,6 +26,8 @@ class AppBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     const accentColor = AppColors.primary;
     final isProvider = AppRoleState.isProvider;
@@ -49,13 +51,13 @@ class AppBottomNav extends StatelessWidget {
               right: rs.space(8),
             ),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF0E1727) : Colors.white,
               borderRadius: BorderRadius.vertical(
                 top: Radius.circular(rs.radius(20)),
               ),
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: Color(0x1A2D4678),
+                  color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.10),
                   blurRadius: 20,
                   offset: Offset(0, -4),
                 ),
@@ -126,7 +128,9 @@ class AppBottomNav extends StatelessWidget {
                           ),
                           borderRadius: BorderRadius.circular(rs.radius(16)),
                           border: Border.all(
-                            color: Colors.white,
+                            color: isDark
+                                ? const Color(0xFF0E1727)
+                                : Colors.white,
                             width: rs.space(3),
                           ),
                           boxShadow: [
@@ -171,7 +175,11 @@ class _ProfileNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
-    final color = selected ? accentColor : AppColors.textSecondary;
+    final theme = Theme.of(context);
+    final color = selected
+        ? accentColor
+        : theme.bottomNavigationBarTheme.unselectedItemColor ??
+              AppColors.textSecondary;
 
     return InkWell(
       borderRadius: BorderRadius.circular(rs.radius(14)),
@@ -206,7 +214,7 @@ class _ProfileNavItem extends StatelessWidget {
                   child: hasImage && image != null
                       ? CircleAvatar(
                           radius: rs.dimension(14),
-                          backgroundColor: AppColors.background,
+                          backgroundColor: theme.scaffoldBackgroundColor,
                           backgroundImage: image,
                         )
                       : Icon(
@@ -254,7 +262,11 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
-    final color = selected ? accentColor : AppColors.textSecondary;
+    final theme = Theme.of(context);
+    final color = selected
+        ? accentColor
+        : theme.bottomNavigationBarTheme.unselectedItemColor ??
+              AppColors.textSecondary;
 
     return InkWell(
       borderRadius: BorderRadius.circular(rs.radius(14)),

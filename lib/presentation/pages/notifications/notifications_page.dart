@@ -30,19 +30,23 @@ class NotificationsPage extends StatefulWidget {
 class _NotificationsPageState extends State<NotificationsPage>
     with WidgetsBindingObserver {
   _NoticeFilter _filter = _NoticeFilter.all;
+  bool _screenLoading = true;
+  bool _screenRefreshInFlight = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    MainShellPage.activeTab.addListener(_handleActiveTabChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(_refreshNotifications(forceNetwork: true));
-      unawaited(UserNotificationState.refresh());
+      unawaited(_loadScreen(forceNetwork: true));
     });
   }
 
   @override
   void dispose() {
+    MainShellPage.activeTab.removeListener(_handleActiveTabChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -50,8 +54,15 @@ class _NotificationsPageState extends State<NotificationsPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed || !mounted) return;
-    unawaited(_refreshNotifications());
-    unawaited(UserNotificationState.refresh());
+    unawaited(_loadScreen(forceNetwork: true));
+  }
+
+  void _handleActiveTabChanged() {
+    if (!mounted ||
+        MainShellPage.activeTab.value != AppBottomTab.notification) {
+      return;
+    }
+    unawaited(_loadScreen(forceNetwork: true));
   }
 
   @override
@@ -69,6 +80,39 @@ class _NotificationsPageState extends State<NotificationsPage>
                 return ValueListenableBuilder<bool>(
                   valueListenable: UserNotificationState.loading,
                   builder: (context, loading, _) {
+                    if (_screenLoading) {
+                      return Scaffold(
+                        body: SafeArea(
+                          child: ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: EdgeInsets.fromLTRB(
+                              rs.space(AppSpacing.lg),
+                              rs.space(AppSpacing.lg),
+                              rs.space(AppSpacing.lg),
+                              rs.space(AppSpacing.xl),
+                            ),
+                            children: [
+                              AppTopBar(
+                                title: 'Notifications',
+                                showBack: true,
+                                onBack: () => MainShellPage.activeTab.value =
+                                    AppBottomTab.home,
+                              ),
+                              SizedBox(height: rs.space(16)),
+                              const SizedBox(
+                                height: 320,
+                                child: Center(
+                                  child: AppStatePanel.loading(
+                                    title: 'Loading notifications',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
                     final backendSystemUpdates = _buildSystemUpdates(notices);
                     final backendPromos = _buildPromoNotices(notices);
                     final orderStatusNotices = _latestOrderStatusNotices(
@@ -414,11 +458,27 @@ class _NotificationsPageState extends State<NotificationsPage>
     );
   }
 
+  Future<void> _loadScreen({bool forceNetwork = false}) async {
+    if (_screenRefreshInFlight) return;
+    _screenRefreshInFlight = true;
+    if (mounted) {
+      setState(() => _screenLoading = true);
+    }
+    try {
+      await Future.wait<void>([
+        _refreshNotifications(forceNetwork: forceNetwork),
+        UserNotificationState.refresh(),
+      ]);
+    } finally {
+      _screenRefreshInFlight = false;
+      if (mounted) {
+        setState(() => _screenLoading = false);
+      }
+    }
+  }
+
   Future<void> _refreshFeed() async {
-    await Future.wait<void>([
-      _refreshNotifications(forceNetwork: true),
-      UserNotificationState.refresh(),
-    ]);
+    await _loadScreen(forceNetwork: true);
   }
 
   List<_NotificationUpdate> _buildOrderUpdates(
@@ -438,7 +498,7 @@ class _NotificationsPageState extends State<NotificationsPage>
           statusNotices['${order.id}:${_orderStatusStorage(status)}'];
       final label = switch (status) {
         OrderStatus.booked => 'Order Booked',
-        OrderStatus.onTheWay => 'Provider On The Way',
+        OrderStatus.onTheWay => 'Order Confirmed',
         OrderStatus.started => 'Service Started',
         OrderStatus.completed => 'Order Completed',
         OrderStatus.cancelled => 'Order Cancelled',
@@ -446,7 +506,7 @@ class _NotificationsPageState extends State<NotificationsPage>
       };
       final icon = switch (status) {
         OrderStatus.booked => Icons.fact_check_outlined,
-        OrderStatus.onTheWay => Icons.delivery_dining_rounded,
+        OrderStatus.onTheWay => Icons.verified_rounded,
         OrderStatus.started => Icons.handyman_rounded,
         OrderStatus.completed => Icons.check_circle_outline_rounded,
         OrderStatus.cancelled => Icons.cancel_outlined,
@@ -596,14 +656,10 @@ class _NotificationsPageState extends State<NotificationsPage>
                 : MaterialLocalizations.of(context).formatShortDate(end);
             dateRange = '$startLabel - $endLabel';
           }
-          final code = item.promoCode.trim();
-          final description = code.isEmpty
-              ? item.message
-              : '${item.message}\nCode: $code';
           return _PromoNotice(
             id: item.id,
             title: item.title,
-            description: description,
+            description: item.message,
             trailingLabel: trailingLabel,
             trailingColor: trailingColor,
             dateRange: dateRange,

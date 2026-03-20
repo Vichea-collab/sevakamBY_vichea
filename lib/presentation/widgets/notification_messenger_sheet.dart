@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/page_transition.dart';
 import '../../core/utils/safe_image_provider.dart';
 import '../../domain/entities/chat.dart';
+import '../pages/chat/chat_conversation_page.dart';
+import '../state/chat_state.dart';
 import 'pressable_scale.dart';
 
 Future<void> showNotificationMessengerSheet(
@@ -50,11 +55,8 @@ class _NotificationMessengerSheet extends StatefulWidget {
 class _NotificationMessengerSheetState
     extends State<_NotificationMessengerSheet> {
   final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _composerController = TextEditingController();
   String _query = '';
   late List<ChatThread> _threads;
-  ChatThread? _activeThread;
-  List<ChatMessage> _activeMessages = const [];
 
   @override
   void initState() {
@@ -66,7 +68,6 @@ class _NotificationMessengerSheetState
   @override
   void dispose() {
     _searchController.dispose();
-    _composerController.dispose();
     super.dispose();
   }
 
@@ -79,9 +80,7 @@ class _NotificationMessengerSheetState
           color: AppColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: _activeThread == null
-            ? _buildThreadList()
-            : _buildConversation(),
+        child: _buildThreadList(),
       ),
     );
   }
@@ -163,14 +162,7 @@ class _NotificationMessengerSheetState
                     return _MessengerThreadTile(
                       thread: thread,
                       accentColor: widget.accentColor,
-                      onTap: () {
-                        setState(() {
-                          _activeThread = thread;
-                          _activeMessages = List<ChatMessage>.from(
-                            thread.messages,
-                          );
-                        });
-                      },
+                      onTap: () => _openThread(thread),
                     );
                   },
                 ),
@@ -179,167 +171,23 @@ class _NotificationMessengerSheetState
     );
   }
 
-  Widget _buildConversation() {
-    final thread = _activeThread!;
-    final status = _activityStatus(thread.lastActiveAt);
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: () => setState(() => _activeThread = null),
-                icon: const Icon(Icons.arrow_back_rounded),
-              ),
-              CircleAvatar(
-                radius: 18,
-                backgroundImage: safeImageProvider(thread.avatarPath),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      thread.title,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      status.label,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: status.color),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close_rounded),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            reverse: false,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            itemCount: _activeMessages.length,
-            itemBuilder: (context, index) {
-              return _MessengerBubble(
-                message: _activeMessages[index],
-                accentColor: widget.accentColor,
-              );
-            },
-          ),
-        ),
-        Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _composerController,
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    hintText: 'Write a message',
-                    isDense: true,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              PressableScale(
-                onTap: _sendMessage,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: _sendMessage,
-                  child: Ink(
-                    height: 38,
-                    width: 38,
-                    decoration: BoxDecoration(
-                      color: widget.accentColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.send_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+  Future<void> _openThread(ChatThread thread) async {
+    final navigator = Navigator.of(context);
+    ChatThread resolved = thread;
+    try {
+      final latest = await ChatState.fetchThreadById(thread.id);
+      if (latest != null) {
+        resolved = latest;
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    navigator.pop();
+    await Future<void>.delayed(Duration.zero);
+    await navigator.push(
+      slideFadeRoute(ChatConversationPage(thread: resolved)),
     );
-  }
-
-  void _sendMessage() {
-    final text = _composerController.text.trim();
-    if (text.isEmpty || _activeThread == null) return;
-    final message = ChatMessage(
-      id: 'local_${DateTime.now().microsecondsSinceEpoch}',
-      text: text,
-      fromMe: true,
-      sentAt: DateTime.now(),
-      deliveryStatus: ChatDeliveryStatus.delivered,
-    );
-    setState(() {
-      _activeMessages = [..._activeMessages, message];
-      _composerController.clear();
-      _refreshThreadPreview(message);
-    });
-  }
-
-  void _refreshThreadPreview(ChatMessage latest) {
-    final thread = _activeThread;
-    if (thread == null) return;
-    final updatedThread = ChatThread(
-      id: thread.id,
-      title: thread.title,
-      subtitle: latest.text,
-      avatarPath: thread.avatarPath,
-      updatedAt: latest.sentAt,
-      lastActiveAt: thread.lastActiveAt,
-      unreadCount: 0,
-      messages: _activeMessages,
-    );
-    _threads =
-        _threads
-            .map((item) => item.id == updatedThread.id ? updatedThread : item)
-            .toList()
-          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    _activeThread = updatedThread;
-  }
-
-  ({String label, Color color}) _activityStatus(DateTime lastActiveAt) {
-    final local = lastActiveAt.toLocal();
-    if (local.year < 2010) {
-      return (label: 'Offline', color: const Color(0xFF94A3B8));
-    }
-    final delta = DateTime.now().difference(local);
-    if (delta.inMinutes < 2) {
-      return (label: 'Active now', color: AppColors.success);
-    }
-    const inactiveColor = Color(0xFF94A3B8);
-    if (delta.inHours < 1) {
-      final minutes = delta.inMinutes <= 0 ? 1 : delta.inMinutes;
-      final unit = minutes == 1 ? 'min' : 'mins';
-      return (label: 'Active $minutes $unit ago', color: inactiveColor);
-    }
-    if (delta.inDays < 1) {
-      final hours = delta.inHours;
-      final unit = hours == 1 ? 'hr' : 'hrs';
-      return (label: 'Active $hours $unit ago', color: inactiveColor);
-    }
-    return (label: 'Active ${delta.inDays}d ago', color: inactiveColor);
+    unawaited(ChatState.markThreadAsRead(resolved.id, syncThreads: true));
+    unawaited(ChatState.refreshUnreadCount());
   }
 }
 
@@ -356,123 +204,158 @@ class _MessengerThreadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasUnread = thread.unreadCount > 0;
     final isActive =
-        DateTime.now().difference(thread.lastActiveAt.toLocal()).inMinutes < 5;
+        DateTime.now().difference(thread.lastActiveAt.toLocal()).inMinutes < 2;
     return PressableScale(
       onTap: onTap,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.divider.withValues(alpha: 0.8)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0x080F172A),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            color: hasUnread
+                ? accentColor.withValues(alpha: 0.04)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: hasUnread
+                  ? accentColor.withValues(alpha: 0.12)
+                  : AppColors.divider.withValues(alpha: 0.8),
+            ),
           ),
           child: Row(
             children: [
               Stack(
                 children: [
                   CircleAvatar(
-                    radius: 24,
-                    backgroundImage: safeImageProvider(thread.avatarPath),
+                    radius: 28,
+                    backgroundColor: AppColors.background,
+                    backgroundImage: thread.avatarPath.trim().isNotEmpty
+                        ? safeImageProvider(thread.avatarPath)
+                        : null,
+                    child: thread.avatarPath.trim().isEmpty
+                        ? const Icon(
+                            Icons.person_rounded,
+                            size: 30,
+                            color: AppColors.primary,
+                          )
+                        : null,
                   ),
                   Positioned(
                     right: 0,
                     bottom: 0,
                     child: Container(
-                      width: 12,
-                      height: 12,
+                      width: 14,
+                      height: 14,
                       decoration: BoxDecoration(
                         color: isActive
                             ? AppColors.success
                             : const Color(0xFFCBD5E1),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                        border: Border.all(color: Colors.white, width: 2.5),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      thread.title,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            thread.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyLarge
+                                ?.copyWith(
+                                  color: const Color(0xFF0F172A),
+                                  fontWeight: hasUnread
+                                      ? FontWeight.w800
+                                      : FontWeight.w700,
+                                  fontSize: 16,
+                                  letterSpacing: -0.3,
+                                ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _timeLabel(thread.updatedAt),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: hasUnread
+                                    ? accentColor
+                                    : const Color(0xFF64748B),
+                                fontWeight: hasUnread
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      thread.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                      ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            thread.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  fontWeight: hasUnread
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: hasUnread
+                                      ? const Color(0xFF1E293B)
+                                      : const Color(0xFF64748B),
+                                  fontSize: 14,
+                                ),
+                          ),
+                        ),
+                        if (hasUnread) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  accentColor,
+                                  accentColor.withValues(alpha: 0.85),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: accentColor.withValues(alpha: 0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              '${thread.unreadCount}',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 10,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    _timeLabel(thread.updatedAt),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (thread.unreadCount > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            accentColor,
-                            accentColor.withValues(alpha: 0.85),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: accentColor.withValues(alpha: 0.3),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        '${thread.unreadCount}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                ],
               ),
             ],
           ),
@@ -490,83 +373,6 @@ class _MessengerThreadTile extends StatelessWidget {
     final hour = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
     final minute = dateTime.minute.toString().padLeft(2, '0');
     final suffix = dateTime.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $suffix';
-  }
-}
-
-class _MessengerBubble extends StatelessWidget {
-  final ChatMessage message;
-  final Color accentColor;
-
-  const _MessengerBubble({required this.message, required this.accentColor});
-
-  @override
-  Widget build(BuildContext context) {
-    final fromMe = message.fromMe;
-    return Align(
-      alignment: fromMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Column(
-        crossAxisAlignment: fromMe
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(bottom: 4),
-            constraints: const BoxConstraints(maxWidth: 280),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(
-              gradient: fromMe
-                  ? LinearGradient(
-                      colors: [accentColor, accentColor.withValues(alpha: 0.9)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : null,
-              color: fromMe ? null : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(18),
-                topRight: const Radius.circular(18),
-                bottomLeft: Radius.circular(fromMe ? 18 : 4),
-                bottomRight: Radius.circular(fromMe ? 4 : 18),
-              ),
-              boxShadow: [
-                if (fromMe)
-                  BoxShadow(
-                    color: accentColor.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-              ],
-            ),
-            child: Text(
-              message.text,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: fromMe ? Colors.white : AppColors.textPrimary,
-                fontSize: 14.5,
-                height: 1.4,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              _timeLabel(message.sentAt),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.textSecondary,
-                fontSize: 10,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
-  String _timeLabel(DateTime time) {
-    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final suffix = time.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $suffix';
   }
 }

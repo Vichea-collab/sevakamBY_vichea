@@ -381,6 +381,8 @@ class _TabChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Expanded(
       child: InkWell(
         borderRadius: BorderRadius.circular(rs.radius(12)),
@@ -389,16 +391,22 @@ class _TabChip extends StatelessWidget {
           height: rs.dimension(40),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: active ? const Color(0xFFEAF1FF) : Colors.white,
+            color: active
+                ? (isDark
+                      ? AppColors.primary.withValues(alpha: 0.16)
+                      : const Color(0xFFEAF1FF))
+                : theme.cardColor,
             borderRadius: BorderRadius.circular(rs.radius(12)),
             border: Border.all(
-              color: active ? AppColors.primary : AppColors.divider,
+              color: active ? AppColors.primary : theme.dividerColor,
             ),
           ),
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: active ? AppColors.primary : AppColors.textSecondary,
+              color: active
+                  ? AppColors.primaryLight
+                  : theme.textTheme.bodyMedium?.color,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -417,15 +425,16 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(rs.radius(14)),
       child: Container(
         padding: rs.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(rs.radius(14)),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(color: theme.dividerColor),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -436,7 +445,7 @@ class _OrderCard extends StatelessWidget {
                   child: Text(
                     order.serviceName,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.textPrimary,
+                      color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -494,7 +503,11 @@ class _MetaText extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: rs.icon(14), color: AppColors.textSecondary),
+        Icon(
+          icon,
+          size: rs.icon(14),
+          color: Theme.of(context).textTheme.bodyMedium?.color,
+        ),
         rs.gapW(4),
         Text(text, style: Theme.of(context).textTheme.bodyMedium),
       ],

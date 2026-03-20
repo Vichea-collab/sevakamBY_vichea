@@ -304,6 +304,9 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
             id: 'local-${ticket.createdAt.microsecondsSinceEpoch}',
             title: ticket.title,
             message: ticket.message,
+            category: ticket.category,
+            subcategory: ticket.subcategory,
+            priority: ticket.priority,
             status: ticket.status,
             createdAt: ticket.createdAt,
             updatedAt: ticket.updatedAt,
@@ -319,6 +322,8 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
       final created = await _remoteDataSource.createHelpTicket(
         title: ticket.title,
         message: ticket.message,
+        category: ticket.category,
+        subcategory: ticket.subcategory,
       );
       return HelpSupportTicket.fromMap(created);
     } catch (_) {}

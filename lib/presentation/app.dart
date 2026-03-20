@@ -473,17 +473,20 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
     _activeBannerTimer = Timer(const Duration(seconds: 5), _removeActiveBanner);
   }
 
-  void _openQuickMessenger() {
+  Future<void> _openQuickMessenger() async {
     final context = widget.navigatorKey.currentContext;
     if (context == null) return;
-    unawaited(
-      showNotificationMessengerSheet(
-        context,
-        title: 'Messenger',
-        subtitle: 'Recent conversations',
-        threads: ChatState.threads.value,
-        accentColor: AppColors.primary,
-      ),
+    try {
+      await ChatState.refresh(page: 1);
+      await ChatState.refreshUnreadCount();
+    } catch (_) {}
+    if (!context.mounted) return;
+    await showNotificationMessengerSheet(
+      context,
+      title: 'Messenger',
+      subtitle: 'Recent conversations',
+      threads: ChatState.threads.value,
+      accentColor: AppColors.primary,
     );
   }
 

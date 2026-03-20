@@ -48,7 +48,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final rs = context.rs;
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F6FB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _handleRefresh,
@@ -216,6 +216,8 @@ class _ProfileHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return ValueListenableBuilder(
       valueListenable: ProfileSettingsState.finderProfile,
       builder: (context, profile, _) {
@@ -227,12 +229,12 @@ class _ProfileHero extends StatelessWidget {
         return Container(
           padding: rs.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(rs.radius(20)),
-            border: Border.all(color: const Color(0xFFDDE7F5)),
-            boxShadow: const [
+            border: Border.all(color: theme.dividerColor),
+            boxShadow: [
               BoxShadow(
-                color: Color(0x110F172A),
+                color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.07),
                 blurRadius: 20,
                 spreadRadius: -12,
                 offset: Offset(0, 14),
@@ -262,7 +264,9 @@ class _ProfileHero extends StatelessWidget {
                     Container(
                       padding: rs.all(3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEAF1FF),
+                        color: isDark
+                            ? const Color(0xFF1A2840)
+                            : const Color(0xFFEAF1FF),
                         shape: BoxShape.circle,
                       ),
                       child: ValueListenableBuilder(
@@ -271,7 +275,9 @@ class _ProfileHero extends StatelessWidget {
                           final image = ProfileImageState.avatarProvider();
                           return CircleAvatar(
                             radius: rs.dimension(34),
-                            backgroundColor: const Color(0xFFF7FAFF),
+                            backgroundColor: isDark
+                                ? const Color(0xFF111C2D)
+                                : const Color(0xFFF7FAFF),
                             backgroundImage: image,
                             child: image == null
                                 ? Icon(
@@ -301,7 +307,7 @@ class _ProfileHero extends StatelessWidget {
                                     : profile.name.trim(),
                                 style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(
-                                      color: AppColors.textPrimary,
+                                      color: theme.colorScheme.onSurface,
                                       fontWeight: FontWeight.w800,
                                     ),
                               ),
@@ -311,7 +317,11 @@ class _ProfileHero extends StatelessWidget {
                                   vertical: 5,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFEAF1FF),
+                                  color: isDark
+                                      ? AppColors.primary.withValues(
+                                          alpha: 0.18,
+                                        )
+                                      : const Color(0xFFEAF1FF),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Text(
@@ -350,7 +360,7 @@ class _ProfileHero extends StatelessWidget {
                                   profile.city.trim(),
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
-                                        color: AppColors.primary,
+                                        color: AppColors.primaryLight,
                                         fontWeight: FontWeight.w600,
                                       ),
                                 ),
@@ -426,7 +436,7 @@ class _ActionTile extends StatelessWidget {
                 child: Text(
                   label,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.textPrimary,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -472,12 +482,16 @@ class _SectionCard extends StatelessWidget {
     final rs = context.rs;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(rs.radius(18)),
-        border: Border.all(color: AppColors.divider),
-        boxShadow: const [
+        border: Border.all(color: Theme.of(context).dividerColor),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x110F172A),
+            color: Colors.black.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.24
+                  : 0.07,
+            ),
             blurRadius: 20,
             spreadRadius: -12,
             offset: Offset(0, 14),
@@ -493,7 +507,7 @@ class _SectionCard extends StatelessWidget {
 class _ActionDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return const Divider(height: 1, color: AppColors.divider);
+    return Divider(height: 1, color: Theme.of(context).dividerColor);
   }
 }
 
@@ -541,12 +555,16 @@ class _DangerActionCard extends StatelessWidget {
           width: double.infinity,
           padding: rs.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(rs.radius(18)),
             border: Border.all(color: AppColors.danger.withValues(alpha: 0.25)),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x110F172A),
+                color: Colors.black.withValues(
+                  alpha: Theme.of(context).brightness == Brightness.dark
+                      ? 0.24
+                      : 0.07,
+                ),
                 blurRadius: 20,
                 spreadRadius: -12,
                 offset: Offset(0, 14),

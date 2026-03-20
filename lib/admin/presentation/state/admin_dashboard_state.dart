@@ -56,9 +56,8 @@ class AdminDashboardState {
   static final ValueNotifier<List<AdminServiceRow>> services = ValueNotifier(
     const <AdminServiceRow>[],
   );
-  static final ValueNotifier<List<AdminPromotionRow>> promotions = ValueNotifier(
-    const <AdminPromotionRow>[],
-  );
+  static final ValueNotifier<List<AdminPromotionRow>> promotions =
+      ValueNotifier(const <AdminPromotionRow>[]);
   static final ValueNotifier<List<AdminBroadcastRow>> broadcasts =
       ValueNotifier(const <AdminBroadcastRow>[]);
   static final ValueNotifier<List<AdminUndoHistoryRow>> undoHistory =
@@ -237,6 +236,7 @@ class AdminDashboardState {
     int limit = pageSize,
     String query = '',
     String status = '',
+    String category = '',
   }) async {
     final safePage = page < 1 ? 1 : page;
     loadingTickets.value = true;
@@ -246,6 +246,7 @@ class AdminDashboardState {
         limit: limit,
         query: query,
         status: status,
+        category: category,
       );
       tickets.value = result.items;
       ticketsPagination.value = result.pagination;
@@ -498,7 +499,10 @@ class AdminDashboardState {
       startAtIso: startAtIso,
       endAtIso: endAtIso,
     );
-    promotions.value = [row, ...promotions.value.where((item) => item.id != row.id)];
+    promotions.value = [
+      row,
+      ...promotions.value.where((item) => item.id != row.id),
+    ];
     return row;
   }
 
@@ -518,12 +522,6 @@ class AdminDashboardState {
     required String message,
     required List<String> targetRoles,
     required bool active,
-    String promoCode = '',
-    String discountType = 'percent',
-    double discountValue = 0,
-    double minSubtotal = 0,
-    double maxDiscount = 0,
-    int usageLimit = 0,
     String? startAtIso,
     String? endAtIso,
   }) {
@@ -533,12 +531,6 @@ class AdminDashboardState {
       message: message,
       targetRoles: targetRoles,
       active: active,
-      promoCode: promoCode,
-      discountType: discountType,
-      discountValue: discountValue,
-      minSubtotal: minSubtotal,
-      maxDiscount: maxDiscount,
-      usageLimit: usageLimit,
       startAtIso: startAtIso,
       endAtIso: endAtIso,
     );

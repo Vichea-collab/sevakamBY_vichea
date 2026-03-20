@@ -29,19 +29,23 @@ class ProviderNotificationsPage extends StatefulWidget {
 
 class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
     with WidgetsBindingObserver {
+  bool _screenLoading = true;
+  bool _screenRefreshInFlight = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    MainShellPage.activeTab.addListener(_handleActiveTabChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(_refreshNotifications(forceNetwork: true));
-      unawaited(UserNotificationState.refresh());
+      unawaited(_loadScreen(forceNetwork: true));
     });
   }
 
   @override
   void dispose() {
+    MainShellPage.activeTab.removeListener(_handleActiveTabChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -49,8 +53,15 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed || !mounted) return;
-    unawaited(_refreshNotifications());
-    unawaited(UserNotificationState.refresh());
+    unawaited(_loadScreen(forceNetwork: true));
+  }
+
+  void _handleActiveTabChanged() {
+    if (!mounted ||
+        MainShellPage.activeTab.value != AppBottomTab.notification) {
+      return;
+    }
+    unawaited(_loadScreen(forceNetwork: true));
   }
 
   @override
@@ -67,6 +78,34 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                 return ValueListenableBuilder<bool>(
                   valueListenable: UserNotificationState.loading,
                   builder: (context, loading, _) {
+                    if (_screenLoading) {
+                      return Scaffold(
+                        body: SafeArea(
+                          child: ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            children: [
+                              AppTopBar(
+                                title: 'Notifications',
+                                showBack: true,
+                                onBack: () => MainShellPage.activeTab.value =
+                                    AppBottomTab.home,
+                              ),
+                              const SizedBox(height: 16),
+                              const SizedBox(
+                                height: 320,
+                                child: Center(
+                                  child: AppStatePanel.loading(
+                                    title: 'Loading notifications',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
                     final incoming = orders
                         .where(
                           (item) => item.state == ProviderOrderState.incoming,
@@ -91,6 +130,11 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                           ),
                         )
                         .toList(growable: false);
+                    final showSummary =
+                        incoming > 0 ||
+                        active > 0 ||
+                        completed > 0 ||
+                        backendItems.isEmpty;
 
                     final Widget body = loading
                         ? const SizedBox(
@@ -107,12 +151,14 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                             ),
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _ProviderNotificationSummary(
-                                incoming: incoming,
-                                active: active,
-                                completed: completed,
-                              ),
-                              const SizedBox(height: 14),
+                              if (showSummary) ...[
+                                _ProviderNotificationSummary(
+                                  incoming: incoming,
+                                  active: active,
+                                  completed: completed,
+                                ),
+                                const SizedBox(height: 14),
+                              ],
                               if (backendItems.isNotEmpty) ...[
                                 Text(
                                   'Recent Updates',
@@ -241,11 +287,27 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
     );
   }
 
+  Future<void> _loadScreen({bool forceNetwork = false}) async {
+    if (_screenRefreshInFlight) return;
+    _screenRefreshInFlight = true;
+    if (mounted) {
+      setState(() => _screenLoading = true);
+    }
+    try {
+      await Future.wait<void>([
+        _refreshNotifications(forceNetwork: forceNetwork),
+        UserNotificationState.refresh(),
+      ]);
+    } finally {
+      _screenRefreshInFlight = false;
+      if (mounted) {
+        setState(() => _screenLoading = false);
+      }
+    }
+  }
+
   Future<void> _refreshFeed() async {
-    await Future.wait<void>([
-      _refreshNotifications(forceNetwork: true),
-      UserNotificationState.refresh(),
-    ]);
+    await _loadScreen(forceNetwork: true);
   }
 
   String _timeAgo(DateTime? date) {
@@ -291,15 +353,12 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
               : lifecycle == 'expired'
               ? 'Expired'
               : 'Inactive';
-          final code = item.promoCode.trim();
           final description = isOrderStatus
               ? item.message
               : (isChatMessage || isSupportMessage)
               ? item.message
               : item.isPromo
-              ? code.isEmpty
-                    ? '${item.message} • $stateLabel'
-                    : '${item.message} • Code: $code • $stateLabel'
+              ? '${item.message} • $stateLabel'
               : '${item.message} • $stateLabel';
           final color = isOrderStatus
               ? _orderStatusColor(item.orderStatus)
@@ -358,7 +417,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
       case 'booked':
         return Icons.inbox_rounded;
       case 'on_the_way':
-        return Icons.delivery_dining_rounded;
+        return Icons.verified_rounded;
       case 'started':
         return Icons.handyman_rounded;
       case 'completed':
