@@ -3,6 +3,7 @@ import '../../../domain/entities/pagination.dart';
 
 class OrderRemoteDataSource {
   static const int _defaultPageSize = 10;
+  static const Duration _orderListTimeout = Duration(seconds: 25);
 
   final BackendApiClient _apiClient;
 
@@ -32,10 +33,7 @@ class OrderRemoteDataSource {
     final path = statusQuery.isEmpty
         ? '/api/orders/finder?page=$page&limit=$limit'
         : '/api/orders/finder?page=$page&limit=$limit&status=${Uri.encodeQueryComponent(statusQuery.join(','))}';
-    final response = await _apiClient.getJson(
-      path,
-      timeout: const Duration(seconds: 12),
-    );
+    final response = await _apiClient.getJson(path, timeout: _orderListTimeout);
     final items = _safeList(response['data']);
     final pagination = PaginationMeta.fromMap(
       _safeMap(response['pagination']),
@@ -59,10 +57,7 @@ class OrderRemoteDataSource {
     final path = statusQuery.isEmpty
         ? '/api/orders/provider?page=$page&limit=$limit'
         : '/api/orders/provider?page=$page&limit=$limit&status=${Uri.encodeQueryComponent(statusQuery.join(','))}';
-    final response = await _apiClient.getJson(
-      path,
-      timeout: const Duration(seconds: 12),
-    );
+    final response = await _apiClient.getJson(path, timeout: _orderListTimeout);
     final items = _safeList(response['data']);
     final pagination = PaginationMeta.fromMap(
       _safeMap(response['pagination']),

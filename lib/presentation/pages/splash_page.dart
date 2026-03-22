@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 import '../state/auth_state.dart';
+import '../widgets/app_bottom_nav.dart';
 import 'onboarding_page.dart';
 import 'main_shell_page.dart';
 
@@ -66,6 +67,7 @@ class _SplashPageState extends State<SplashPage>
     if (!mounted) return;
 
     if (AuthState.ready.value && AuthState.isSignedIn) {
+      MainShellPage.activeTab.value = AppBottomTab.home;
       Navigator.pushReplacementNamed(context, MainShellPage.routeName);
     } else {
       Navigator.pushReplacementNamed(context, OnboardingPage.routeName);

@@ -26,6 +26,7 @@ class AdminWebApp extends StatelessWidget {
           seedColor: AppColors.primary,
           brightness: Brightness.light,
         ),
+        canvasColor: Colors.white,
         scaffoldBackgroundColor: const Color(0xFFEFF4FF),
         textTheme: baseText.copyWith(
           titleLarge: baseText.titleLarge?.copyWith(
@@ -62,6 +63,42 @@ class AdminWebApp extends StatelessWidget {
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: AppColors.primary, width: 1.2),
+          ),
+        ),
+        popupMenuTheme: PopupMenuThemeData(
+          color: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFD5DEEF)),
+          ),
+        ),
+        menuTheme: MenuThemeData(
+          style: MenuStyle(
+            backgroundColor: const WidgetStatePropertyAll<Color>(Colors.white),
+            surfaceTintColor: const WidgetStatePropertyAll<Color>(
+              Colors.transparent,
+            ),
+            shape: WidgetStatePropertyAll<RoundedRectangleBorder>(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFFD5DEEF)),
+              ),
+            ),
+          ),
+        ),
+        dropdownMenuTheme: DropdownMenuThemeData(
+          menuStyle: MenuStyle(
+            backgroundColor: const WidgetStatePropertyAll<Color>(Colors.white),
+            surfaceTintColor: const WidgetStatePropertyAll<Color>(
+              Colors.transparent,
+            ),
+            shape: WidgetStatePropertyAll<RoundedRectangleBorder>(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFFD5DEEF)),
+              ),
+            ),
           ),
         ),
       ),

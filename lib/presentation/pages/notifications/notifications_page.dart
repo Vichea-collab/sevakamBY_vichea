@@ -32,6 +32,7 @@ class _NotificationsPageState extends State<NotificationsPage>
   _NoticeFilter _filter = _NoticeFilter.all;
   bool _screenLoading = true;
   bool _screenRefreshInFlight = false;
+  bool _initialLoadComplete = false;
 
   @override
   void initState() {
@@ -80,7 +81,7 @@ class _NotificationsPageState extends State<NotificationsPage>
                 return ValueListenableBuilder<bool>(
                   valueListenable: UserNotificationState.loading,
                   builder: (context, loading, _) {
-                    if (_screenLoading) {
+                    if (_screenLoading && !_initialLoadComplete) {
                       return Scaffold(
                         body: SafeArea(
                           child: ListView(
@@ -250,16 +251,6 @@ class _NotificationsPageState extends State<NotificationsPage>
                                 ),
                               ],
                             ],
-                          )
-                        : loading
-                        ? const SizedBox(
-                            key: ValueKey<String>('notifications_loading'),
-                            height: 320,
-                            child: Center(
-                              child: AppStatePanel.loading(
-                                title: 'Loading notifications',
-                              ),
-                            ),
                           )
                         : const AppStatePanel.empty(
                             key: ValueKey<String>('notifications_empty'),
@@ -432,6 +423,7 @@ class _NotificationsPageState extends State<NotificationsPage>
         Navigator.pushNamed(context, HelpSupportPage.routeName);
         return;
       default:
+        MainShellPage.activeTab.value = AppBottomTab.order;
         return;
     }
   }
@@ -461,7 +453,7 @@ class _NotificationsPageState extends State<NotificationsPage>
   Future<void> _loadScreen({bool forceNetwork = false}) async {
     if (_screenRefreshInFlight) return;
     _screenRefreshInFlight = true;
-    if (mounted) {
+    if (mounted && !_initialLoadComplete) {
       setState(() => _screenLoading = true);
     }
     try {
@@ -472,7 +464,10 @@ class _NotificationsPageState extends State<NotificationsPage>
     } finally {
       _screenRefreshInFlight = false;
       if (mounted) {
-        setState(() => _screenLoading = false);
+        setState(() {
+          _screenLoading = false;
+          _initialLoadComplete = true;
+        });
       }
     }
   }

@@ -20,6 +20,9 @@ enum ProviderOrderTab { incoming, active, completed }
 
 class ProviderOrdersPage extends StatefulWidget {
   static const String routeName = '/provider/orders';
+  static final ValueNotifier<ProviderOrderTab?> requestedTab = ValueNotifier(
+    null,
+  );
   final ProviderOrderTab initialTab;
 
   const ProviderOrdersPage({
@@ -35,11 +38,14 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
     with WidgetsBindingObserver {
   late ProviderOrderTab _tab;
   bool _isPaging = false;
+  bool _historyTabLoading = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    MainShellPage.activeTab.addListener(_handleActiveTabChanged);
+    ProviderOrdersPage.requestedTab.addListener(_handleRequestedTabChanged);
     _tab = widget.initialTab;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -49,6 +55,8 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
 
   @override
   void dispose() {
+    ProviderOrdersPage.requestedTab.removeListener(_handleRequestedTabChanged);
+    MainShellPage.activeTab.removeListener(_handleActiveTabChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -56,8 +64,33 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _loadOrders(forceNetwork: true);
+      unawaited(_loadOrders(forceNetwork: true));
     }
+  }
+
+  void _handleActiveTabChanged() {
+    if (!mounted || MainShellPage.activeTab.value != AppBottomTab.order) {
+      return;
+    }
+    unawaited(
+      _loadOrders(
+        forceNetwork: true,
+        page: _normalizedPage(OrderState.providerPagination.value.page),
+      ),
+    );
+  }
+
+  void _handleRequestedTabChanged() {
+    final requested = ProviderOrdersPage.requestedTab.value;
+    if (requested == null) return;
+    if (_tab != requested && mounted) {
+      setState(() {
+        _tab = requested;
+        _isPaging = false;
+      });
+    }
+    unawaited(_loadOrders(forceNetwork: true, page: 1));
+    ProviderOrdersPage.requestedTab.value = null;
   }
 
   @override
@@ -84,6 +117,8 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
                           item.state == ProviderOrderState.declined;
                   }
                 }).toList();
+                final showHistoryLoading =
+                    _tab == ProviderOrderTab.completed && _historyTabLoading;
 
                 return Scaffold(
                   body: SafeArea(
@@ -129,7 +164,18 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
                           ),
                           const SizedBox(height: 14),
                           Expanded(
-                            child: isLoading && allOrders.isEmpty
+                            child: showHistoryLoading
+                                ? const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.md,
+                                      ),
+                                      child: AppStatePanel.loading(
+                                        title: 'Loading history',
+                                      ),
+                                    ),
+                                  )
+                                : isLoading && allOrders.isEmpty
                                 ? const Center(
                                     child: Padding(
                                       padding: EdgeInsets.symmetric(
@@ -234,13 +280,23 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
       page ?? OrderState.providerPagination.value.page,
     );
     final statuses = _statusFiltersForTab(_tab);
-    if (forceNetwork) {
-      await OrderState.refreshProviderOrders(
-        page: targetPage,
-        statuses: statuses,
-      );
-    } else {
-      await OrderState.refreshCurrentRole(page: targetPage);
+    final shouldShowHistoryLoading = _tab == ProviderOrderTab.completed;
+    if (shouldShowHistoryLoading && mounted) {
+      setState(() => _historyTabLoading = true);
+    }
+    try {
+      if (forceNetwork) {
+        await OrderState.refreshProviderOrders(
+          page: targetPage,
+          statuses: statuses,
+        );
+      } else {
+        await OrderState.refreshCurrentRole(page: targetPage);
+      }
+    } finally {
+      if (shouldShowHistoryLoading && mounted) {
+        setState(() => _historyTabLoading = false);
+      }
     }
   }
 

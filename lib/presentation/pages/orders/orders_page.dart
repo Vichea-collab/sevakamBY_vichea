@@ -19,6 +19,9 @@ import 'order_detail_page.dart';
 
 class OrdersPage extends StatefulWidget {
   static const String routeName = '/orders';
+  static final ValueNotifier<OrderItem?> queuedLatestOrder = ValueNotifier(
+    null,
+  );
   final OrderItem? latestOrder;
 
   const OrdersPage({super.key, this.latestOrder});
@@ -32,11 +35,13 @@ enum _FinderOrderTab { pending, inProgress, completed }
 class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
   _FinderOrderTab _activeTab = _FinderOrderTab.pending;
   bool _isPaging = false;
+  bool _historyTabLoading = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    MainShellPage.activeTab.addListener(_handleActiveTabChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(_loadOrders(forceNetwork: true, page: 1));
@@ -45,6 +50,7 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    MainShellPage.activeTab.removeListener(_handleActiveTabChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -52,8 +58,20 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _loadOrders(forceNetwork: true);
+      unawaited(_loadOrders(forceNetwork: true));
     }
+  }
+
+  void _handleActiveTabChanged() {
+    if (!mounted || MainShellPage.activeTab.value != AppBottomTab.order) {
+      return;
+    }
+    unawaited(
+      _loadOrders(
+        forceNetwork: true,
+        page: _normalizedPage(OrderState.finderPagination.value.page),
+      ),
+    );
   }
 
   @override
@@ -70,6 +88,9 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
               builder: (context, pagination, _) {
                 final sourceOrders = _ordersForTab(_activeTab, allOrders);
                 final visibleOrders = sourceOrders;
+                final showHistoryLoading =
+                    _activeTab == _FinderOrderTab.completed &&
+                    _historyTabLoading;
                 return Scaffold(
                   body: PopScope(
                     canPop: Navigator.canPop(context),
@@ -124,7 +145,18 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
                             ),
                             SizedBox(height: rs.space(14)),
                             Expanded(
-                              child: isLoading && allOrders.isEmpty
+                              child: showHistoryLoading
+                                  ? const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: AppSpacing.md,
+                                        ),
+                                        child: AppStatePanel.loading(
+                                          title: 'Loading history',
+                                        ),
+                                      ),
+                                    )
+                                  : isLoading && allOrders.isEmpty
                                   ? const Center(
                                       child: Padding(
                                         padding: EdgeInsets.symmetric(
@@ -226,22 +258,33 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
       page ?? OrderState.finderPagination.value.page,
     );
     final statuses = _statusFiltersForTab(_activeTab);
-    if (forceNetwork) {
-      await OrderState.refreshFinderOrders(
-        page: targetPage,
-        statuses: statuses,
-      );
-    } else {
-      await OrderState.refreshCurrentRole(page: targetPage);
+    final shouldShowHistoryLoading = _activeTab == _FinderOrderTab.completed;
+    if (shouldShowHistoryLoading && mounted) {
+      setState(() => _historyTabLoading = true);
     }
-    final latest = widget.latestOrder;
-    if (latest == null) return;
-    if (targetPage != 1) return;
-    final hasLatest = OrderState.finderOrders.value.any(
-      (item) => item.id == latest.id,
-    );
-    if (!hasLatest) {
-      OrderState.replaceFinderOrderLocal(latest);
+    try {
+      if (forceNetwork) {
+        await OrderState.refreshFinderOrders(
+          page: targetPage,
+          statuses: statuses,
+        );
+      } else {
+        await OrderState.refreshCurrentRole(page: targetPage);
+      }
+      final latest = widget.latestOrder ?? OrdersPage.queuedLatestOrder.value;
+      if (latest == null) return;
+      if (targetPage != 1) return;
+      final hasLatest = OrderState.finderOrders.value.any(
+        (item) => item.id == latest.id,
+      );
+      if (!hasLatest) {
+        OrderState.replaceFinderOrderLocal(latest);
+      }
+      OrdersPage.queuedLatestOrder.value = null;
+    } finally {
+      if (shouldShowHistoryLoading && mounted) {
+        setState(() => _historyTabLoading = false);
+      }
     }
   }
 

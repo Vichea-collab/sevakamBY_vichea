@@ -543,11 +543,28 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       _startLiveTracking();
 
       final position = await _resolveBestCurrentPosition(forceRefresh: !silent);
-      final point = position == null
+      var point = position == null
           ? null
           : LatLng(position.latitude, position.longitude);
 
       if (point == null) {
+        final simulatorFallback = _simulatorFallbackPoint();
+        if (simulatorFallback != null) {
+          point = simulatorFallback;
+          setState(() {
+            _currentLiveLocation = simulatorFallback;
+            _selectedPoint = simulatorFallback;
+            _selectedAddress = '$_defaultCity, $_defaultCountry';
+          });
+          await _moveCamera(simulatorFallback, zoom: 15.0);
+          if (!silent) {
+            _showMessage(
+              'Using simulator fallback location in Phnom Penh. Set a Cambodia location in the simulator for live GPS tracking.',
+              type: AppToastType.info,
+            );
+          }
+          return;
+        }
         if (!silent) {
           _showMessage(
             'Unable to get a real Cambodia device location. Set a Cambodia location on the device or pick manually on the map.',
@@ -560,6 +577,26 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
       final isSimulatorHq = _isSimulatorDefaultHq(position);
       final outsideCambodia = !_isInsideCambodia(point);
       if (outsideCambodia || isSimulatorHq) {
+        final simulatorFallback = _simulatorFallbackPoint();
+        if (simulatorFallback != null) {
+          final fallbackPoint = simulatorFallback;
+          if (mounted) {
+            setState(() {
+              _currentLiveLocation = fallbackPoint;
+              _selectedPoint = fallbackPoint;
+              _selectedAddress = '$_defaultCity, $_defaultCountry';
+            });
+          }
+          await _moveCamera(fallbackPoint, zoom: 15.0);
+          if (!silent) {
+            final message = isSimulatorHq
+                ? 'Simulator is still using its default mock position. Using Phnom Penh fallback until you set a Cambodia location.'
+                : 'Simulator location is outside Cambodia. Using Phnom Penh fallback for testing.';
+            _showMessage(message, type: AppToastType.info);
+          }
+          return;
+        }
+
         _stopFollowingCurrentLocation();
         if (mounted) {
           setState(() {
@@ -578,12 +615,13 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         return;
       }
 
+      final resolvedPoint = point;
       setState(() {
-        _currentLiveLocation = point;
-        _selectedPoint = point;
+        _currentLiveLocation = resolvedPoint;
+        _selectedPoint = resolvedPoint;
       });
-      await _moveCamera(point, zoom: 15.0);
-      await _reverseGeocode(point);
+      await _moveCamera(resolvedPoint, zoom: 15.0);
+      await _reverseGeocode(resolvedPoint);
     } catch (e) {
       debugPrint('Location error: $e');
       if (!silent) {
@@ -597,6 +635,15 @@ class _AddressMapPickerPageState extends State<AddressMapPickerPage> {
         setState(() => _locating = false);
       }
     }
+  }
+
+  LatLng? _simulatorFallbackPoint() {
+    if (!kDebugMode || kIsWeb) return null;
+    if (defaultTargetPlatform != TargetPlatform.iOS &&
+        defaultTargetPlatform != TargetPlatform.android) {
+      return null;
+    }
+    return _defaultStartPoint;
   }
 
   bool _isSimulatorDefaultHq(Position? position) {

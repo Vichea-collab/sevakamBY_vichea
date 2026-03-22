@@ -14,6 +14,7 @@ import 'home_promotion_state.dart';
 import 'order_state.dart';
 import 'profile_image_state.dart';
 import 'provider_post_state.dart';
+import 'push_notification_state.dart';
 import 'subscription_state.dart';
 import 'profile_settings_state.dart';
 import 'user_notification_state.dart';
@@ -517,6 +518,9 @@ class AuthState {
   }
 
   static void _applyBackendTokenToStates(String token) {
+    if (token.trim().isEmpty) {
+      unawaited(PushNotificationState.unregisterCurrentToken());
+    }
     ProfileSettingsState.setBackendToken(token);
     ChatState.setBackendToken(token);
     FinderPostState.setBackendToken(token);
@@ -525,6 +529,10 @@ class AuthState {
     OrderState.setBackendToken(token);
     UserNotificationState.setBackendToken(token);
     SubscriptionState.setBackendToken(token);
+    PushNotificationState.setBackendToken(token);
+    if (token.trim().isNotEmpty) {
+      unawaited(PushNotificationState.syncCurrentDeviceToken());
+    }
   }
 
   static Future<bool> _isAdminSession(User user) async {

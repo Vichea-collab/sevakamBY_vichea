@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/config/app_env.dart';
+import 'core/firebase/firebase_bootstrap.dart';
 import 'presentation/app.dart';
 import 'presentation/state/auth_state.dart';
 import 'presentation/state/app_sync_state.dart';
@@ -13,8 +15,14 @@ import 'presentation/state/booking_catalog_state.dart';
 import 'presentation/state/favorite_state.dart';
 import 'presentation/state/app_role_state.dart';
 
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await FirebaseBootstrap.initializeIfConfigured();
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await _runSafe('AppEnv.load', AppEnv.load);
   
   // Must initialize AppRoleState BEFORE AuthState so AuthState knows who is signing in natively

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:servicefinder/core/constants/app_colors.dart';
 import 'package:servicefinder/core/constants/app_spacing.dart';
 import 'package:servicefinder/domain/entities/provider_portal.dart';
-import 'package:servicefinder/core/utils/page_transition.dart';
 import 'package:servicefinder/presentation/state/order_state.dart';
 import 'package:servicefinder/presentation/state/user_notification_state.dart';
 import 'package:servicefinder/presentation/widgets/app_dialog.dart';
@@ -31,6 +30,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
     with WidgetsBindingObserver {
   bool _screenLoading = true;
   bool _screenRefreshInFlight = false;
+  bool _initialLoadComplete = false;
 
   @override
   void initState() {
@@ -78,7 +78,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                 return ValueListenableBuilder<bool>(
                   valueListenable: UserNotificationState.loading,
                   builder: (context, loading, _) {
-                    if (_screenLoading) {
+                    if (_screenLoading && !_initialLoadComplete) {
                       return Scaffold(
                         body: SafeArea(
                           child: ListView(
@@ -136,16 +136,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                         completed > 0 ||
                         backendItems.isEmpty;
 
-                    final Widget body = loading
-                        ? const SizedBox(
-                            height: 320,
-                            child: Center(
-                              child: AppStatePanel.loading(
-                                title: 'Loading notifications',
-                              ),
-                            ),
-                          )
-                        : Column(
+                    final Widget body = Column(
                             key: ValueKey<String>(
                               'provider_notice_content_${backendItems.length}',
                             ),
@@ -178,14 +169,10 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
                                     color: notice.color,
                                     onTap: () {
                                       if (notice.key.startsWith('order:')) {
-                                        Navigator.push(
-                                          context,
-                                          slideFadeRoute(
-                                            ProviderOrdersPage(
-                                              initialTab: notice.tab,
-                                            ),
-                                          ),
-                                        );
+                                        ProviderOrdersPage.requestedTab.value =
+                                            notice.tab;
+                                        MainShellPage.activeTab.value =
+                                            AppBottomTab.order;
                                       } else if (notice.source ==
                                           'chat_message') {
                                         Navigator.pushNamed(
@@ -290,7 +277,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
   Future<void> _loadScreen({bool forceNetwork = false}) async {
     if (_screenRefreshInFlight) return;
     _screenRefreshInFlight = true;
-    if (mounted) {
+    if (mounted && !_initialLoadComplete) {
       setState(() => _screenLoading = true);
     }
     try {
@@ -301,7 +288,10 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
     } finally {
       _screenRefreshInFlight = false;
       if (mounted) {
-        setState(() => _screenLoading = false);
+        setState(() {
+          _screenLoading = false;
+          _initialLoadComplete = true;
+        });
       }
     }
   }
@@ -591,27 +581,163 @@ class _ProviderNotificationSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final stats = <_ProviderNotificationStat>[
+      _ProviderNotificationStat(
+        label: 'Incoming',
+        value: incoming,
+        icon: Icons.mark_email_unread_rounded,
+        color: const Color(0xFFFFC857),
+      ),
+      _ProviderNotificationStat(
+        label: 'In Progress',
+        value: active,
+        icon: Icons.sync_alt_rounded,
+        color: const Color(0xFF7DD3FC),
+      ),
+      _ProviderNotificationStat(
+        label: 'Completed',
+        value: completed,
+        icon: Icons.task_alt_rounded,
+        color: const Color(0xFF86EFAC),
+      ),
+    ];
+
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0D5CC7), Color(0xFF5F6CE9)],
+          colors: [Color(0xFF0D5CC7), Color(0xFF4F7BFF), Color(0xFF809BFF)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F2563EB),
+            blurRadius: 22,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.notifications_active_rounded, color: Colors.white),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '$incoming incoming • $active active • $completed completed',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 50,
+                width: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.notifications_active_rounded,
+                  color: Colors.white,
+                ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Order status overview',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Track current workload and recent booking movement at a glance.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.88),
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: stats
+                .map(
+                  (item) => Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: item == stats.last ? 0 : 10,
+                      ),
+                      child: _ProviderNotificationStatCard(stat: item),
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderNotificationStat {
+  final String label;
+  final int value;
+  final IconData icon;
+  final Color color;
+
+  const _ProviderNotificationStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class _ProviderNotificationStatCard extends StatelessWidget {
+  final _ProviderNotificationStat stat;
+
+  const _ProviderNotificationStatCard({required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 42,
+            width: 42,
+            decoration: BoxDecoration(
+              color: stat.color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(stat.icon, color: Colors.white, size: 20),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            stat.label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.white.withValues(alpha: 0.82),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${stat.value}',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],

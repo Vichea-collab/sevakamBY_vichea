@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
-import '../../../core/utils/page_transition.dart';
 import '../../../core/utils/safe_image_provider.dart';
 import '../../../domain/entities/order.dart';
 import '../../state/booking_catalog_state.dart';
 import '../../state/order_state.dart';
+import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
+import '../main_shell_page.dart';
 import '../orders/orders_page.dart';
 
 class BookingConfirmationPage extends StatefulWidget {
@@ -123,9 +124,12 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
   void _goOrders() {
     final order = _order;
     if (order == null) return;
-    Navigator.pushAndRemoveUntil(
+    OrderState.replaceFinderOrderLocal(order);
+    OrdersPage.queuedLatestOrder.value = order;
+    MainShellPage.activeTab.value = AppBottomTab.order;
+    Navigator.pushNamedAndRemoveUntil(
       context,
-      slideFadeRoute(OrdersPage(latestOrder: order)),
+      MainShellPage.routeName,
       (route) => false,
     );
   }

@@ -425,7 +425,7 @@ class _ProviderPortfolioPageState extends State<ProviderPortfolioPage> {
                   ),
                 ),
                 Text(
-                  'Upgrade to Professional for 15 photos.',
+                  'Upgrade to Plus for 15 photos.',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/responsive.dart';
 import '../../domain/entities/onboarding_step.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/step_indicator.dart';
 import 'auth/customer_auth_page.dart';
 import 'main_shell_page.dart';
@@ -63,6 +64,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   void _finishOnboarding() {
     if (AuthState.isSignedIn) {
+      MainShellPage.activeTab.value = AppBottomTab.home;
       Navigator.pushReplacementNamed(context, MainShellPage.routeName);
     } else {
       Navigator.pushReplacementNamed(context, CustomerAuthPage.routeName);

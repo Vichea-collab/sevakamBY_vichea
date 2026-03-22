@@ -5,6 +5,7 @@ import '../../../core/utils/app_toast.dart';
 import '../../../core/utils/responsive.dart';
 import '../../state/app_role_state.dart';
 import '../../state/auth_state.dart';
+import '../../widgets/app_bottom_nav.dart';
 import '../../widgets/auth_social_button.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/primary_button.dart';
@@ -276,6 +277,7 @@ class _CustomerAuthPageState extends State<CustomerAuthPage> {
     }
 
     AppRoleState.setProvider(false);
+    MainShellPage.activeTab.value = AppBottomTab.home;
     AppToast.success(context, 'Signed in successfully.');
     Navigator.pushReplacementNamed(context, MainShellPage.routeName);
   }
@@ -314,6 +316,7 @@ class _CustomerAuthPageState extends State<CustomerAuthPage> {
     }
 
     AppRoleState.setProvider(false);
+    MainShellPage.activeTab.value = AppBottomTab.home;
     AppToast.success(
       context,
       _isSignUp ? 'Account created successfully.' : 'Signed in successfully.',

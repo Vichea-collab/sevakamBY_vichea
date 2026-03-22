@@ -47,7 +47,10 @@ class SubscriptionState {
     }
   }
 
-  static Future<({String? url, String? sessionId})> createCheckoutSession(SubscriptionTier tier) async {
+  static Future<SubscriptionCheckoutSession> createCheckoutSession(
+    SubscriptionTier tier, {
+    String paymentMethod = 'stripe',
+  }) async {
     final plan = tier == SubscriptionTier.professional
         ? 'professional'
         : 'elite';
@@ -56,27 +59,29 @@ class SubscriptionState {
       await _ensureToken();
       final response = await _apiClient.postJson('/api/subscriptions/checkout', {
         'plan': plan,
+        'paymentMethod': paymentMethod,
       });
       final data = response['data'];
       if (data is Map<String, dynamic>) {
-        return (
-          url: (data['url'] ?? '').toString(),
-          sessionId: (data['sessionId'] ?? '').toString(),
-        );
+        return SubscriptionCheckoutSession.fromMap(data);
       }
     } catch (e) {
       debugPrint('SubscriptionState.createCheckoutSession error: $e');
       rethrow;
     }
-    return (url: null, sessionId: null);
+    return const SubscriptionCheckoutSession(sessionId: '');
   }
 
-  static Future<void> verifyCheckout(String sessionId) async {
+  static Future<void> verifyCheckout(
+    String sessionId, {
+    String? paymentMethod,
+  }) async {
     try {
       debugPrint('[SubscriptionState] verifyCheckout started for: $sessionId');
       await _ensureToken();
       final response = await _apiClient.postJson('/api/subscriptions/verify', {
         'sessionId': sessionId,
+        if ((paymentMethod ?? '').trim().isNotEmpty) 'paymentMethod': paymentMethod,
       });
       final data = response['data'];
       debugPrint('[SubscriptionState] verifyCheckout response data: $data');
@@ -107,7 +112,11 @@ class SubscriptionState {
   }
 
   /// Verify & poll status after returning from Stripe Checkout
-  static Future<void> refreshAfterCheckout({String? sessionId}) async {
+  static Future<void> refreshAfterCheckout({
+    String? sessionId,
+    String? paymentMethod,
+    SubscriptionTier? expectedTier,
+  }) async {
     final hasSession = sessionId != null && sessionId.isNotEmpty;
     
     // Fallback: poll status more aggressively for instant update
@@ -115,12 +124,15 @@ class SubscriptionState {
     // Increased to 30 iterations for 30s coverage
     for (int i = 0; i < 30; i++) {
       if (hasSession) {
-        await verifyCheckout(sessionId);
+        await verifyCheckout(sessionId, paymentMethod: paymentMethod);
       } else {
         await fetchStatus();
       }
       
-      if (status.value.tier != SubscriptionTier.basic) {
+      final tierMatched = expectedTier == null
+          ? status.value.tier != SubscriptionTier.basic
+          : status.value.tier == expectedTier;
+      if (tierMatched) {
         debugPrint('[SubscriptionState] Successfully updated to ${status.value.tier} after $i retries');
         return;
       }

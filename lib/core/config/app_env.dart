@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
@@ -248,6 +250,17 @@ class AppEnv {
       const localhostHosts = {'localhost', '127.0.0.1', '0.0.0.0'};
       if (localhostHosts.contains(uri.host.toLowerCase())) {
         return uri.replace(host: '10.0.2.2').toString();
+      }
+    }
+
+    // iOS Simulator can talk to the host machine via localhost directly.
+    // A custom `.local` hostname is brittle in simulator QA and may fail DNS.
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      final isSimulator =
+          Platform.environment.containsKey('SIMULATOR_DEVICE_NAME') ||
+          Platform.environment.containsKey('SIMULATOR_UDID');
+      if (isSimulator && uri.host.toLowerCase().endsWith('.local')) {
+        return uri.replace(host: 'localhost').toString();
       }
     }
 

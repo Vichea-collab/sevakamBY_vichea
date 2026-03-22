@@ -41,7 +41,7 @@ class SubscriptionBadge extends StatelessWidget {
 
     final isElite = tier == SubscriptionTier.elite;
     final color = isElite ? const Color(0xFFF59E0B) : const Color(0xFF3B82F6);
-    final label = isElite ? 'ELITE' : 'PROFESSIONAL';
+    final label = isElite ? 'PRO' : 'PLUS';
     final icon = isElite ? Icons.workspace_premium_rounded : Icons.verified_user_rounded;
 
     return Container(

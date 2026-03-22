@@ -22,7 +22,7 @@ class _PressableScaleState extends State<PressableScale> {
   double _scale = 1.0;
 
   void _setScale(double value) {
-    if (_scale == value) return;
+    if (!mounted || _scale == value) return;
     setState(() => _scale = value);
   }
 

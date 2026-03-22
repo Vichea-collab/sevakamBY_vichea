@@ -8,6 +8,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../domain/entities/subscription.dart';
 import '../../state/subscription_state.dart';
+import 'package:khqr_sdk/khqr_sdk.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/primary_button.dart';
@@ -27,6 +28,8 @@ class _SubscriptionPageState extends State<SubscriptionPage>
   bool _waitingForCheckout = false;
   bool _checkoutLeftForeground = false;
   String? _lastSessionId;
+  String? _lastPaymentMethod;
+  SubscriptionTier? _lastRequestedTier;
 
   @override
   void initState() {
@@ -57,14 +60,30 @@ class _SubscriptionPageState extends State<SubscriptionPage>
       _waitingForCheckout = false;
       _checkoutLeftForeground = false;
       final sessionId = _lastSessionId;
+      final paymentMethod = _lastPaymentMethod;
+      final requestedTier = _lastRequestedTier;
       _lastSessionId = null;
-      _verifyAfterCheckout(sessionId);
+      _lastPaymentMethod = null;
+      _lastRequestedTier = null;
+      _verifyAfterCheckout(
+        sessionId,
+        paymentMethod: paymentMethod,
+        expectedTier: requestedTier,
+      );
     }
   }
 
-  Future<void> _verifyAfterCheckout(String? sessionId) async {
+  Future<void> _verifyAfterCheckout(
+    String? sessionId, {
+    String? paymentMethod,
+    SubscriptionTier? expectedTier,
+  }) async {
     setState(() => _loading = true);
-    await SubscriptionState.refreshAfterCheckout(sessionId: sessionId);
+    await SubscriptionState.refreshAfterCheckout(
+      sessionId: sessionId,
+      paymentMethod: paymentMethod,
+      expectedTier: expectedTier,
+    );
     if (!mounted) return;
     setState(() => _loading = false);
 
@@ -86,16 +105,51 @@ class _SubscriptionPageState extends State<SubscriptionPage>
     final plan = SubscriptionPlan.all.firstWhere((item) => item.tier == tier);
     final paymentMethod = await _selectPaymentMethod(plan);
     if (!mounted || paymentMethod == null) return;
-    if (paymentMethod == _SubscriptionPaymentMethod.khqr) {
-      AppToast.info(context, 'KHQR payment is coming soon.');
-      return;
-    }
+    final requestedBakong = paymentMethod == _SubscriptionPaymentMethod.khqr;
 
     setState(() => _loading = true);
     try {
-      final result = await SubscriptionState.createCheckoutSession(tier);
+      final result = await SubscriptionState.createCheckoutSession(
+        tier,
+        paymentMethod: requestedBakong ? 'bakong' : 'stripe',
+      );
       final url = result.url;
       final sessionId = result.sessionId;
+      if (sessionId.isEmpty) {
+        if (mounted) {
+          AppToast.error(context, 'Could not create checkout session.');
+        }
+        return;
+      }
+
+      if (requestedBakong && !result.isBakong) {
+        if (mounted) {
+          AppToast.error(
+            context,
+            'KHQR checkout is not active on the backend yet. Restart the backend and try again.',
+          );
+        }
+        return;
+      }
+
+      if (result.isBakong) {
+        if ((result.qrPayload ?? '').isEmpty && (result.qrImageUrl ?? '').isEmpty) {
+          if (mounted) {
+            AppToast.error(context, 'Could not generate KHQR payment.');
+          }
+          return;
+        }
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _lastSessionId = sessionId;
+          _lastPaymentMethod = 'bakong';
+          _lastRequestedTier = tier;
+        });
+        await _showKhqrCheckoutDialog(plan, result);
+        return;
+      }
+
       if (url == null || url.isEmpty) {
         if (mounted) {
           AppToast.error(context, 'Could not create checkout session.');
@@ -123,6 +177,8 @@ class _SubscriptionPageState extends State<SubscriptionPage>
         _waitingForCheckout = true;
         _checkoutLeftForeground = false;
         _lastSessionId = sessionId;
+        _lastPaymentMethod = result.paymentMethod;
+        _lastRequestedTier = tier;
       } else if (mounted) {
         AppToast.error(context, 'Could not open checkout page.');
       }
@@ -133,6 +189,170 @@ class _SubscriptionPageState extends State<SubscriptionPage>
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _showKhqrCheckoutDialog(
+    SubscriptionPlan plan,
+    SubscriptionCheckoutSession checkout,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !_loading,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 420),
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.16),
+                  blurRadius: 36,
+                  offset: const Offset(0, 16),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3D6),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.qr_code_2_rounded,
+                        color: Color(0xFFD97706),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pay with KHQR',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${plan.name} • ${checkout.currency ?? 'USD'} ${checkout.amount?.toStringAsFixed(2) ?? plan.monthlyPrice.toStringAsFixed(2)}',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _loading ? null : () => Navigator.of(dialogContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FBFF),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0xFFDCE6F8)),
+                  ),
+                  child: Column(
+                    children: [
+                      if ((checkout.qrPayload ?? '').isNotEmpty)
+                        KhqrCardWidget(
+                          width: 300.0,
+                          receiverName: plan.name, // Displaying plan name as receiver, or 'Sevakam'
+                          amount: checkout.amount ?? plan.monthlyPrice,
+                          keepIntegerDecimal: true,
+                          currency: (checkout.currency ?? 'USD').toUpperCase() == 'KHR' 
+                              ? KhqrCurrency.khr 
+                              : KhqrCurrency.usd,
+                          qr: checkout.qrPayload!,
+                        )
+                      else if ((checkout.qrImageUrl ?? '').isNotEmpty)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Image.network(
+                            checkout.qrImageUrl!,
+                            width: 220,
+                            height: 220,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      else
+                        const Center(child: Text('No QR data available')),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                        child: Text(
+                          'Scan this KHQR with your banking app, complete the payment, then confirm below.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textSecondary,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if ((checkout.merchantReference ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    'Reference: ${checkout.merchantReference}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _loading
+                            ? null
+                            : () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: PrimaryButton(
+                        label: _loading ? 'Checking...' : 'I have paid',
+                        onPressed: _loading
+                            ? null
+                            : () async {
+                                Navigator.of(dialogContext).pop();
+                                await _verifyAfterCheckout(
+                                  checkout.sessionId,
+                                  paymentMethod: checkout.paymentMethod,
+                                  expectedTier: plan.tier,
+                                );
+                              },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<_SubscriptionPaymentMethod?> _selectPaymentMethod(
@@ -206,10 +426,10 @@ class _SubscriptionPageState extends State<SubscriptionPage>
                     iconBackground: const Color(0xFFFFF3D6),
                     iconColor: const Color(0xFFD97706),
                     title: 'KHQR',
-                    subtitle: 'Local QR payment support is being prepared.',
-                    badgeLabel: 'Feature incoming',
-                    badgeColor: const Color(0xFFFEE2E2),
-                    badgeTextColor: const Color(0xFF991B1B),
+                    subtitle: 'Scan a Bakong KHQR and verify payment in app.',
+                    badgeLabel: 'Available',
+                    badgeColor: const Color(0xFFFEF3C7),
+                    badgeTextColor: const Color(0xFF92400E),
                     onTap: () => Navigator.of(
                       sheetContext,
                     ).pop(_SubscriptionPaymentMethod.khqr),
@@ -317,7 +537,8 @@ class _SubscriptionPageState extends State<SubscriptionPage>
                       onCancel:
                           plan.tier == status.tier &&
                               status.tier != SubscriptionTier.basic &&
-                              !status.isCanceling
+                              !status.isCanceling &&
+                              status.canCancel
                           ? _handleCancel
                           : null,
                     ),
@@ -482,7 +703,9 @@ class _CurrentPlanCard extends StatelessWidget {
                         Text(
                           status.isCanceling
                               ? 'Access ends at period close'
-                              : 'Current billing period',
+                              : (status.autoRenews
+                                  ? 'Current billing period'
+                                  : 'Access period'),
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
                                 color: Colors.white.withValues(alpha: 0.82),
@@ -502,7 +725,9 @@ class _CurrentPlanCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    status.isCanceling ? 'Ends' : 'Renews',
+                    status.isCanceling
+                        ? 'Ends'
+                        : (status.autoRenews ? 'Renews' : 'Valid'),
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,

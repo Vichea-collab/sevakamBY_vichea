@@ -3,6 +3,65 @@ import 'package:flutter/material.dart';
 /// Subscription tier levels
 enum SubscriptionTier { basic, professional, elite }
 
+class SubscriptionCheckoutSession {
+  final String sessionId;
+  final String? url;
+  final String paymentMethod;
+  final String? qrPayload;
+  final String? qrImageUrl;
+  final String? merchantReference;
+  final double? amount;
+  final String? currency;
+
+  const SubscriptionCheckoutSession({
+    required this.sessionId,
+    this.url,
+    this.paymentMethod = 'stripe',
+    this.qrPayload,
+    this.qrImageUrl,
+    this.merchantReference,
+    this.amount,
+    this.currency,
+  });
+
+  bool get isBakong {
+    final method = paymentMethod.toLowerCase();
+    return method == 'bakong' ||
+        sessionId.toLowerCase().startsWith('khqr_') ||
+        (qrPayload?.trim().isNotEmpty ?? false) ||
+        (qrImageUrl?.trim().isNotEmpty ?? false);
+  }
+
+  factory SubscriptionCheckoutSession.fromMap(Map<String, dynamic> map) {
+    final sessionId = (map['sessionId'] ?? '').toString();
+    final urlText = (map['url'] ?? '').toString();
+    final qrPayloadText = (map['qrPayload'] ?? '').toString();
+    final qrImageUrlText = (map['qrImageUrl'] ?? '').toString();
+    final rawPaymentMethod = (map['paymentMethod'] ?? '').toString().trim();
+    final inferredPaymentMethod = rawPaymentMethod.isNotEmpty
+        ? rawPaymentMethod
+        : (sessionId.toLowerCase().startsWith('khqr_') ||
+                  qrPayloadText.trim().isNotEmpty ||
+                  qrImageUrlText.trim().isNotEmpty
+              ? 'bakong'
+              : 'stripe');
+    return SubscriptionCheckoutSession(
+      sessionId: sessionId,
+      url: urlText.trim().isEmpty ? null : urlText,
+      paymentMethod: inferredPaymentMethod,
+      qrPayload: qrPayloadText.trim().isEmpty ? null : qrPayloadText,
+      qrImageUrl: qrImageUrlText.trim().isEmpty ? null : qrImageUrlText,
+      merchantReference: (map['merchantReference'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['merchantReference'] ?? '').toString(),
+      amount: (map['amount'] as num?)?.toDouble(),
+      currency: (map['currency'] ?? '').toString().trim().isEmpty
+          ? null
+          : (map['currency'] ?? '').toString(),
+    );
+  }
+}
+
 /// Static plan definition (UI display)
 class SubscriptionPlan {
   final SubscriptionTier tier;
@@ -72,10 +131,10 @@ class SubscriptionPlan {
     ),
     SubscriptionPlan(
       tier: SubscriptionTier.professional,
-      name: 'Professional',
+      name: 'Plus',
       tagline: 'Grow steady bookings and improve ranking',
-      monthlyPrice: 10,
-      annualPrice: 100,
+      monthlyPrice: 5,
+      annualPrice: 50,
       bookingLimit: 25,
       badgeColor: Color(0xFF3B82F6),
       badgeIcon: Icons.workspace_premium,
@@ -97,10 +156,10 @@ class SubscriptionPlan {
     ),
     SubscriptionPlan(
       tier: SubscriptionTier.elite,
-      name: 'Elite Business',
+      name: 'Pro',
       tagline: 'Maximum visibility and scale',
-      monthlyPrice: 25,
-      annualPrice: 250,
+      monthlyPrice: 10,
+      annualPrice: 100,
       bookingLimit: -1,
       badgeColor: Color(0xFFF59E0B),
       badgeIcon: Icons.diamond_outlined,
@@ -130,6 +189,9 @@ class SubscriptionStatus {
   final DateTime? currentPeriodStart;
   final DateTime? currentPeriodEnd;
   final bool cancelAtPeriodEnd;
+  final String paymentProvider;
+  final bool autoRenews;
+  final bool canCancel;
   final int bookingsUsed;
   final int bookingLimit;
   final bool canAcceptBookings;
@@ -140,6 +202,9 @@ class SubscriptionStatus {
     this.currentPeriodStart,
     this.currentPeriodEnd,
     this.cancelAtPeriodEnd = false,
+    this.paymentProvider = '',
+    this.autoRenews = false,
+    this.canCancel = false,
     this.bookingsUsed = 0,
     this.bookingLimit = 5,
     this.canAcceptBookings = true,
@@ -172,6 +237,9 @@ class SubscriptionStatus {
           ? DateTime.tryParse(map['currentPeriodEnd'].toString())
           : null,
       cancelAtPeriodEnd: map['cancelAtPeriodEnd'] == true,
+      paymentProvider: (map['paymentProvider'] ?? '').toString(),
+      autoRenews: map['autoRenews'] == true,
+      canCancel: map['canCancel'] == true,
       bookingsUsed: (map['bookingsUsed'] as num?)?.toInt() ?? 0,
       bookingLimit: (map['bookingLimit'] as num?)?.toInt() ?? 5,
       canAcceptBookings: map['canAcceptBookings'] != false,

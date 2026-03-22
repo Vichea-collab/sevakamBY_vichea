@@ -7,6 +7,7 @@ class AppTheme {
     final base = ThemeData.light();
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.background,
+      canvasColor: Colors.white,
       cardColor: Colors.white,
       dividerColor: AppColors.divider,
       colorScheme: base.colorScheme.copyWith(
@@ -62,6 +63,54 @@ class AppTheme {
           fontWeight: FontWeight.w400,
           color: AppColors.textSecondary,
           height: 1.45,
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_radius(16, scale)),
+          side: const BorderSide(color: AppColors.divider),
+        ),
+        textStyle: GoogleFonts.poppins(
+          fontSize: _font(14, scale),
+          fontWeight: FontWeight.w500,
+          color: AppColors.textPrimary,
+        ),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: const WidgetStatePropertyAll<Color>(Colors.white),
+          surfaceTintColor: const WidgetStatePropertyAll<Color>(
+            Colors.transparent,
+          ),
+          shadowColor: const WidgetStatePropertyAll<Color>(Color(0x12000000)),
+          shape: WidgetStatePropertyAll<RoundedRectangleBorder>(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_radius(16, scale)),
+              side: const BorderSide(color: AppColors.divider),
+            ),
+          ),
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: const WidgetStatePropertyAll<Color>(Colors.white),
+          surfaceTintColor: const WidgetStatePropertyAll<Color>(
+            Colors.transparent,
+          ),
+          shadowColor: const WidgetStatePropertyAll<Color>(Color(0x12000000)),
+          shape: WidgetStatePropertyAll<RoundedRectangleBorder>(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_radius(16, scale)),
+              side: const BorderSide(color: AppColors.divider),
+            ),
+          ),
+        ),
+        textStyle: GoogleFonts.poppins(
+          fontSize: _font(14, scale),
+          fontWeight: FontWeight.w500,
+          color: AppColors.textPrimary,
         ),
       ),
       appBarTheme: const AppBarTheme(
@@ -198,6 +247,58 @@ class AppTheme {
           fontWeight: FontWeight.w400,
           color: AppColors.textSecondaryDark,
           height: 1.45,
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: AppColors.surfaceDark,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_radius(16, scale)),
+          side: const BorderSide(color: AppColors.dividerDark),
+        ),
+        textStyle: GoogleFonts.poppins(
+          fontSize: _font(14, scale),
+          fontWeight: FontWeight.w500,
+          color: AppColors.textPrimaryDark,
+        ),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: const WidgetStatePropertyAll<Color>(
+            AppColors.surfaceDark,
+          ),
+          surfaceTintColor: const WidgetStatePropertyAll<Color>(
+            Colors.transparent,
+          ),
+          shadowColor: const WidgetStatePropertyAll<Color>(Colors.black),
+          shape: WidgetStatePropertyAll<RoundedRectangleBorder>(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_radius(16, scale)),
+              side: const BorderSide(color: AppColors.dividerDark),
+            ),
+          ),
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: const WidgetStatePropertyAll<Color>(
+            AppColors.surfaceDark,
+          ),
+          surfaceTintColor: const WidgetStatePropertyAll<Color>(
+            Colors.transparent,
+          ),
+          shadowColor: const WidgetStatePropertyAll<Color>(Colors.black),
+          shape: WidgetStatePropertyAll<RoundedRectangleBorder>(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_radius(16, scale)),
+              side: const BorderSide(color: AppColors.dividerDark),
+            ),
+          ),
+        ),
+        textStyle: GoogleFonts.poppins(
+          fontSize: _font(14, scale),
+          fontWeight: FontWeight.w500,
+          color: AppColors.textPrimaryDark,
         ),
       ),
       appBarTheme: const AppBarTheme(

@@ -179,6 +179,7 @@ class _ProfilePageState extends State<ProfilePage> {
       AppToast.warning(context, error);
       return;
     }
+    MainShellPage.activeTab.value = AppBottomTab.home;
     Navigator.of(context).pushAndRemoveUntil(
       slideFadeRoute(const MainShellPage()),
       (route) => false,
@@ -200,6 +201,7 @@ class _ProfilePageState extends State<ProfilePage> {
     await AuthState.signOut();
     if (!context.mounted) return;
     AppRoleState.setProvider(false);
+    MainShellPage.activeTab.value = AppBottomTab.home;
     Navigator.pushNamedAndRemoveUntil(
       context,
       CustomerAuthPage.routeName,

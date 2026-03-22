@@ -43,6 +43,7 @@ import 'state/booking_catalog_state.dart';
 import 'state/app_role_state.dart';
 import 'state/app_state.dart';
 import 'state/chat_state.dart';
+import 'state/push_notification_state.dart';
 import 'state/user_notification_state.dart';
 import 'widgets/notification_messenger_sheet.dart';
 
@@ -224,6 +225,7 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
   Timer? _activeBannerTimer;
   StreamSubscription<RemoteMessage>? _pushForegroundSubscription;
   StreamSubscription<RemoteMessage>? _pushOpenSubscription;
+  StreamSubscription<String>? _pushTokenRefreshSubscription;
   Timer? _heartbeatTimer;
   bool _primed = false;
 
@@ -241,6 +243,7 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
     UserNotificationState.notices.removeListener(_onNoticesChanged);
     _pushForegroundSubscription?.cancel();
     _pushOpenSubscription?.cancel();
+    _pushTokenRefreshSubscription?.cancel();
     _removeActiveBanner();
     super.dispose();
   }
@@ -303,7 +306,7 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
       await FirebaseMessaging.instance.requestPermission();
       await FirebaseMessaging.instance
           .setForegroundNotificationPresentationOptions(
-            alert: true,
+            alert: false,
             badge: true,
             sound: true,
           );
@@ -322,12 +325,14 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
           final token = await FirebaseMessaging.instance.getToken();
           if (token != null && token.trim().isNotEmpty) {
             debugPrint('FCM token ready (mobile): $token');
+            await PushNotificationState.registerDeviceToken(token);
           }
         }
       } else {
         final token = await FirebaseMessaging.instance.getToken();
         if (token != null && token.trim().isNotEmpty) {
           debugPrint('FCM token ready (${kIsWeb ? 'web' : 'mobile'}): $token');
+          await PushNotificationState.registerDeviceToken(token);
         }
       }
     } catch (error) {
@@ -344,6 +349,10 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
       _pushOpenSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
         _onPushOpened,
       );
+      _pushTokenRefreshSubscription = FirebaseMessaging.instance.onTokenRefresh
+          .listen((token) {
+            unawaited(PushNotificationState.registerDeviceToken(token));
+          });
 
       final initialMessage = await FirebaseMessaging.instance
           .getInitialMessage();
