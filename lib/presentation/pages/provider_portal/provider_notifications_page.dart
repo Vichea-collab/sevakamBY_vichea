@@ -1,10 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:servicefinder/core/constants/app_colors.dart';
 import 'package:servicefinder/core/constants/app_spacing.dart';
 import 'package:servicefinder/core/theme/app_theme_tokens.dart';
+import 'package:servicefinder/core/utils/listenable_utils.dart';
+import 'package:servicefinder/core/utils/time_utils.dart';
 import 'package:servicefinder/domain/entities/provider_portal.dart';
 import 'package:servicefinder/presentation/state/order_state.dart';
 import 'package:servicefinder/presentation/state/user_notification_state.dart';
@@ -30,9 +31,12 @@ class ProviderNotificationsPage extends StatefulWidget {
 
 class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
     with WidgetsBindingObserver {
+  static const Duration _autoRefreshCooldown = Duration(seconds: 30);
+
   bool _screenLoading = true;
   bool _screenRefreshInFlight = false;
   bool _initialLoadComplete = false;
+  DateTime? _lastLoadedAt;
 
   @override
   void initState() {
@@ -41,7 +45,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
     MainShellPage.activeTab.addListener(_handleActiveTabChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(_loadScreen(forceNetwork: true));
+      unawaited(_requestLoad());
     });
   }
 
@@ -55,7 +59,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed || !mounted) return;
-    unawaited(_loadScreen(forceNetwork: true));
+    unawaited(_requestLoad());
   }
 
   void _handleActiveTabChanged() {
@@ -63,7 +67,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
         MainShellPage.activeTab.value != AppBottomTab.notification) {
       return;
     }
-    unawaited(_loadScreen(forceNetwork: true));
+    unawaited(_requestLoad());
   }
 
   @override
@@ -273,39 +277,39 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
     );
   }
 
-  Future<void> _waitUntilNotLoading(ValueListenable<bool> listenable) async {
-    if (!listenable.value) return;
-    final completer = Completer<void>();
-    late VoidCallback listener;
-    listener = () {
-      if (!listenable.value && !completer.isCompleted) {
-        listenable.removeListener(listener);
-        completer.complete();
-      }
-    };
-    listenable.addListener(listener);
-    if (!listenable.value && !completer.isCompleted) {
-      listenable.removeListener(listener);
-      completer.complete();
-    }
-    await completer.future;
-  }
+  // Delegated to shared waitUntilNotLoading in listenable_utils.dart
 
   Future<void> _refreshNotificationsAndWait({bool forceNetwork = false}) async {
     if (OrderState.loading.value) {
-      await _waitUntilNotLoading(OrderState.loading);
+      await waitUntilNotLoading(OrderState.loading);
     }
     await _refreshNotifications(forceNetwork: true);
-    await _waitUntilNotLoading(OrderState.loading);
+    await waitUntilNotLoading(OrderState.loading);
   }
 
   Future<void> _refreshAdminNoticesAndWait() async {
     await UserNotificationState.refresh();
-    await _waitUntilNotLoading(UserNotificationState.loading);
+    await waitUntilNotLoading(UserNotificationState.loading);
   }
 
   Future<void> _loadScreen({bool forceNetwork = false}) async {
     if (_screenRefreshInFlight) return;
+    final hasCachedOrders = OrderState.providerOrders.value.isNotEmpty;
+    final hasCachedNotices = UserNotificationState.notices.value.isNotEmpty;
+    final hasFreshCache =
+        !forceNetwork &&
+        (hasCachedOrders || hasCachedNotices) &&
+        _lastLoadedAt != null &&
+        DateTime.now().difference(_lastLoadedAt!) < _autoRefreshCooldown;
+    if (hasFreshCache) {
+      if (mounted && !_initialLoadComplete) {
+        setState(() {
+          _screenLoading = false;
+          _initialLoadComplete = true;
+        });
+      }
+      return;
+    }
     _screenRefreshInFlight = true;
     if (mounted && !_initialLoadComplete) {
       setState(() => _screenLoading = true);
@@ -317,6 +321,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
       ]);
     } finally {
       _screenRefreshInFlight = false;
+      _lastLoadedAt = DateTime.now();
       if (mounted) {
         setState(() {
           _screenLoading = false;
@@ -330,22 +335,11 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
     await _loadScreen(forceNetwork: true);
   }
 
-  String _timeAgo(DateTime? date) {
-    if (date == null) return 'Just now';
-    final delta = DateTime.now().difference(date);
-    if (delta.isNegative) return 'Just now';
-    if (delta.inMinutes < 1) return 'Just now';
-    if (delta.inHours < 1) {
-      final minute = delta.inMinutes;
-      return '$minute min ago';
-    }
-    if (delta.inDays < 1) {
-      final hour = delta.inHours;
-      return '$hour hr ago';
-    }
-    final day = delta.inDays;
-    return '$day day${day > 1 ? 's' : ''} ago';
+  Future<void> _requestLoad() async {
+    await _loadScreen(forceNetwork: !_initialLoadComplete);
   }
+
+  // Delegated to shared timeAgo() in time_utils.dart
 
   String _providerAdminStateKey(String key) {
     return 'provider:admin:${key.trim()}';
@@ -397,7 +391,7 @@ class _ProviderNotificationsPageState extends State<ProviderNotificationsPage>
             key: isOrderStatus ? 'order:${item.id}' : 'admin:${item.id}',
             title: item.title,
             description: description,
-            timeLabel: _timeAgo(item.createdAt),
+            timeLabel: timeAgo(item.createdAt),
             icon: isOrderStatus
                 ? _orderStatusIcon(item.orderStatus)
                 : isChatMessage
@@ -532,7 +526,6 @@ class _NotificationTile extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: InkWell(
-        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/responsive.dart';
 import '../state/app_role_state.dart';
-import '../state/profile_image_state.dart';
 
 enum AppBottomTab { home, notification, post, order, profile }
 
@@ -188,46 +187,32 @@ class _ProfileNavItem extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(rs.radius(14)),
       onTap: onTap,
-      child: Padding(
+        child: Padding(
         padding: EdgeInsets.symmetric(vertical: rs.space(7)),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ValueListenableBuilder<int>(
-              valueListenable: ProfileImageState.listenable,
-              builder: (context, _, child) {
-                final image = ProfileImageState.avatarProvider();
-                final hasImage = ProfileImageState.hasCustomAvatar;
-
-                return Container(
-                  width: rs.dimension(36),
-                  height: rs.dimension(36),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? accentColor.withValues(alpha: 0.15)
-                        : Colors.transparent,
-                    shape: BoxShape.circle,
-                    border: selected
-                        ? Border.all(
-                            color: accentColor.withValues(alpha: 0.2),
-                            width: 1,
-                          )
-                        : null,
-                  ),
-                  alignment: Alignment.center,
-                  child: hasImage && image != null
-                      ? CircleAvatar(
-                          radius: rs.dimension(14),
-                          backgroundColor: theme.scaffoldBackgroundColor,
-                          backgroundImage: image,
-                        )
-                      : Icon(
-                          Icons.person_rounded,
-                          size: rs.icon(24),
-                          color: color,
-                        ),
-                );
-              },
+            Container(
+              width: rs.dimension(36),
+              height: rs.dimension(36),
+              decoration: BoxDecoration(
+                color: selected
+                    ? accentColor.withValues(alpha: 0.15)
+                    : Colors.transparent,
+                shape: BoxShape.circle,
+                border: selected
+                    ? Border.all(
+                        color: accentColor.withValues(alpha: 0.2),
+                        width: 1,
+                      )
+                    : null,
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.person_rounded,
+                size: rs.icon(24),
+                color: color,
+              ),
             ),
             rs.gapH(2),
             Text(

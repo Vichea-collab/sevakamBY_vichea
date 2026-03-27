@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/support_ticket_options.dart';
+import '../../../core/firebase/firebase_storage_service.dart';
 import '../../../core/theme/app_theme_tokens.dart';
 import '../../../core/utils/app_toast.dart';
+import '../../../core/utils/safe_image_provider.dart';
 import '../../../domain/entities/pagination.dart';
 import '../../../domain/entities/profile_settings.dart';
 import '../../state/profile_settings_state.dart';
@@ -27,6 +32,7 @@ class HelpSupportChatPage extends StatefulWidget {
 
 class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
   final TextEditingController _composerController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
   Timer? _pollTimer;
   int _currentPage = 1;
   bool _sending = false;
@@ -126,7 +132,9 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                       decoration: BoxDecoration(
                         color: AppThemeTokens.surface(context),
                         borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: AppThemeTokens.outline(context)),
+                        border: Border.all(
+                          color: AppThemeTokens.outline(context),
+                        ),
                         boxShadow: AppThemeTokens.cardShadow(context),
                       ),
                       child: Column(
@@ -165,8 +173,10 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                                                   .textTheme
                                                   .titleMedium
                                                   ?.copyWith(
-                                                    color: AppThemeTokens
-                                                        .textPrimary(context),
+                                                    color:
+                                                        AppThemeTokens.textPrimary(
+                                                          context,
+                                                        ),
                                                     fontWeight: FontWeight.w800,
                                                   ),
                                             ),
@@ -348,15 +358,43 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                                 children: [
                                   const Text(
                                     'Reply to support',
-                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                   const SizedBox(height: 10),
-                                  AppTextField(
-                                    hint: 'Type your message to support...',
-                                    controller: _composerController,
-                                    onChanged: (_) => setState(() {}),
-                                    minLines: 1,
-                                    maxLines: 4,
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        onPressed: _sending ? null : _sendImage,
+                                        icon: Icon(
+                                          Icons.image_rounded,
+                                          color: _sending
+                                              ? AppThemeTokens.textSecondary(
+                                                  context,
+                                                )
+                                              : AppColors.primary,
+                                        ),
+                                        tooltip: 'Attach image',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 40,
+                                          minHeight: 40,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: AppTextField(
+                                          hint:
+                                              'Type your message to support...',
+                                          controller: _composerController,
+                                          onChanged: (_) => setState(() {}),
+                                          minLines: 1,
+                                          maxLines: 4,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 10),
                                   LayoutBuilder(
@@ -373,8 +411,10 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                                                   ? 'Sending your reply...'
                                                   : 'Support replies appear here automatically.',
                                               style: TextStyle(
-                                                color: AppThemeTokens
-                                                    .textSecondary(context),
+                                                color:
+                                                    AppThemeTokens.textSecondary(
+                                                      context,
+                                                    ),
                                                 fontSize: 12,
                                               ),
                                             ),
@@ -396,8 +436,10 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
                                                   ? 'Sending your reply...'
                                                   : 'Support replies appear here automatically.',
                                               style: TextStyle(
-                                                color: AppThemeTokens
-                                                    .textSecondary(context),
+                                                color:
+                                                    AppThemeTokens.textSecondary(
+                                                      context,
+                                                    ),
                                                 fontSize: 12,
                                               ),
                                             ),
@@ -496,6 +538,68 @@ class _HelpSupportChatPageState extends State<HelpSupportChatPage> {
     }
   }
 
+  Future<void> _sendImage() async {
+    if (widget.ticket.id.isEmpty) {
+      AppToast.error(context, 'Ticket not synced yet. Please re-open chat.');
+      return;
+    }
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+        maxWidth: 1024,
+      );
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      if (bytes.isEmpty) {
+        if (mounted) {
+          AppToast.warning(context, 'Selected image is empty.');
+        }
+        return;
+      }
+
+      setState(() => _sending = true);
+
+      final extension = _fileExtension(picked.name);
+      final downloadUrl = await FirebaseStorageService.uploadMessageImage(
+        bytes,
+        extension: extension,
+        folder: 'ticket_images',
+        filePrefix: 'ticket',
+      );
+      if (downloadUrl == null || downloadUrl.isEmpty) {
+        if (mounted) {
+          AppToast.error(context, 'Failed to upload image.');
+        }
+        return;
+      }
+
+      await ProfileSettingsState.sendCurrentHelpTicketMessage(
+        ticketId: widget.ticket.id,
+        text: downloadUrl,
+        imageUrl: downloadUrl,
+      );
+      _currentPage = 1;
+      await ProfileSettingsState.refreshCurrentHelpTicketMessages(
+        ticketId: widget.ticket.id,
+        page: _currentPage,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.error(context, 'Failed to send image.');
+    } finally {
+      if (mounted) {
+        setState(() => _sending = false);
+      }
+    }
+  }
+
+  String _fileExtension(String name) {
+    final dot = name.lastIndexOf('.');
+    if (dot < 0 || dot >= name.length - 1) return 'jpg';
+    return name.substring(dot + 1).toLowerCase();
+  }
+
   int _normalizedPage(int page) {
     if (page < 1) return 1;
     return page;
@@ -590,6 +694,7 @@ class _ChatBubble extends StatelessWidget {
     final label = isAutoReply
         ? 'Support assistant'
         : (fromAdmin ? 'Admin support' : 'You');
+    final hasImage = message.imageUrl.isNotEmpty;
 
     return Align(
       alignment: alignment,
@@ -639,11 +744,86 @@ class _ChatBubble extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 6),
-            Text(
-              message.text,
-              style: TextStyle(
-                color: AppThemeTokens.textPrimary(context),
-                height: 1.45,
+            if (hasImage)
+              GestureDetector(
+                onTap: () => _showFullScreenImage(context, message.imageUrl),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: _buildImage(message.imageUrl),
+                ),
+              )
+            else
+              Text(
+                message.text,
+                style: TextStyle(
+                  color: AppThemeTokens.textPrimary(context),
+                  height: 1.45,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImage(String url) {
+    return SafeImage(
+      source: url,
+      width: 220,
+      height: 150,
+      fit: BoxFit.cover,
+      errorBuilder: const _ImageErrorPlaceholder(),
+    );
+  }
+
+  void _showFullScreenImage(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          children: [
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: url.startsWith('data:')
+                    ? Builder(
+                        builder: (_) {
+                          final comma = url.indexOf(',');
+                          if (comma > 0 && comma < url.length - 1) {
+                            try {
+                              final bytes = base64Decode(
+                                url.substring(comma + 1),
+                              );
+                              return Image.memory(
+                                Uint8List.fromList(bytes),
+                                fit: BoxFit.contain,
+                              );
+                            } catch (_) {
+                              return const _ImageErrorPlaceholder();
+                            }
+                          }
+                          return const _ImageErrorPlaceholder();
+                        },
+                      )
+                    : SafeImage(
+                        source: url,
+                        fit: BoxFit.contain,
+                        errorBuilder: const _ImageErrorPlaceholder(),
+                      ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
             ),
           ],
@@ -737,6 +917,42 @@ class _HeaderInfoLine extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ImageErrorPlaceholder extends StatelessWidget {
+  const _ImageErrorPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 220,
+      height: 120,
+      decoration: BoxDecoration(
+        color: AppThemeTokens.mutedSurface(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppThemeTokens.outline(context)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.broken_image_rounded,
+            color: AppThemeTokens.textSecondary(context),
+            size: 28,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Image unavailable',
+            style: TextStyle(
+              color: AppThemeTokens.textSecondary(context),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

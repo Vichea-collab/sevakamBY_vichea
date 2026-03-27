@@ -33,9 +33,12 @@ class OrdersPage extends StatefulWidget {
 enum _FinderOrderTab { pending, inProgress, completed }
 
 class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
+  static const Duration _autoRefreshCooldown = Duration(seconds: 20);
+
   _FinderOrderTab _activeTab = _FinderOrderTab.pending;
   bool _isPaging = false;
   bool _historyTabLoading = false;
+  DateTime? _lastLoadedAt;
 
   @override
   void initState() {
@@ -44,7 +47,7 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
     MainShellPage.activeTab.addListener(_handleActiveTabChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(_loadOrders(forceNetwork: true, page: 1));
+      unawaited(_requestLoad(page: 1));
     });
   }
 
@@ -58,7 +61,7 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(_loadOrders(forceNetwork: true));
+      unawaited(_requestLoad());
     }
   }
 
@@ -67,8 +70,7 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
       return;
     }
     unawaited(
-      _loadOrders(
-        forceNetwork: true,
+      _requestLoad(
         page: _normalizedPage(OrderState.finderPagination.value.page),
       ),
     );
@@ -257,6 +259,15 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
     final targetPage = _normalizedPage(
       page ?? OrderState.finderPagination.value.page,
     );
+    final hasFreshCache =
+        !forceNetwork &&
+        targetPage == OrderState.finderPagination.value.page &&
+        OrderState.finderOrders.value.isNotEmpty &&
+        _lastLoadedAt != null &&
+        DateTime.now().difference(_lastLoadedAt!) < _autoRefreshCooldown;
+    if (hasFreshCache) {
+      return;
+    }
     final statuses = _statusFiltersForTab(_activeTab);
     final shouldShowHistoryLoading = _activeTab == _FinderOrderTab.completed;
     if (shouldShowHistoryLoading && mounted) {
@@ -282,6 +293,7 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
       }
       OrdersPage.queuedLatestOrder.value = null;
     } finally {
+      _lastLoadedAt = DateTime.now();
       if (shouldShowHistoryLoading && mounted) {
         setState(() => _historyTabLoading = false);
       }
@@ -295,6 +307,15 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
     );
     if (!mounted || updated == null) return;
     await _replaceOrder(updated);
+    // Auto-switch tab to match the updated order status.
+    final targetTab = _tabForStatus(updated.status);
+    if (targetTab != _activeTab && mounted) {
+      setState(() {
+        _activeTab = targetTab;
+        _isPaging = false;
+      });
+      unawaited(_loadOrders(forceNetwork: true, page: 1));
+    }
   }
 
   Future<void> _goToPage(int page) async {
@@ -319,6 +340,10 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
       _isPaging = false;
     });
     unawaited(_loadOrders(forceNetwork: true, page: 1));
+  }
+
+  Future<void> _requestLoad({int? page}) async {
+    await _loadOrders(forceNetwork: false, page: page);
   }
 
   List<String> _statusFiltersForTab(_FinderOrderTab tab) {
@@ -379,6 +404,20 @@ class _OrdersPageState extends State<OrdersPage> with WidgetsBindingObserver {
               order.status == OrderStatus.cancelled ||
               order.status == OrderStatus.declined;
         }).toList();
+    }
+  }
+
+  _FinderOrderTab _tabForStatus(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.booked:
+        return _FinderOrderTab.pending;
+      case OrderStatus.onTheWay:
+      case OrderStatus.started:
+        return _FinderOrderTab.inProgress;
+      case OrderStatus.completed:
+      case OrderStatus.cancelled:
+      case OrderStatus.declined:
+        return _FinderOrderTab.completed;
     }
   }
 

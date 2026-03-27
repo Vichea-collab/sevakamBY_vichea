@@ -145,11 +145,15 @@ class AdminRepositoryImpl implements AdminRepository {
     required String userUid,
     required String ticketId,
     required String text,
+    String? imageUrl,
   }) async {
+    final type = (imageUrl != null && imageUrl.isNotEmpty) ? 'image' : 'text';
     final row = await _remoteDataSource.sendTicketMessage(
       userUid: userUid,
       ticketId: ticketId,
       text: text,
+      imageUrl: imageUrl,
+      type: type,
     );
     return AdminTicketMessageRow.fromMap(row);
   }

@@ -50,7 +50,6 @@ extension on _AdminDashboardPageState {
         'Billing',
         'Renewal',
         'Period End',
-        'State',
       ],
       emptyText: 'No provider subscriptions found for this page.',
       summaryBuilder: (items) {
@@ -198,12 +197,6 @@ extension on _AdminDashboardPageState {
             _cellText(
               _formatDateTime(item.providerSubscriptionPeriodEnd),
               width: 150,
-            ),
-          ),
-          DataCell(
-            _Pill(
-              text: item.active ? 'Active' : 'Suspended',
-              color: item.active ? AppColors.success : AppColors.warning,
             ),
           ),
         ];

@@ -68,13 +68,11 @@ class SubscriptionPlan {
   final String name;
   final String tagline;
   final double monthlyPrice;
-  final double? annualPrice;
   final int bookingLimit; // -1 = unlimited
   final Color badgeColor;
   final IconData badgeIcon;
   final List<String> features;
   final String bestFor;
-  final String? qualityGate;
   final int searchRankMultiplier;
   final int maxPhotos; // -1 = unlimited
   final int trialDays;
@@ -84,13 +82,11 @@ class SubscriptionPlan {
     required this.name,
     required this.tagline,
     required this.monthlyPrice,
-    this.annualPrice,
     required this.bookingLimit,
     required this.badgeColor,
     required this.badgeIcon,
     required this.features,
     this.bestFor = '',
-    this.qualityGate,
     this.searchRankMultiplier = 1,
     this.maxPhotos = 5,
     this.trialDays = 0,
@@ -98,12 +94,6 @@ class SubscriptionPlan {
 
   String get priceLabel =>
       monthlyPrice == 0 ? 'Free' : '\$${monthlyPrice.toStringAsFixed(0)}/mo';
-
-  String get annualPriceLabel {
-    if (annualPrice == null) return '';
-    final saved = (monthlyPrice * 12 - annualPrice!).toStringAsFixed(0);
-    return '\$${annualPrice!.toStringAsFixed(0)}/yr (save \$$saved)';
-  }
 
   String get bookingLimitLabel =>
       bookingLimit < 0 ? 'Unlimited' : '$bookingLimit/month';
@@ -134,7 +124,6 @@ class SubscriptionPlan {
       name: 'Plus',
       tagline: 'Grow steady bookings and improve ranking',
       monthlyPrice: 5,
-      annualPrice: 50,
       bookingLimit: 25,
       badgeColor: Color(0xFF3B82F6),
       badgeIcon: Icons.workspace_premium,
@@ -142,8 +131,6 @@ class SubscriptionPlan {
       maxPhotos: 15,
       trialDays: 7,
       bestFor: 'Full-time professionals building a consistent client base',
-      qualityGate:
-          'Target requirement: KYC complete, 3.5+ rating, 5+ completed orders',
       features: [
         'Featured Provider badge (blue)',
         '2x search ranking boost',
@@ -159,7 +146,6 @@ class SubscriptionPlan {
       name: 'Pro',
       tagline: 'Maximum visibility and scale',
       monthlyPrice: 10,
-      annualPrice: 100,
       bookingLimit: -1,
       badgeColor: Color(0xFFF59E0B),
       badgeIcon: Icons.diamond_outlined,
@@ -167,8 +153,6 @@ class SubscriptionPlan {
       maxPhotos: -1,
       trialDays: 0,
       bestFor: 'Established companies and teams with multiple workers',
-      qualityGate:
-          'Target requirement: KYC complete, 4.5+ rating, 20+ completed orders',
       features: [
         'Top Tier badge (gold) + top-of-list ranking',
         '5x search ranking boost',

@@ -34,7 +34,10 @@ class _ChatListPageState extends State<ChatListPage> {
   @override
   void initState() {
     super.initState();
-    ChatState.refresh(page: 1);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_primeThreads());
+    });
     _startUiRefreshTimer();
   }
 
@@ -106,7 +109,10 @@ class _ChatListPageState extends State<ChatListPage> {
                     ),
                     itemBuilder: (context, index) {
                       final thread = filtered[index];
-                      return _ChatThreadTile(thread: thread);
+                      return _ChatThreadTile(
+                        thread: thread,
+                        liveLastActiveAt: thread.lastActiveAt,
+                      );
                     },
                   );
                 }
@@ -209,6 +215,15 @@ class _ChatListPageState extends State<ChatListPage> {
     }
   }
 
+  Future<void> _primeThreads() async {
+    if (ChatState.threads.value.isEmpty && !ChatState.loading.value) {
+      await ChatState.refresh(page: 1);
+    }
+    if (ChatState.unreadCount.value == 0) {
+      await ChatState.refreshUnreadCount();
+    }
+  }
+
   Widget _pullablePlaceholder(Widget child) {
     final rs = context.rs;
     return ListView(
@@ -231,8 +246,12 @@ class _ChatListPageState extends State<ChatListPage> {
 
 class _ChatThreadTile extends StatelessWidget {
   final ChatThread thread;
+  final DateTime liveLastActiveAt;
 
-  const _ChatThreadTile({required this.thread});
+  const _ChatThreadTile({
+    required this.thread,
+    required this.liveLastActiveAt,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +261,7 @@ class _ChatThreadTile extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isActive =
-        DateTime.now().difference(thread.lastActiveAt.toLocal()).inMinutes < 2;
+        DateTime.now().difference(liveLastActiveAt.toLocal()).inMinutes < 2;
 
     void openConversation() {
       final currentPage = ChatState.threadPagination.value.page;
@@ -264,7 +283,6 @@ class _ChatThreadTile extends StatelessWidget {
     return PressableScale(
       onTap: openConversation,
       child: InkWell(
-        onTap: openConversation,
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: rs.space(16),

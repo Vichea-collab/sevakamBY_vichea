@@ -116,8 +116,8 @@ class AuthState {
       }
 
       debugPrint('AuthState: Warming user state');
-      await _warmSignedInState(isProvider: AppRoleState.isProvider);
       await AppSyncState.setSignedIn(true);
+      unawaited(_warmSignedInState(isProvider: AppRoleState.isProvider));
       unawaited(_warmBackgroundState());
       debugPrint('AuthState: Sync complete');
     } catch (error) {

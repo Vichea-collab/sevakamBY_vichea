@@ -27,6 +27,7 @@ class ProviderPortfolioPage extends StatefulWidget {
 }
 
 class _ProviderPortfolioPageState extends State<ProviderPortfolioPage> {
+  static const double _portfolioTileRadius = 16;
   bool _isUploading = false;
   bool _loadingPost = true;
   ProviderPostItem? _currentPost;
@@ -288,15 +289,28 @@ class _ProviderPortfolioPageState extends State<ProviderPortfolioPage> {
   }
 
   Widget _buildPhotoItem(String url) {
-    return Stack(
-      children: [
-        GestureDetector(
-          onTap: () => _showFullscreenImage(context, url),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SafeImage(source: url, fit: BoxFit.cover),
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          GestureDetector(
+            onTap: () => _showFullscreenImage(context, url),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppThemeTokens.mutedSurface(context),
+                borderRadius: BorderRadius.circular(_portfolioTileRadius),
+                border: Border.all(color: AppThemeTokens.outline(context)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: SafeImage(
+                source: url,
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
           ),
-        ),
         Positioned(
           top: 4,
           right: 4,
@@ -319,7 +333,8 @@ class _ProviderPortfolioPageState extends State<ProviderPortfolioPage> {
             ),
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -360,41 +375,44 @@ class _ProviderPortfolioPageState extends State<ProviderPortfolioPage> {
   Widget _buildAddPlaceholder() {
     return GestureDetector(
       onTap: _addPhoto,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppThemeTokens.mutedSurface(context),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.1),
-            width: 1.5,
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppThemeTokens.mutedSurface(context),
+            borderRadius: BorderRadius.circular(_portfolioTileRadius),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              width: 1.5,
+            ),
           ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.add_rounded,
+                  color: AppColors.primary,
+                  size: 24,
+                ),
               ),
-              child: const Icon(
-                Icons.add_rounded,
-                color: AppColors.primary,
-                size: 24,
+              const SizedBox(height: 8),
+              const Text(
+                'Upload',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Upload',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

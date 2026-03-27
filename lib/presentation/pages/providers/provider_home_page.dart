@@ -187,7 +187,10 @@ class _ProviderHomePageState extends State<ProviderHomePage> {
           !ProviderPostState.loading.value) {
         await ProviderPostState.refresh(page: 1);
       }
-      await ProviderPostState.refreshAllForLookup();
+      if (ProviderPostState.allPosts.value.isEmpty &&
+          !ProviderPostState.allPostsLoading.value) {
+        await ProviderPostState.refreshAllForLookup();
+      }
     } catch (_) {
       // Keep page usable with partial data if lookup sync fails.
     }

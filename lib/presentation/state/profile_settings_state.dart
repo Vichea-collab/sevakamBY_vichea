@@ -77,6 +77,7 @@ class ProfileSettingsState {
   );
 
   static bool _initialized = false;
+  static String _backendToken = AppEnv.apiAuthToken().trim();
 
   static bool get isProvider => AppRoleState.isProvider;
 
@@ -95,6 +96,18 @@ class ProfileSettingsState {
 
     final finderProfileFuture = _repository.loadProfile(isProvider: false);
     final providerProfileFuture = _repository.loadProfile(isProvider: true);
+    final providerProfessionFuture = _repository.loadProviderProfession();
+
+    finderProfile.value = await finderProfileFuture;
+    providerProfile.value = await providerProfileFuture;
+    _applyAvatarForRole(profile: finderProfile.value, isProvider: false);
+    _applyAvatarForRole(profile: providerProfile.value, isProvider: true);
+    providerProfession.value = await providerProfessionFuture;
+
+    if (_backendToken.isEmpty) {
+      return;
+    }
+
     final finderNotificationFuture = _repository.loadNotifications(
       isProvider: false,
     );
@@ -103,18 +116,6 @@ class ProfileSettingsState {
     );
     final finderTicketsFuture = _repository.loadHelpTickets(isProvider: false);
     final providerTicketsFuture = _repository.loadHelpTickets(isProvider: true);
-    final providerProfessionFuture = _repository.loadProviderProfession();
-    final providerCompletedOrdersFuture = _repository
-        .loadProviderCompletedOrdersFromBackend();
-    final providerVerifiedFuture = _repository
-        .loadProviderVerifiedFromBackend();
-    final providerKycStatusFuture = _repository
-        .loadProviderKycStatusFromBackend();
-
-    finderProfile.value = await finderProfileFuture;
-    providerProfile.value = await providerProfileFuture;
-    _applyAvatarForRole(profile: finderProfile.value, isProvider: false);
-    _applyAvatarForRole(profile: providerProfile.value, isProvider: true);
 
     finderNotification.value = await finderNotificationFuture;
     providerNotification.value = await providerNotificationFuture;
@@ -124,15 +125,12 @@ class ProfileSettingsState {
     final providerTicketsResult = await providerTicketsFuture;
     providerHelpTickets.value = providerTicketsResult.items;
     providerHelpTicketsPagination.value = providerTicketsResult.pagination;
-    providerProfession.value = await providerProfessionFuture;
-    providerCompletedOrders.value = await providerCompletedOrdersFuture;
-    providerVerified.value = await providerVerifiedFuture;
-    providerKycStatus.value = await providerKycStatusFuture;
   }
 
   static void setBackendToken(String token) {
+    _backendToken = token.trim();
     _repository.setBearerToken(token);
-    if (token.trim().isEmpty) {
+    if (_backendToken.isEmpty) {
       finderHelpTickets.value = const <HelpSupportTicket>[];
       providerHelpTickets.value = const <HelpSupportTicket>[];
       finderHelpTicketsPagination.value = const PaginationMeta.initial(
@@ -378,11 +376,13 @@ class ProfileSettingsState {
   static Future<HelpTicketMessage> sendCurrentHelpTicketMessage({
     required String ticketId,
     required String text,
+    String? imageUrl,
   }) async {
     final message = await _repository.sendHelpTicketMessage(
       isProvider: isProvider,
       ticketId: ticketId,
       text: text,
+      imageUrl: imageUrl,
     );
     final currentMessages = isProvider
         ? providerHelpTicketMessages.value

@@ -185,9 +185,16 @@ class CatalogState {
               fallback: 12,
             );
             final completedCount = _toInt(row['completedCount'], fallback: 0);
-            final rating =
-                categoryAverageRatings[_normalizedKey(categoryName)] ??
-                _toDouble(row['rating'], fallback: 4.6);
+            final ratingCount = _toInt(row['ratingCount'], fallback: 0);
+            final ratingSum = _toDouble(row['ratingSum'], fallback: 0);
+            final rating = ratingCount > 0
+                ? double.parse((ratingSum / ratingCount).toStringAsFixed(1))
+                : _toDouble(
+                    row['rating'],
+                    fallback:
+                        categoryAverageRatings[_normalizedKey(categoryName)] ??
+                        0,
+                  );
             final available = row['available'] != false;
             final badge = completedCount >= 80
                 ? 'Popular'

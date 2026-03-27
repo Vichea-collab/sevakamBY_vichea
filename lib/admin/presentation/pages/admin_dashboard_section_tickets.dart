@@ -452,11 +452,14 @@ extension on _AdminDashboardPageState {
       categoryId: item.category,
       subcategoryId: item.subcategory,
     );
+    final ticketTypeLabel = supportTicketRequestTypeLabel(
+      supportTicketRequestTypeFromId(item.ticketType),
+    );
     final displayTitle = item.title.trim().isEmpty
         ? subcategoryLabel
         : item.title;
     final previewText = item.message.trim().isEmpty
-        ? 'Support request created for $categoryLabel / $subcategoryLabel.'
+        ? '$ticketTypeLabel request created for $categoryLabel / $subcategoryLabel.'
         : item.message;
 
     return Container(
@@ -498,6 +501,12 @@ extension on _AdminDashboardPageState {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
+                        _Pill(
+                          text: ticketTypeLabel,
+                          color: item.ticketType.trim().toLowerCase() == 'support'
+                              ? const Color(0xFF7C3AED)
+                              : const Color(0xFF0F766E),
+                        ),
                         _Pill(
                           text: categoryLabel,
                           color: const Color(0xFF2563EB),

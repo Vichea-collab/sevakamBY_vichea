@@ -1,11 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/theme/app_theme_tokens.dart';
+import '../../../core/utils/listenable_utils.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/utils/time_utils.dart';
 import '../../state/user_notification_state.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/app_state_panel.dart';
@@ -29,10 +31,13 @@ class NotificationsPage extends StatefulWidget {
 
 class _NotificationsPageState extends State<NotificationsPage>
     with WidgetsBindingObserver {
+  static const Duration _autoRefreshCooldown = Duration(seconds: 30);
+
   _NoticeFilter _filter = _NoticeFilter.all;
   bool _screenLoading = true;
   bool _screenRefreshInFlight = false;
   bool _initialLoadComplete = false;
+  DateTime? _lastLoadedAt;
 
   @override
   void initState() {
@@ -41,7 +46,7 @@ class _NotificationsPageState extends State<NotificationsPage>
     MainShellPage.activeTab.addListener(_handleActiveTabChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(_loadScreen(forceNetwork: true));
+      unawaited(_requestLoad());
     });
   }
 
@@ -55,7 +60,7 @@ class _NotificationsPageState extends State<NotificationsPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed || !mounted) return;
-    unawaited(_loadScreen(forceNetwork: true));
+    unawaited(_requestLoad());
   }
 
   void _handleActiveTabChanged() {
@@ -63,7 +68,7 @@ class _NotificationsPageState extends State<NotificationsPage>
         MainShellPage.activeTab.value != AppBottomTab.notification) {
       return;
     }
-    unawaited(_loadScreen(forceNetwork: true));
+    unawaited(_requestLoad());
   }
 
   @override
@@ -133,7 +138,8 @@ class _NotificationsPageState extends State<NotificationsPage>
                             _updateStateKey(item.key),
                           ),
                         )
-                        .toList();
+                        .toList()
+                      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
                     final promos = backendPromos
                         .map(
                           (item) => item.copyWith(
@@ -405,6 +411,7 @@ class _NotificationsPageState extends State<NotificationsPage>
     _markUpdateAsRead(item.key);
     switch (item.source) {
       case 'chat_message':
+        unawaited(UserNotificationState.clear(_updateStateKey(item.key)));
         Navigator.pushNamed(context, ChatListPage.routeName);
         return;
       case 'support_message':
@@ -432,31 +439,30 @@ class _NotificationsPageState extends State<NotificationsPage>
     Navigator.pushNamed(context, ChatListPage.routeName);
   }
 
-  Future<void> _waitUntilNotLoading(ValueListenable<bool> listenable) async {
-    if (!listenable.value) return;
-    final completer = Completer<void>();
-    late VoidCallback listener;
-    listener = () {
-      if (!listenable.value && !completer.isCompleted) {
-        listenable.removeListener(listener);
-        completer.complete();
-      }
-    };
-    listenable.addListener(listener);
-    if (!listenable.value && !completer.isCompleted) {
-      listenable.removeListener(listener);
-      completer.complete();
-    }
-    await completer.future;
-  }
+  // Delegated to shared waitUntilNotLoading in listenable_utils.dart
 
   Future<void> _refreshInboxNoticesAndWait() async {
     await UserNotificationState.refresh();
-    await _waitUntilNotLoading(UserNotificationState.loading);
+    await waitUntilNotLoading(UserNotificationState.loading);
   }
 
   Future<void> _loadScreen({bool forceNetwork = false}) async {
     if (_screenRefreshInFlight) return;
+    final hasCachedData = UserNotificationState.notices.value.isNotEmpty;
+    final hasFreshCache =
+        !forceNetwork &&
+        hasCachedData &&
+        _lastLoadedAt != null &&
+        DateTime.now().difference(_lastLoadedAt!) < _autoRefreshCooldown;
+    if (hasFreshCache) {
+      if (mounted && !_initialLoadComplete) {
+        setState(() {
+          _screenLoading = false;
+          _initialLoadComplete = true;
+        });
+      }
+      return;
+    }
     _screenRefreshInFlight = true;
     if (mounted && !_initialLoadComplete) {
       setState(() => _screenLoading = true);
@@ -465,6 +471,7 @@ class _NotificationsPageState extends State<NotificationsPage>
       await _refreshInboxNoticesAndWait();
     } finally {
       _screenRefreshInFlight = false;
+      _lastLoadedAt = DateTime.now();
       if (mounted) {
         setState(() {
           _screenLoading = false;
@@ -476,6 +483,10 @@ class _NotificationsPageState extends State<NotificationsPage>
 
   Future<void> _refreshFeed() async {
     await _loadScreen(forceNetwork: true);
+  }
+
+  Future<void> _requestLoad() async {
+    await _loadScreen(forceNetwork: !_initialLoadComplete);
   }
 
   List<_NotificationUpdate> _buildBackendOrderUpdates(
@@ -518,7 +529,8 @@ class _NotificationsPageState extends State<NotificationsPage>
         key: '${item.orderId}:${item.orderStatus}',
         title: item.title,
         description: item.message,
-        timeLabel: _timeAgo(item.createdAt ?? DateTime.now()),
+        timeLabel: timeAgo(item.createdAt ?? DateTime.now()),
+        createdAt: item.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
         icon: icon,
         iconColor: color,
         kind: _NoticeFilter.orders,
@@ -557,7 +569,8 @@ class _NotificationsPageState extends State<NotificationsPage>
             key: 'system:${item.id}',
             title: item.title,
             description: item.message,
-            timeLabel: _timeAgo(item.createdAt ?? DateTime.now()),
+            timeLabel: timeAgo(item.createdAt ?? DateTime.now()),
+            createdAt: item.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
             icon: icon,
             iconColor: color,
             kind: _NoticeFilter.system,
@@ -617,21 +630,7 @@ class _NotificationsPageState extends State<NotificationsPage>
         .toList(growable: false);
   }
 
-  String _timeAgo(DateTime date) {
-    final delta = DateTime.now().difference(date);
-    if (delta.isNegative) return 'Just now';
-    if (delta.inMinutes < 1) return 'Just now';
-    if (delta.inHours < 1) {
-      final minute = delta.inMinutes;
-      return '$minute min ago';
-    }
-    if (delta.inDays < 1) {
-      final hour = delta.inHours;
-      return '$hour hr ago';
-    }
-    final day = delta.inDays;
-    return '$day day${day > 1 ? 's' : ''} ago';
-  }
+  // Delegated to shared timeAgo() in time_utils.dart
 }
 
 class _HeroCard extends StatelessWidget {
@@ -773,7 +772,6 @@ class _FilterChip extends StatelessWidget {
       child: PressableScale(
         onTap: onTap,
         child: InkWell(
-          onTap: onTap,
           borderRadius: BorderRadius.circular(rs.radius(100)),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
@@ -825,7 +823,6 @@ class _UpdateTile extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: InkWell(
-        onTap: onTap,
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: rs.space(12),
@@ -930,7 +927,6 @@ class _PromoTile extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: InkWell(
-        onTap: onTap,
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: rs.space(12),
@@ -1007,6 +1003,7 @@ class _NotificationUpdate {
   final String title;
   final String description;
   final String timeLabel;
+  final DateTime createdAt;
   final IconData icon;
   final Color iconColor;
   final _NoticeFilter kind;
@@ -1018,6 +1015,7 @@ class _NotificationUpdate {
     required this.title,
     required this.description,
     required this.timeLabel,
+    required this.createdAt,
     required this.icon,
     required this.iconColor,
     required this.kind,
@@ -1031,6 +1029,7 @@ class _NotificationUpdate {
       title: title,
       description: description,
       timeLabel: timeLabel,
+      createdAt: createdAt,
       icon: icon,
       iconColor: iconColor,
       kind: kind,

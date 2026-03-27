@@ -22,7 +22,8 @@ class PostComposerHeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tint = accentColor.withValues(alpha: 0.10);
+    final isDark = AppThemeTokens.isDark(context);
+    final tint = accentColor.withValues(alpha: isDark ? 0.16 : 0.10);
     final titleColor = AppThemeTokens.textPrimary(context);
     final subtitleColor = AppThemeTokens.textSecondary(context);
     return Container(
@@ -35,7 +36,7 @@ class PostComposerHeaderCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: accentColor.withValues(alpha: 0.18)),
+        border: Border.all(color: accentColor.withValues(alpha: isDark ? 0.32 : 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -46,7 +47,7 @@ class PostComposerHeaderCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppThemeTokens.surface(context),
+                  color: AppThemeTokens.elevatedSurface(context),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 alignment: Alignment.center,
@@ -425,9 +426,9 @@ class PostComposerPickerField extends StatelessWidget {
                 ),
               ),
             ),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: AppColors.textSecondary,
+              color: AppThemeTokens.textSecondary(context),
             ),
           ],
         ),
@@ -447,9 +448,13 @@ class _PostHighlightChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppThemeTokens.surface(context),
+        color: AppThemeTokens.elevatedSurface(context),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        border: Border.all(
+          color: color.withValues(
+            alpha: AppThemeTokens.isDark(context) ? 0.30 : 0.18,
+          ),
+        ),
       ),
       child: Text(
         label,

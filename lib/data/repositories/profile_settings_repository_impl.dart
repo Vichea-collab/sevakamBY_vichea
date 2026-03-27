@@ -176,10 +176,14 @@ class ProfileSettingsRepositoryImpl implements ProfileSettingsRepository {
     required bool isProvider,
     required String ticketId,
     required String text,
+    String? imageUrl,
   }) async {
+    final type = (imageUrl != null && imageUrl.isNotEmpty) ? 'image' : 'text';
     final message = await _remoteDataSource.sendHelpTicketMessage(
       ticketId: ticketId,
       text: text,
+      imageUrl: imageUrl,
+      type: type,
     );
     return HelpTicketMessage.fromMap(message);
   }

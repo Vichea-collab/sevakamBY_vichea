@@ -331,6 +331,7 @@ class HelpTicketMessage {
   final String id;
   final String text;
   final String type;
+  final String imageUrl;
   final String senderUid;
   final String senderRole;
   final String senderName;
@@ -340,6 +341,7 @@ class HelpTicketMessage {
     this.id = '',
     required this.text,
     this.type = 'text',
+    this.imageUrl = '',
     this.senderUid = '',
     this.senderRole = 'finder',
     this.senderName = 'User',
@@ -347,10 +349,21 @@ class HelpTicketMessage {
   });
 
   factory HelpTicketMessage.fromMap(Map<String, dynamic> map) {
+    final text = (map['text'] ?? map['message'] ?? '').toString();
+    final type = (map['type'] ?? 'text').toString();
+    String imageUrl = (map['imageUrl'] ?? '').toString();
+    // If no explicit imageUrl but type is image, try to extract from text.
+    if (imageUrl.isEmpty &&
+        (type == 'image' ||
+            text.startsWith('data:image/') ||
+            (text.startsWith('http') && _looksLikeImageUrl(text)))) {
+      imageUrl = text;
+    }
     return HelpTicketMessage(
       id: (map['id'] ?? '').toString(),
-      text: (map['text'] ?? map['message'] ?? '').toString(),
-      type: (map['type'] ?? 'text').toString(),
+      text: text,
+      type: type,
+      imageUrl: imageUrl,
       senderUid: (map['senderUid'] ?? '').toString(),
       senderRole: (map['senderRole'] ?? 'finder').toString(),
       senderName: (map['senderName'] ?? 'User').toString(),
@@ -363,11 +376,24 @@ class HelpTicketMessage {
       'id': id,
       'text': text,
       'type': type,
+      'imageUrl': imageUrl,
       'senderUid': senderUid,
       'senderRole': senderRole,
       'senderName': senderName,
       'createdAt': createdAt.toIso8601String(),
     };
+  }
+
+  static bool _looksLikeImageUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.contains('firebasestorage.googleapis.com') ||
+        lower.contains('storage.googleapis.com') ||
+        lower.contains('alt=media') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp');
   }
 }
 

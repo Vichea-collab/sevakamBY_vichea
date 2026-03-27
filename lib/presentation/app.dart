@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../core/constants/app_colors.dart';
 import '../core/firebase/firebase_bootstrap.dart';
+import '../core/notifications/local_notification_service.dart';
 import '../core/theme/app_theme.dart';
 import '../core/utils/page_transition.dart';
 import '../core/utils/responsive.dart';
@@ -219,7 +220,8 @@ class _GlobalNotificationHost extends StatefulWidget {
       _GlobalNotificationHostState();
 }
 
-class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
+class _GlobalNotificationHostState extends State<_GlobalNotificationHost>
+    with WidgetsBindingObserver {
   final Set<String> _seenNoticeIds = <String>{};
   OverlayEntry? _activeBannerEntry;
   Timer? _activeBannerTimer;
@@ -229,9 +231,29 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
   Timer? _heartbeatTimer;
   bool _primed = false;
 
+  /// Tracks recently shown banner fingerprints to prevent duplicates
+  /// from the push and notices-listener paths firing for the same event.
+  final Map<String, DateTime> _recentBannerKeys = <String, DateTime>{};
+  static const Duration _bannerDedupeWindow = Duration(seconds: 6);
+
+  /// Returns true if a banner with the same fingerprint was already shown
+  /// within [_bannerDedupeWindow]. Records the fingerprint if not.
+  bool _bannerWasRecentlyShown(String title, String message) {
+    final key = '${title.trim()}||${message.trim()}';
+    final now = DateTime.now();
+    // Purge expired entries
+    _recentBannerKeys.removeWhere(
+      (_, timestamp) => now.difference(timestamp) > _bannerDedupeWindow,
+    );
+    if (_recentBannerKeys.containsKey(key)) return true;
+    _recentBannerKeys[key] = now;
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     UserNotificationState.notices.addListener(_onNoticesChanged);
     unawaited(_setupPushHandlers());
     _startGlobalHeartbeat();
@@ -239,6 +261,7 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _heartbeatTimer?.cancel();
     UserNotificationState.notices.removeListener(_onNoticesChanged);
     _pushForegroundSubscription?.cancel();
@@ -246,6 +269,13 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
     _pushTokenRefreshSubscription?.cancel();
     _removeActiveBanner();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ChatState.updateHeartbeat();
+    }
   }
 
   void _startGlobalHeartbeat() {
@@ -284,13 +314,15 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
       return rightTime.isAfter(leftTime) ? right : left;
     });
 
+    final bannerTitle = latest.title.trim();
     final summary = latest.message.trim().isEmpty
         ? 'You have a new notification.'
         : latest.message.trim();
+    if (_bannerWasRecentlyShown(bannerTitle, summary)) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _showTopBanner(
-        title: latest.title.trim(),
+        title: bannerTitle,
         message: summary,
         onReply: () {
           _removeActiveBanner();
@@ -312,6 +344,12 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
           );
     } catch (error) {
       debugPrint('Push permission setup skipped: $error');
+    }
+
+    try {
+      await LocalNotificationService.initialize(onTapData: _openDeepLinkFromData);
+    } catch (error) {
+      debugPrint('Local notification setup skipped: $error');
     }
 
     try {
@@ -365,12 +403,27 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost> {
   }
 
   void _onForegroundPush(RemoteMessage message) {
+    final target = (message.data['target'] ?? message.data['type'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final threadId = (message.data['threadId'] ?? message.data['chatId'] ?? '')
+        .toString()
+        .trim();
+    if ((target == 'chat' || target == 'message' || target == 'messages') &&
+        threadId.isNotEmpty &&
+        ChatState.activeThreadId.value == threadId) {
+      return;
+    }
     final notification = message.notification;
     final title = (notification?.title ?? '').trim();
     final body = (notification?.body ?? '').trim();
+    final bannerTitle = title.isEmpty ? 'New notification' : title;
     final fallbackSummary = body.isEmpty ? 'You have a new message.' : body;
+    if (_bannerWasRecentlyShown(bannerTitle, fallbackSummary)) return;
+    unawaited(LocalNotificationService.showRemoteMessage(message));
     _showTopBanner(
-      title: title.isEmpty ? 'New notification' : title,
+      title: bannerTitle,
       message: fallbackSummary,
       onView: () {
         _removeActiveBanner();

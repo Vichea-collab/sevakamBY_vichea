@@ -37,7 +37,7 @@ class AppSyncState with WidgetsBindingObserver {
     _signedIn = signedIn;
     WidgetsBinding.instance.addObserver(AppSyncState());
     if (_signedIn) {
-      await _syncNow(forceFull: true);
+      unawaited(_syncNow(forceFull: true));
       _startTimer();
     }
   }
@@ -49,7 +49,7 @@ class AppSyncState with WidgetsBindingObserver {
       _stopTimer();
       return;
     }
-    await _syncNow(forceFull: true);
+    unawaited(_syncNow(forceFull: true));
     _startTimer();
   }
 

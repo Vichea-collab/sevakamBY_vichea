@@ -250,4 +250,84 @@ class FirebaseStorageService {
       return null;
     }
   }
+
+  /// Uploads raw image bytes to Firebase Storage and returns a public download URL.
+  static Future<String?> uploadMessageImage(
+    Uint8List bytes, {
+    String extension = 'jpg',
+    String folder = 'support_images',
+    String filePrefix = 'support',
+  }) async {
+    final configured = await FirebaseBootstrap.initializeIfConfigured();
+    if (!configured) {
+      debugPrint(
+        'FirebaseStorageService: Firebase not configured, cannot upload support image.',
+      );
+      return null;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint(
+        'FirebaseStorageService: No authenticated user, cannot upload support image.',
+      );
+      return null;
+    }
+
+    try {
+      final storage = FirebaseStorage.instance;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final normalizedFolder = folder.trim().isEmpty
+          ? 'support_images'
+          : folder.trim();
+      final normalizedPrefix = filePrefix.trim().isEmpty
+          ? 'support'
+          : filePrefix.trim();
+      final fileName =
+          '${user.uid}_${normalizedPrefix}_$timestamp.${extension.toLowerCase()}';
+      final storageRef = storage.ref().child('$normalizedFolder/$fileName');
+
+      final String mimeType;
+      switch (extension.toLowerCase()) {
+        case 'png':
+          mimeType = 'image/png';
+          break;
+        case 'webp':
+          mimeType = 'image/webp';
+          break;
+        case 'gif':
+          mimeType = 'image/gif';
+          break;
+        case 'jpg':
+        case 'jpeg':
+        default:
+          mimeType = 'image/jpeg';
+      }
+
+      final metadata = SettableMetadata(contentType: mimeType);
+      final uploadTask = await storageRef.putData(bytes, metadata);
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      debugPrint(
+        'FirebaseStorageService: Support image upload successful -> $downloadUrl',
+      );
+      return downloadUrl;
+    } catch (e, st) {
+      debugPrint('FirebaseStorageService.uploadSupportImage error: $e');
+      debugPrint(st.toString());
+      return null;
+    }
+  }
+
+  /// Uploads a support or ticket image to Firebase Storage.
+  static Future<String?> uploadSupportImage(
+    Uint8List bytes, {
+    String extension = 'jpg',
+  }) {
+    return uploadMessageImage(
+      bytes,
+      extension: extension,
+      folder: 'support_images',
+      filePrefix: 'support',
+    );
+  }
 }

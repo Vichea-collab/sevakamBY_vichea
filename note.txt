@@ -78,8 +78,14 @@ finder cancels booking
 provider declines booking
 
 
-- for feature avalibility of dateblock, help me check the UI and backend, it work correctly? i think when i hot restart, the date i blocked it not store.
+//- for feature avalibility of dateblock, help me check the UI and backend, it work correctly? i think when i hot restart, the date i blocked it not store.
+//- update the Dark mode for whole app for me, make it professional with dark and white mode
+//- for the chat feature, the roles like the user have 2 role on that account so it has only 1 chat or seperate chat defferent finder and provider?
+//- for help & support i updated, so in admin panels for tickets section need update anything or not?
 
-- update the Dark mode for whole app for me, make it professional with dark and white mode
-- for the chat feature, the roles like the user have 2 role on that account so it has only 1 chat or seperate chat defferent finder and provider?
-- for help & support i updated, so in admin panels for tickets section need update anything or not?
+//- for search page the service rating shoild be like user 1 rating 3, user 2 rating 4 so sum it and store it in service, so wire it for each services
+//- help me check the chat feature of time and actie and inactive for both roles app
+
+- can my whole app can increase speech of fetching from firebase? i think it need to wait a bit long
+//- for subscription, the cancel help fix for me like  when provider cancel ,every feature that has in old plan should not active anymore and auto drop the plan to Basic plan when u cancel subscription
+- i just query refactor, help me check the feature or index i refactor, make sure everything working

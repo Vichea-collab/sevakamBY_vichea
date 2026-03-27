@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:servicefinder/core/constants/app_colors.dart';
 import 'package:servicefinder/core/theme/app_theme_tokens.dart';
 import 'package:servicefinder/core/utils/app_toast.dart';
+import 'package:servicefinder/core/utils/chat_utils.dart';
 import 'package:servicefinder/core/utils/page_transition.dart';
 import 'package:servicefinder/core/utils/responsive.dart';
 import 'package:servicefinder/core/utils/safe_image_provider.dart';
@@ -56,6 +57,8 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   @override
   void initState() {
     super.initState();
+    ChatState.setActiveThread(widget.thread.id);
+    unawaited(ChatState.updateHeartbeat());
     unawaited(_syncReadState(syncThreads: true));
     unawaited(ChatState.flushQueuedMessages(threadId: widget.thread.id));
 
@@ -71,7 +74,17 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   }
 
   @override
+  void didUpdateWidget(covariant ChatConversationPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.thread.id != widget.thread.id) {
+      ChatState.clearActiveThread(oldWidget.thread.id);
+      ChatState.setActiveThread(widget.thread.id);
+    }
+  }
+
+  @override
   void dispose() {
+    ChatState.clearActiveThread(widget.thread.id);
     _uiRefreshTimer?.cancel();
     unawaited(_messagesSubscription?.cancel());
     unawaited(_threadSubscription?.cancel());
@@ -92,33 +105,31 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppThemeTokens.pageBackground(context),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _ChatHeader(
-              thread: _currentThread ?? widget.thread,
-              onProfileLinkTap: AppRoleState.isProvider
-                  ? _sendProfileLink
-                  : null,
-            ),
-            Expanded(
-              child: Container(
-                color: AppThemeTokens.mutedSurface(context),
-                child: RefreshIndicator(
-                  onRefresh: _refreshLatest,
-                  color: AppColors.primary,
-                  backgroundColor: AppThemeTokens.surface(context),
-                  child: _buildMessageList(context),
-                ),
+      body: Column(
+        children: [
+          _ChatHeader(
+            thread: _currentThread ?? widget.thread,
+            onProfileLinkTap: AppRoleState.isProvider
+                ? _sendProfileLink
+                : null,
+          ),
+          Expanded(
+            child: Container(
+              color: AppThemeTokens.mutedSurface(context),
+              child: RefreshIndicator(
+                onRefresh: _refreshLatest,
+                color: AppColors.primary,
+                backgroundColor: AppThemeTokens.surface(context),
+                child: _buildMessageList(context),
               ),
             ),
-            _Composer(
-              controller: _inputController,
-              onSend: _sending ? null : _sendMessage,
-              onPickImage: _sending ? null : _sendImage,
-            ),
-          ],
-        ),
+          ),
+          _Composer(
+            controller: _inputController,
+            onSend: _sending ? null : _sendMessage,
+            onPickImage: _sending ? null : _sendImage,
+          ),
+        ],
       ),
     );
   }
@@ -380,70 +391,27 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
               .where((item) => item.isNotEmpty)
               .toList(growable: false)
         : const <String>[];
-    return ChatMessage(
-      id: (row['id'] ?? '').toString().trim().isEmpty
-          ? '${senderUid}_${_toRealtimeDateTime(row['sentAt'] ?? row['createdAt']).millisecondsSinceEpoch}'
-          : (row['id'] ?? '').toString().trim(),
-      text: (row['text'] ?? '').toString(),
-      type: type,
-      imageUrl: imageUrl,
-      fromMe: senderUid == currentUid,
-      sentAt: _toRealtimeDateTime(row['sentAt'] ?? row['createdAt']),
-      deliveryStatus: _deliveryStatusForMessage(
-        senderUid: senderUid,
-        currentUid: currentUid,
-        seenBy: seenBy,
-        deliveredTo: deliveredTo,
-      ),
-    );
+      final id = (row['id'] ?? '').toString().trim();
+      return ChatMessage(
+        id: id.trim().isEmpty
+            ? '${senderUid}_${chatDateTimeFromDynamic(row['sentAt'] ?? row['createdAt']).millisecondsSinceEpoch}'
+            : id,
+        text: (row['text'] ?? '').toString(),
+        type: type,
+        imageUrl: imageUrl,
+        fromMe: senderUid == currentUid,
+        sentAt: chatDateTimeFromDynamic(row['sentAt'] ?? row['createdAt']),
+        deliveryStatus: chatDeliveryStatus(
+          senderUid: senderUid,
+          currentUid: currentUid,
+          seenBy: seenBy,
+          deliveredTo: deliveredTo,
+        ),
+      );
   }
 
-  ChatDeliveryStatus _deliveryStatusForMessage({
-    required String senderUid,
-    required String currentUid,
-    required List<String> seenBy,
-    required List<String> deliveredTo,
-  }) {
-    if (senderUid != currentUid) return ChatDeliveryStatus.seen;
-    final peerSeen = seenBy.any((uid) => uid.isNotEmpty && uid != senderUid);
-    if (peerSeen) return ChatDeliveryStatus.seen;
-    final peerDelivered = deliveredTo.any(
-      (uid) => uid.isNotEmpty && uid != senderUid,
-    );
-    if (peerDelivered) return ChatDeliveryStatus.delivered;
-    return ChatDeliveryStatus.sent;
-  }
-
-  DateTime _toRealtimeDateTime(dynamic value) {
-    if (value == null) return DateTime.fromMillisecondsSinceEpoch(0);
-    if (value is DateTime) return value.toLocal();
-    if (value is Timestamp) return value.toDate().toLocal();
-    if (value is String) {
-      final parsed = DateTime.tryParse(value);
-      if (parsed != null) return parsed.toLocal();
-    }
-    if (value is num) {
-      if (value == 0) return DateTime.fromMillisecondsSinceEpoch(0);
-      final intValue = value.toInt();
-      final milliseconds = intValue.abs() < 1000000000000
-          ? intValue * 1000
-          : intValue;
-      return DateTime.fromMillisecondsSinceEpoch(milliseconds).toLocal();
-    }
-    if (value is Map && value['_seconds'] is num) {
-      final seconds = value['_seconds'] as num;
-      return DateTime.fromMillisecondsSinceEpoch(
-        (seconds * 1000).round(),
-      ).toLocal();
-    }
-    if (value is Map && value['seconds'] is num) {
-      final seconds = value['seconds'] as num;
-      return DateTime.fromMillisecondsSinceEpoch(
-        (seconds * 1000).round(),
-      ).toLocal();
-    }
-    return DateTime.fromMillisecondsSinceEpoch(0);
-  }
+  // DateTime parsing delegated to chatDateTimeFromDynamic in chat_utils.dart
+  // Delivery status logic delegated to chatDeliveryStatus in chat_utils.dart
 
   Future<void> _loadOlder() async {
     final nextPage = _loadedPages + 1;
@@ -636,8 +604,8 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       final localId = 'local_${DateTime.now().microsecondsSinceEpoch}';
       pendingLocalId = localId;
 
-      final extension = _extensionFromName(picked.name);
-      final mimeType = _mimeTypeFromExtension(extension);
+    final extension = chatFileExtension(picked.name);
+    final mimeType = chatMimeType(extension);
       final dataUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
 
       final pending = ChatMessage(
@@ -690,29 +658,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     }
   }
 
-  static String _extensionFromName(String fileName) {
-    final trimmed = fileName.trim();
-    final dot = trimmed.lastIndexOf('.');
-    if (dot <= 0 || dot >= trimmed.length - 1) return '.jpg';
-    return '.${trimmed.substring(dot + 1).toLowerCase()}';
-  }
-
-  static String _mimeTypeFromExtension(String extension) {
-    switch (extension.toLowerCase()) {
-      case '.png':
-        return 'image/png';
-      case '.webp':
-        return 'image/webp';
-      case '.gif':
-        return 'image/gif';
-      case '.heic':
-        return 'image/heic';
-      case '.jpg':
-      case '.jpeg':
-      default:
-        return 'image/jpeg';
-    }
-  }
+  // File extension and MIME helpers delegated to chatFileExtension / chatMimeType in chat_utils.dart
 
   Future<void> _sendProfileLink() async {
     if (!AppRoleState.isProvider) return;
@@ -805,7 +751,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         if (peerUid.isNotEmpty) {
           final raw = participantMetaRaw[peerUid];
           if (raw is Map && raw['lastActiveAt'] != null) {
-            peerHeartbeat = _toRealtimeDateTime(raw['lastActiveAt']);
+            peerHeartbeat = chatDateTimeFromDynamic(raw['lastActiveAt']);
           }
         }
       }
@@ -816,7 +762,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           : widget.thread.lastActiveAt;
       final resolvedLastActiveAt =
           peerHeartbeat ??
-          _toRealtimeDateTime(
+          chatDateTimeFromDynamic(
             data['lastActiveAt'] ?? data['peerActiveAt'] ?? 0,
           );
       final lastActiveAt = resolvedLastActiveAt.year >= 2010
@@ -835,12 +781,13 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       setState(() {
         _currentThread = ChatThread(
           id: threadId,
+          peerUid: _currentThread?.peerUid ?? widget.thread.peerUid,
           title: title.isNotEmpty ? title : widget.thread.title,
           subtitle: resolvedSubtitle.isNotEmpty
               ? resolvedSubtitle
               : widget.thread.subtitle,
           avatarPath: widget.thread.avatarPath,
-          updatedAt: _toRealtimeDateTime(
+          updatedAt: chatDateTimeFromDynamic(
             data['updatedAt'] ?? data['lastMessageAt'] ?? 0,
           ),
           lastActiveAt: lastActiveAt,
@@ -850,13 +797,16 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           messages: _latestMessages,
         );
       });
+    }, onError: (_) {
+      // Keep the current thread visible if realtime thread access fails.
     });
   }
 
   bool _isNearLatest() {
     if (!_scrollController.hasClients) return true;
     final position = _scrollController.position;
-    return (position.maxScrollExtent - position.pixels) <= 80;
+    // With reverse: true, latest messages are at offset 0.0
+    return position.pixels <= 80;
   }
 
   void _scheduleScrollToLatest({required bool animated}) {
@@ -887,6 +837,7 @@ class _ChatHeader extends StatelessWidget {
     final rs = context.rs;
     final status = _activityStatus(thread.lastActiveAt);
     final isProvider = AppRoleState.isProvider;
+    final topInset = MediaQuery.of(context).padding.top;
     return Container(
       decoration: BoxDecoration(
         color: AppThemeTokens.surface(context),
@@ -894,7 +845,7 @@ class _ChatHeader extends StatelessWidget {
       ),
       padding: EdgeInsets.fromLTRB(
         rs.space(4),
-        rs.space(8),
+        topInset + rs.space(8),
         rs.space(8),
         rs.space(10),
       ),
@@ -1040,7 +991,6 @@ class _HeaderAction extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: InkWell(
-        onTap: onTap,
         borderRadius: BorderRadius.circular(rs.radius(12)),
         child: Container(
           padding: rs.all(8),
@@ -1491,6 +1441,7 @@ class _Composer extends StatelessWidget {
   Widget build(BuildContext context) {
     final rs = context.rs;
     const accentColor = AppColors.primary;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return Container(
       decoration: BoxDecoration(
         color: AppThemeTokens.surface(context),
@@ -1502,7 +1453,7 @@ class _Composer extends StatelessWidget {
         rs.space(10),
         rs.space(8),
         rs.space(10),
-        rs.space(14),
+        math.max(rs.space(10), bottomInset + rs.space(6)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -1580,7 +1531,6 @@ class _ComposerAction extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: InkWell(
-        onTap: onTap,
         borderRadius: BorderRadius.circular(rs.radius(24)),
         child: Container(
           width: rs.dimension(44),

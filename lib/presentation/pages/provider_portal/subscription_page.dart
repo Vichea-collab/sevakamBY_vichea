@@ -430,12 +430,10 @@ class _SubscriptionPageState extends State<SubscriptionPage>
                     iconColor: const Color(0xFFD97706),
                     title: 'KHQR',
                     subtitle: 'Scan a Bakong KHQR and verify payment in app.',
-                    badgeLabel: 'Available',
-                    badgeColor: const Color(0xFFFEF3C7),
-                    badgeTextColor: const Color(0xFF92400E),
-                    onTap: () => Navigator.of(
-                      sheetContext,
-                    ).pop(_SubscriptionPaymentMethod.khqr),
+                    badgeLabel: 'Upcoming',
+                    badgeColor: const Color(0xFFF3F4F6),
+                    badgeTextColor: const Color(0xFF6B7280),
+                    onTap: null,
                   ),
                 ],
               ),
@@ -452,7 +450,7 @@ class _SubscriptionPageState extends State<SubscriptionPage>
       icon: Icons.cancel_outlined,
       title: 'Cancel Subscription',
       message:
-          'Your plan stays active until the current billing period ends, then it downgrades to Basic.',
+          'This cancels your paid subscription now. Your account will switch to Basic immediately and paid-plan features will stop.',
       confirmText: 'Cancel Subscription',
       cancelText: 'Keep Plan',
       tone: AppDialogTone.danger,
@@ -466,7 +464,7 @@ class _SubscriptionPageState extends State<SubscriptionPage>
       if (success) {
         AppToast.success(
           context,
-          'Subscription will cancel at the end of the current period.',
+          'Subscription cancelled. Your account is now on Basic.',
         );
       } else {
         AppToast.error(context, 'Failed to cancel. Try again later.');
@@ -564,9 +562,7 @@ class _CurrentPlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final plan = status.plan;
-    final statusLabel = status.isCanceling
-        ? 'Ending soon'
-        : (status.isActive ? 'Active' : _prettyStatus(status.status));
+    final statusLabel = status.isActive ? 'Active' : _prettyStatus(status.status);
     final statusPalette = _statusPalette();
     final periodLabel = _periodLabel();
 
@@ -719,11 +715,9 @@ class _CurrentPlanCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          status.isCanceling
-                              ? 'Access ends at period close'
-                              : (status.autoRenews
-                                    ? 'Current billing period'
-                                    : 'Access period'),
+                          status.autoRenews
+                              ? 'Current billing period'
+                              : 'Access period',
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
                                 color: Colors.white.withValues(alpha: 0.82),
@@ -743,9 +737,7 @@ class _CurrentPlanCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    status.isCanceling
-                        ? 'Ends'
-                        : (status.autoRenews ? 'Renews' : 'Valid'),
+                    status.autoRenews ? 'Renews' : 'Valid',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
@@ -767,9 +759,9 @@ class _CurrentPlanCard extends StatelessWidget {
       return '${_formatShortDate(start)} - ${_formatShortDate(end)}';
     }
     if (end != null) {
-      return status.isCanceling
-          ? 'Ends ${_formatShortDate(end)}'
-          : 'Renews ${_formatShortDate(end)}';
+      return status.autoRenews
+          ? 'Renews ${_formatShortDate(end)}'
+          : 'Valid until ${_formatShortDate(end)}';
     }
     return null;
   }
@@ -803,14 +795,6 @@ class _CurrentPlanCard extends StatelessWidget {
   }
 
   ({Color background, Color border, Color foreground}) _statusPalette() {
-    if (status.isCanceling) {
-      return (
-        background: const Color(0xFFFFF3D6),
-        border: const Color(0xFFFBBF24),
-        foreground: const Color(0xFF92400E),
-      );
-    }
-
     switch (status.status.trim().toLowerCase()) {
       case 'active':
       case 'trialing':
@@ -982,19 +966,6 @@ class _PlanCard extends StatelessWidget {
                         color: plan.badgeColor,
                       ),
                     ),
-                    if (plan.annualPriceLabel.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          plan.annualPriceLabel,
-                          textAlign: TextAlign.right,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: plan.badgeColor.withValues(alpha: 0.82),
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ),
                   ],
                 ),
               ],
@@ -1077,44 +1048,6 @@ class _PlanCard extends StatelessWidget {
                     ),
                   );
                 }),
-                if (plan.qualityGate != null) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 1),
-                          child: Icon(
-                            Icons.shield_outlined,
-                            size: 16,
-                            color: Color(0xFFD97706),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _eligibilityText(plan.qualityGate!),
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: const Color(0xFF92400E),
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.2,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
                 if (plan.bestFor.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Row(
@@ -1197,13 +1130,6 @@ class _PlanCard extends StatelessWidget {
         text.contains('photo');
   }
 
-  String _eligibilityText(String raw) {
-    final value = raw.trim();
-    if (value.toLowerCase().startsWith('target requirement:')) {
-      return 'Eligibility: ${value.substring('Target requirement:'.length).trim()}';
-    }
-    return value;
-  }
 }
 
 class _PlanMetric extends StatelessWidget {
@@ -1251,7 +1177,7 @@ class _PaymentMethodTile extends StatelessWidget {
   final String badgeLabel;
   final Color badgeColor;
   final Color badgeTextColor;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _PaymentMethodTile({
     required this.icon,
@@ -1267,7 +1193,10 @@ class _PaymentMethodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    final bool disabled = onTap == null;
+    return Opacity(
+      opacity: disabled ? 0.55 : 1.0,
+      child: Material(
       color: AppThemeTokens.mutedSurface(context),
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
@@ -1342,6 +1271,7 @@ class _PaymentMethodTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

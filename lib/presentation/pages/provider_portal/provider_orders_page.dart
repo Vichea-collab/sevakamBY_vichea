@@ -37,9 +37,12 @@ class ProviderOrdersPage extends StatefulWidget {
 
 class _ProviderOrdersPageState extends State<ProviderOrdersPage>
     with WidgetsBindingObserver {
+  static const Duration _autoRefreshCooldown = Duration(seconds: 20);
+
   late ProviderOrderTab _tab;
   bool _isPaging = false;
   bool _historyTabLoading = false;
+  DateTime? _lastLoadedAt;
 
   @override
   void initState() {
@@ -50,7 +53,7 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
     _tab = widget.initialTab;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      unawaited(_loadOrders(forceNetwork: true, page: 1));
+      unawaited(_requestLoad(page: 1));
     });
   }
 
@@ -65,7 +68,7 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(_loadOrders(forceNetwork: true));
+      unawaited(_requestLoad());
     }
   }
 
@@ -74,8 +77,7 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
       return;
     }
     unawaited(
-      _loadOrders(
-        forceNetwork: true,
+      _requestLoad(
         page: _normalizedPage(OrderState.providerPagination.value.page),
       ),
     );
@@ -280,6 +282,15 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
     final targetPage = _normalizedPage(
       page ?? OrderState.providerPagination.value.page,
     );
+    final hasFreshCache =
+        !forceNetwork &&
+        targetPage == OrderState.providerPagination.value.page &&
+        OrderState.providerOrders.value.isNotEmpty &&
+        _lastLoadedAt != null &&
+        DateTime.now().difference(_lastLoadedAt!) < _autoRefreshCooldown;
+    if (hasFreshCache) {
+      return;
+    }
     final statuses = _statusFiltersForTab(_tab);
     final shouldShowHistoryLoading = _tab == ProviderOrderTab.completed;
     if (shouldShowHistoryLoading && mounted) {
@@ -295,6 +306,7 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
         await OrderState.refreshCurrentRole(page: targetPage);
       }
     } finally {
+      _lastLoadedAt = DateTime.now();
       if (shouldShowHistoryLoading && mounted) {
         setState(() => _historyTabLoading = false);
       }
@@ -388,6 +400,10 @@ class _ProviderOrdersPageState extends State<ProviderOrdersPage>
       _isPaging = false;
     });
     unawaited(_loadOrders(forceNetwork: true, page: 1));
+  }
+
+  Future<void> _requestLoad({int? page}) async {
+    await _loadOrders(forceNetwork: false, page: page);
   }
 
   List<String> _statusFiltersForTab(ProviderOrderTab tab) {

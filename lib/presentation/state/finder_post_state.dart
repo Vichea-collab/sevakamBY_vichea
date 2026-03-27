@@ -37,6 +37,7 @@ class FinderPostState {
   static final ValueNotifier<bool> realtimeActive = ValueNotifier(false);
 
   static bool _initialized = false;
+  static String _backendToken = AppEnv.apiAuthToken().trim();
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -45,8 +46,9 @@ class FinderPostState {
   }
 
   static void setBackendToken(String token, {bool refresh = true}) {
+    _backendToken = token.trim();
     _repository.setBearerToken(token);
-    if (token.trim().isEmpty) {
+    if (_backendToken.isEmpty) {
       posts.value = const <FinderPostItem>[];
       allPosts.value = const <FinderPostItem>[];
       pagination.value = const PaginationMeta.initial(limit: _pageSize);
@@ -62,6 +64,10 @@ class FinderPostState {
   }
 
   static Future<void> refresh({int? page, int limit = _pageSize}) async {
+    if (_backendToken.isEmpty) {
+      loading.value = false;
+      return;
+    }
     await _awaitSafeNotifierWindow();
     final targetPage = _normalizedPage(page ?? pagination.value.page);
     loading.value = true;
@@ -162,6 +168,10 @@ class FinderPostState {
     int limit = _pageSize,
     int maxPages = 5,
   }) async {
+    if (_backendToken.isEmpty) {
+      allPostsLoading.value = false;
+      return;
+    }
     await _awaitSafeNotifierWindow();
     allPostsLoading.value = true;
     try {

@@ -130,10 +130,16 @@ class AdminRemoteDataSource {
     required String userUid,
     required String ticketId,
     required String text,
+    String? imageUrl,
+    String type = 'text',
   }) async {
+    final body = <String, dynamic>{'text': text, 'type': type};
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      body['imageUrl'] = imageUrl;
+    }
     final response = await _apiClient.postJson(
       '/api/admin/tickets/${Uri.encodeComponent(userUid)}/${Uri.encodeComponent(ticketId)}/messages',
-      body: {'text': text},
+      body: body,
     );
     return _safeMap(response['data']);
   }

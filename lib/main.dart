@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/config/app_env.dart';
@@ -26,11 +28,24 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await _runSafe('AppEnv.load', AppEnv.load);
   await _runSafe('AppState.initialize', AppState.initialize);
-  
+
   // Must initialize AppRoleState BEFORE AuthState so AuthState knows who is signing in natively
   await _runSafe('AppRoleState.initialize', AppRoleState.initialize);
-  
+
   await _runSafe('AuthState.initialize', AuthState.initialize);
+  runApp(const ServiceFinderApp());
+  unawaited(_warmAppStateAfterLaunch());
+}
+
+Future<void> _runSafe(String label, Future<void> Function() action) async {
+  try {
+    await action();
+  } catch (error) {
+    debugPrint('$label failed: $error');
+  }
+}
+
+Future<void> _warmAppStateAfterLaunch() async {
   await Future.wait<void>([
     _runSafe('FavoriteState.init', FavoriteState.init),
     _runSafe(
@@ -43,18 +58,9 @@ Future<void> main() async {
     _runSafe('FinderPostState.initialize', FinderPostState.initialize),
     _runSafe('ProviderPostState.initialize', ProviderPostState.initialize),
     _runSafe('OrderState.initialize', OrderState.initialize),
+    _runSafe(
+      'AppSyncState.initialize',
+      () => AppSyncState.initialize(signedIn: AuthState.isSignedIn),
+    ),
   ]);
-  await _runSafe(
-    'AppSyncState.initialize',
-    () => AppSyncState.initialize(signedIn: AuthState.isSignedIn),
-  );
-  runApp(const ServiceFinderApp());
-}
-
-Future<void> _runSafe(String label, Future<void> Function() action) async {
-  try {
-    await action();
-  } catch (error) {
-    debugPrint('$label failed: $error');
-  }
 }

@@ -46,6 +46,7 @@ abstract class AdminRepository {
     required String userUid,
     required String ticketId,
     required String text,
+    String? imageUrl,
   });
   Future<AdminPage<AdminServiceRow>> fetchServices({
     int page = 1,

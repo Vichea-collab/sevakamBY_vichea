@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/app_env.dart';
@@ -180,6 +180,16 @@ class SafeImage extends StatelessWidget {
     }
 
     if (isNetwork) {
+      if (kIsWeb) {
+        return Image.network(
+          url,
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) => _errorWidget(context),
+          webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+        );
+      }
       return CachedNetworkImage(
         imageUrl: url,
         width: width,

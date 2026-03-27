@@ -292,7 +292,6 @@ class _ProviderTopHeader extends StatefulWidget {
 }
 
 class _ProviderTopHeaderState extends State<_ProviderTopHeader> {
-  Timer? _chatRefreshTimer;
   bool _syncingProfile = true;
 
   @override
@@ -303,15 +302,10 @@ class _ProviderTopHeaderState extends State<_ProviderTopHeader> {
       unawaited(ChatState.refreshUnreadCount());
       unawaited(_syncProfile());
     });
-    _chatRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (!mounted) return;
-      unawaited(ChatState.refreshUnreadCount());
-    });
   }
 
   @override
   void dispose() {
-    _chatRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -479,6 +473,10 @@ class _ProviderSearchBar extends StatelessWidget {
     final rs = context.rs;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final fieldTextColor = AppThemeTokens.textPrimary(context);
+    final hintColor = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF64748B);
     return Container(
       padding: rs.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
@@ -496,21 +494,36 @@ class _ProviderSearchBar extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            height: rs.dimension(36),
-            width: rs.dimension(36),
+            height: rs.dimension(40),
+            width: rs.dimension(40),
             decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1B3A73)
-                  : AppColors.primary.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(rs.radius(12)),
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(rs.radius(14)),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.24),
+                  blurRadius: rs.space(10),
+                  offset: Offset(0, rs.space(3)),
+                ),
+              ],
             ),
-            child: Icon(Icons.search, color: Colors.white, size: rs.icon(20)),
+            child: Icon(
+              Icons.search,
+              color: Colors.white,
+              size: rs.icon(21),
+            ),
           ),
           rs.gapW(10),
           Expanded(
             child: TextField(
               controller: controller,
               onChanged: onChanged,
+              cursorColor: AppColors.primary,
+              style: TextStyle(
+                color: fieldTextColor,
+                fontSize: rs.text(14),
+                fontWeight: FontWeight.w600,
+              ),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
@@ -518,8 +531,9 @@ class _ProviderSearchBar extends StatelessWidget {
                 isDense: true,
                 hintText: 'Search client, service, or location',
                 hintStyle: TextStyle(
-                  color: theme.textTheme.bodyMedium?.color,
+                  color: hintColor,
                   fontSize: rs.text(14),
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -533,23 +547,6 @@ class _ProviderSearchBar extends StatelessWidget {
                 color: theme.textTheme.bodyMedium?.color,
               ),
             ),
-          rs.gapW(8),
-          Container(
-            height: rs.dimension(34),
-            width: rs.dimension(34),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1B3A73)
-                  : AppColors.primary.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(rs.radius(10)),
-              border: Border.all(
-                color: isDark
-                    ? const Color(0xFF345D9D)
-                    : AppColors.primary.withValues(alpha: 0.28),
-              ),
-            ),
-            child: Icon(Icons.tune, color: Colors.white, size: rs.icon(18)),
-          ),
         ],
       ),
     );

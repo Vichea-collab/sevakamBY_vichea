@@ -579,6 +579,7 @@ class AdminTicketRow {
   final String userName;
   final String userEmail;
   final String userRole;
+  final String ticketType;
   final String title;
   final String message;
   final String category;
@@ -595,6 +596,7 @@ class AdminTicketRow {
     required this.userName,
     required this.userEmail,
     required this.userRole,
+    required this.ticketType,
     required this.title,
     required this.message,
     required this.category,
@@ -613,6 +615,7 @@ class AdminTicketRow {
       userName: _AdminParser.text(row['userName'], fallback: 'User'),
       userEmail: _AdminParser.text(row['userEmail']),
       userRole: _AdminParser.text(row['userRole'], fallback: 'finder'),
+      ticketType: _AdminParser.text(row['ticketType'], fallback: 'help'),
       title: _AdminParser.text(row['title'], fallback: 'Support request'),
       message: _AdminParser.text(row['message']),
       category: _AdminParser.text(row['category'], fallback: 'other'),
@@ -636,6 +639,7 @@ class AdminTicketMessageRow {
   final String id;
   final String text;
   final String type;
+  final String imageUrl;
   final String senderUid;
   final String senderRole;
   final String senderName;
@@ -645,6 +649,7 @@ class AdminTicketMessageRow {
     required this.id,
     required this.text,
     required this.type,
+    this.imageUrl = '',
     required this.senderUid,
     required this.senderRole,
     required this.senderName,
@@ -652,18 +657,40 @@ class AdminTicketMessageRow {
   });
 
   factory AdminTicketMessageRow.fromMap(Map<String, dynamic> row) {
+    final text = _AdminParser.text(
+      row['text'],
+      fallback: _AdminParser.text(row['message']),
+    );
+    final type = _AdminParser.text(row['type'], fallback: 'text');
+    String imageUrl = _AdminParser.text(row['imageUrl']);
+    if (imageUrl.isEmpty &&
+        (type == 'image' ||
+            text.startsWith('data:image/') ||
+            (text.startsWith('http') && _looksLikeImageUrl(text)))) {
+      imageUrl = text;
+    }
     return AdminTicketMessageRow(
       id: _AdminParser.text(row['id']),
-      text: _AdminParser.text(
-        row['text'],
-        fallback: _AdminParser.text(row['message']),
-      ),
-      type: _AdminParser.text(row['type'], fallback: 'text'),
+      text: text,
+      type: type,
+      imageUrl: imageUrl,
       senderUid: _AdminParser.text(row['senderUid']),
       senderRole: _AdminParser.text(row['senderRole'], fallback: 'finder'),
       senderName: _AdminParser.text(row['senderName'], fallback: 'User'),
       createdAt: _AdminParser.parseDate(row['createdAt']),
     );
+  }
+
+  static bool _looksLikeImageUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.contains('firebasestorage.googleapis.com') ||
+        lower.contains('storage.googleapis.com') ||
+        lower.contains('alt=media') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp');
   }
 }
 

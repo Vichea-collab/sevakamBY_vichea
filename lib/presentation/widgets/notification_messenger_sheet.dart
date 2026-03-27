@@ -220,7 +220,6 @@ class _MessengerThreadTile extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: InkWell(
-        onTap: onTap,
         borderRadius: BorderRadius.circular(18),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

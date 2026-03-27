@@ -24,6 +24,7 @@ class ChatMessage {
 
 class ChatThread {
   final String id;
+  final String peerUid;
   final String title;
   final String subtitle;
   final String avatarPath;
@@ -34,6 +35,7 @@ class ChatThread {
 
   const ChatThread({
     required this.id,
+    this.peerUid = '',
     required this.title,
     required this.subtitle,
     required this.avatarPath,

@@ -248,10 +248,16 @@ class ProfileRemoteDataSource {
   Future<Map<String, dynamic>> sendHelpTicketMessage({
     required String ticketId,
     required String text,
+    String? imageUrl,
+    String type = 'text',
   }) async {
+    final body = <String, dynamic>{'text': text, 'type': type};
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      body['imageUrl'] = imageUrl;
+    }
     final response = await _apiClient.postJson(
       '/api/users/help-tickets/${Uri.encodeComponent(ticketId)}/messages',
-      {'text': text},
+      body,
     );
     return _safeMap(response['data']);
   }

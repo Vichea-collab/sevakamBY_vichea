@@ -377,11 +377,13 @@ class AdminDashboardState {
     required String userUid,
     required String ticketId,
     required String text,
+    String? imageUrl,
   }) async {
     final message = await _repository.sendTicketMessage(
       userUid: userUid,
       ticketId: ticketId,
       text: text,
+      imageUrl: imageUrl,
     );
     ticketMessages.value = [...ticketMessages.value, message];
     return message;

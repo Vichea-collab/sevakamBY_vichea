@@ -149,42 +149,58 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             children: [
-              AppTopBar(
-                title: 'Offer Service',
-                showBack: true,
-                onBack: _handleBackNavigation,
-                actions: [
-                  TextButton.icon(
-                    onPressed: _openManageSheet,
-                    icon: const Icon(Icons.edit_note, size: 16),
-                    label: const Text('Manage'),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppThemeTokens.surface(context),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppThemeTokens.outline(context)),
+                  boxShadow: AppThemeTokens.cardShadow(context),
+                ),
+                child: AppTopBar(
+                  title: 'Offer Service',
+                  showBack: true,
+                  onBack: _handleBackNavigation,
+                  actions: [
+                    TextButton.icon(
+                      onPressed: _openManageSheet,
+                      icon: const Icon(Icons.edit_note, size: 16),
+                      label: const Text('Manage'),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 10),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SingleChildScrollView(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
-                        ),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-                          decoration: BoxDecoration(
-                            color: AppThemeTokens.surface(context),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: AppThemeTokens.outline(context),
+                child: ClipRect(
+                  child: ScrollConfiguration(
+                    behavior: const MaterialScrollBehavior().copyWith(
+                      overscroll: false,
+                    ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          physics: const ClampingScrollPhysics(),
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight,
                             ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+                              decoration: BoxDecoration(
+                                color: AppThemeTokens.surface(context),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: AppThemeTokens.outline(context),
+                                ),
+                                boxShadow: AppThemeTokens.cardShadow(context),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                               const PostComposerHeaderCard(
                                 icon: Icons.storefront_rounded,
                                 accentColor: Color(0xFF117A5A),
@@ -327,12 +343,14 @@ class _ProviderPostPageState extends State<ProviderPostPage> {
                                           : 'Update post'),
                                 onPressed: _posting ? null : _submit,
                               ),
-                            ],
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
             ],

@@ -87,7 +87,10 @@ class _SearchPageState extends State<SearchPage> {
           !ProviderPostState.loading.value) {
         await ProviderPostState.refresh(page: 1);
       }
-      await ProviderPostState.refreshAllForLookup();
+      if (ProviderPostState.allPosts.value.isEmpty &&
+          !ProviderPostState.allPostsLoading.value) {
+        await ProviderPostState.refreshAllForLookup();
+      }
     } catch (_) {
       // Keep page usable with partial data on transient failures.
     } finally {
@@ -839,15 +842,15 @@ class _ServiceListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = context.rs;
-    final displayRating = providerRating ?? item.rating;
+    final displayRating = item.rating;
     return PressableScale(
       onTap: onTap,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(rs.radius(16)),
         child: Container(
-          margin: EdgeInsets.only(bottom: rs.space(12)),
-          padding: rs.all(14),
+          margin: EdgeInsets.only(bottom: rs.space(10)),
+          padding: rs.all(12),
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(rs.radius(16)),
@@ -947,7 +950,7 @@ class _ServiceListTile extends StatelessWidget {
                           ),
                       ],
                     ),
-                    rs.gapH(6),
+                    rs.gapH(4),
                     Wrap(
                       spacing: rs.space(8),
                       runSpacing: rs.space(4),
@@ -991,7 +994,7 @@ class _ServiceListTile extends StatelessWidget {
                       ],
                     ),
                     if (providerName != null) ...[
-                      rs.gapH(8),
+                      rs.gapH(6),
                       Row(
                         children: [
                           Container(
@@ -1020,24 +1023,6 @@ class _ServiceListTile extends StatelessWidget {
                         ],
                       ),
                     ],
-                    rs.gapH(8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_rounded,
-                          size: rs.icon(12),
-                          color: Theme.of(context).hintColor,
-                        ),
-                        rs.gapW(4),
-                        Expanded(
-                          child: Text(
-                            '${item.location} • ${item.etaHours}h arrival',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: Theme.of(context).hintColor),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),

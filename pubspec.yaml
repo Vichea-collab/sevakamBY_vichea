@@ -28,6 +28,7 @@ dependencies:
   cloud_firestore: ^6.1.2
   firebase_storage: ^13.0.6
   firebase_messaging: ^16.1.1
+  flutter_local_notifications: ^21.0.0
   cloud_functions: ^6.0.6
   shimmer: ^3.0.0
   lottie: ^3.1.2

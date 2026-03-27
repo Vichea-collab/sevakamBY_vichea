@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/app_env.dart';
 import '../../core/firebase/firebase_bootstrap.dart';
+import '../../core/firebase/firebase_storage_service.dart';
+import '../../core/utils/chat_utils.dart';
 import '../../data/network/backend_api_client.dart';
 import '../../domain/entities/chat.dart';
 import '../../domain/entities/pagination.dart';
@@ -20,7 +22,7 @@ class ChatState {
   static const int _pageSize = 15;
   static const String _outboxStorageKey = 'chat_outbox_v1';
   static const Duration _outboxFlushInterval = Duration(seconds: 8);
-  static const Duration _unreadSyncInterval = Duration(seconds: 6);
+  static const Duration _unreadSyncInterval = Duration(seconds: 15);
 
   static final BackendApiClient _apiClient = BackendApiClient(
     baseUrl: AppEnv.apiBaseUrl(),
@@ -38,6 +40,7 @@ class ChatState {
   static final ValueNotifier<int> unreadCount = ValueNotifier(0);
   static final ValueNotifier<int> unreadMessageCount = ValueNotifier(0);
   static final ValueNotifier<int> pendingOutboxCount = ValueNotifier(0);
+  static final ValueNotifier<String> activeThreadId = ValueNotifier('');
 
   static final List<_QueuedOutgoingMessage> _outbox =
       <_QueuedOutgoingMessage>[];
@@ -70,9 +73,11 @@ class ChatState {
       realtimeActive.value = false;
       unreadCount.value = 0;
       unreadMessageCount.value = 0;
+      activeThreadId.value = '';
       return;
     }
     _startUnreadSyncTimer();
+    unawaited(ChatState.updateHeartbeat());
     if (refresh) {
       unawaited(ChatState.refresh(page: 1));
       unawaited(ChatState.refreshUnreadCount());
@@ -102,7 +107,6 @@ class ChatState {
       _syncUnreadCountersFromThreads(threads.value);
       threadPagination.value = result.pagination;
       realtimeActive.value = false;
-      unawaited(refreshUnreadCount());
     } catch (_) {
       threads.value = const <ChatThread>[];
       threadPagination.value = PaginationMeta(
@@ -131,7 +135,9 @@ class ChatState {
       return;
     }
     try {
-      final response = await _apiClient.getJson('/api/chats/unread-count');
+      final response = await _apiClient.getJson(
+        '/api/chats/unread-count?role=${AppRoleState.isProvider ? 'provider' : 'finder'}',
+      );
       _applyUnreadCounters(response['data']);
     } catch (_) {}
   }
@@ -347,13 +353,20 @@ class ChatState {
       throw StateError('Please sign in first.');
     }
 
-    final extension = _extensionFromName(fileName);
-    final mimeType = _mimeTypeFromExtension(extension);
+    final extension = chatFileExtension(fileName);
+    final mimeType = chatMimeType(extension);
     final safeFileName = fileName.trim().isEmpty
         ? 'chat_image$extension'
         : fileName.trim();
-    final base64Data = base64Encode(bytes);
-    final dataUrl = 'data:$mimeType;base64,$base64Data';
+    final uploadUrl = await FirebaseStorageService.uploadMessageImage(
+      bytes,
+      extension: extension.replaceFirst('.', ''),
+      folder: 'chat_images',
+      filePrefix: 'chat',
+    );
+    if (uploadUrl == null || uploadUrl.isEmpty) {
+      throw StateError('Unable to upload image right now.');
+    }
 
     try {
       final sent = await _postMessage(
@@ -361,7 +374,7 @@ class ChatState {
         body: <String, dynamic>{
           'text': '',
           'type': 'image',
-          'imageDataUrl': dataUrl,
+          'imageUrl': uploadUrl,
           'fileName': safeFileName,
           'mimeType': mimeType,
           'senderName': _safeName(
@@ -382,7 +395,7 @@ class ChatState {
                 ? 'local_${DateTime.now().microsecondsSinceEpoch}'
                 : clientMessageId.trim(),
             threadId: threadId.trim(),
-            imageDataUrl: dataUrl,
+            imageUrl: uploadUrl,
             fileName: safeFileName,
             mimeType: mimeType,
           ),
@@ -422,6 +435,17 @@ class ChatState {
         await refresh(page: currentPage);
       }
       await refreshUnreadCount();
+    }
+  }
+
+  static void setActiveThread(String threadId) {
+    activeThreadId.value = threadId.trim();
+  }
+
+  static void clearActiveThread(String threadId) {
+    final normalized = threadId.trim();
+    if (activeThreadId.value == normalized) {
+      activeThreadId.value = '';
     }
   }
 
@@ -501,7 +525,7 @@ class ChatState {
     }
 
     final response = await _apiClient.getJson(
-      '/api/chats?page=$page&limit=$limit',
+      '/api/chats?page=$page&limit=$limit&role=${AppRoleState.isProvider ? 'provider' : 'finder'}',
     );
     final data = response['data'];
     if (data is! List) {
@@ -609,7 +633,7 @@ class ChatState {
     final subtitle = (row['subtitle'] ?? '').toString().trim();
 
     final unreadCount = _unreadCount(row, currentUid);
-    final updatedAt = _toDateTime(
+    final updatedAt = chatDateTimeFromDynamic(
       row['updatedAt'] ?? row['lastMessageAt'] ?? row['createdAt'],
     );
 
@@ -632,7 +656,7 @@ class ChatState {
       if (peerUid.isNotEmpty) {
         final raw = participantMetaRaw[peerUid];
         if (raw is Map && raw['lastActiveAt'] != null) {
-          peerHeartbeat = _toDateTime(raw['lastActiveAt']);
+          peerHeartbeat = chatDateTimeFromDynamic(raw['lastActiveAt']);
         }
       }
     }
@@ -641,10 +665,13 @@ class ChatState {
     // Otherwise fallback to an old date (Epoch) so they don't falsely appear online.
     final lastActiveAt =
         peerHeartbeat ??
-        _toDateTime(row['lastActiveAt'] ?? row['peerActiveAt'] ?? 0);
+        chatDateTimeFromDynamic(
+          row['lastActiveAt'] ?? row['peerActiveAt'] ?? 0,
+        );
 
     return ChatThread(
       id: id,
+      peerUid: (row['peerUid'] ?? '').toString().trim(),
       title: title.isEmpty ? fallbackTitle : title,
       subtitle: subtitle.isEmpty
           ? (fallbackSubtitle.isEmpty ? 'Start conversation' : fallbackSubtitle)
@@ -699,35 +726,7 @@ class ChatState {
     return 0;
   }
 
-  static DateTime _toDateTime(dynamic value) {
-    if (value == null) return DateTime.fromMillisecondsSinceEpoch(0);
-    if (value is DateTime) return value.toLocal();
-    if (value is String) {
-      final parsed = DateTime.tryParse(value);
-      if (parsed != null) return parsed.toLocal();
-    }
-    if (value is num) {
-      if (value == 0) return DateTime.fromMillisecondsSinceEpoch(0);
-      final intValue = value.toInt();
-      final milliseconds = intValue.abs() < 1000000000000
-          ? intValue * 1000
-          : intValue;
-      return DateTime.fromMillisecondsSinceEpoch(milliseconds).toLocal();
-    }
-    if (value is Map && value['_seconds'] is num) {
-      final seconds = value['_seconds'] as num;
-      return DateTime.fromMillisecondsSinceEpoch(
-        (seconds * 1000).round(),
-      ).toLocal();
-    }
-    if (value is Map && value['seconds'] is num) {
-      final seconds = value['seconds'] as num;
-      return DateTime.fromMillisecondsSinceEpoch(
-        (seconds * 1000).round(),
-      ).toLocal();
-    }
-    return DateTime.fromMillisecondsSinceEpoch(0);
-  }
+  // DateTime parsing delegated to chatDateTimeFromDynamic in chat_utils.dart
 
   static Map<String, dynamic> _safeMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
@@ -801,29 +800,7 @@ class ChatState {
     return ChatMessageType.text;
   }
 
-  static String _extensionFromName(String fileName) {
-    final trimmed = fileName.trim();
-    final dot = trimmed.lastIndexOf('.');
-    if (dot <= 0 || dot >= trimmed.length - 1) return '.jpg';
-    return '.${trimmed.substring(dot + 1).toLowerCase()}';
-  }
-
-  static String _mimeTypeFromExtension(String extension) {
-    switch (extension.toLowerCase()) {
-      case '.png':
-        return 'image/png';
-      case '.webp':
-        return 'image/webp';
-      case '.gif':
-        return 'image/gif';
-      case '.heic':
-        return 'image/heic';
-      case '.jpg':
-      case '.jpeg':
-      default:
-        return 'image/jpeg';
-    }
-  }
+  // File extension and MIME helpers delegated to chatFileExtension / chatMimeType in chat_utils.dart
 
   static String _starterText({
     required String peerName,
@@ -844,7 +821,7 @@ class ChatState {
     final imageUrl = (row['imageUrl'] ?? '').toString().trim();
     final seenBy = _safeStringList(row['seenBy']);
     final deliveredTo = _safeStringList(row['deliveredTo']);
-    final sentAt = _toDateTime(row['sentAt']);
+    final sentAt = chatDateTimeFromDynamic(row['sentAt']);
     final id = (row['id'] ?? '').toString().trim();
     return ChatMessage(
       id: id.isEmpty ? '${senderUid}_${sentAt.millisecondsSinceEpoch}' : id,
@@ -856,7 +833,7 @@ class ChatState {
       imageUrl: imageUrl,
       fromMe: senderUid == currentUid,
       sentAt: sentAt,
-      deliveryStatus: _deliveryStatusForMessage(
+      deliveryStatus: chatDeliveryStatus(
         senderUid: senderUid,
         currentUid: currentUid,
         seenBy: seenBy,
@@ -865,23 +842,7 @@ class ChatState {
     );
   }
 
-  static ChatDeliveryStatus _deliveryStatusForMessage({
-    required String senderUid,
-    required String currentUid,
-    required List<String> seenBy,
-    required List<String> deliveredTo,
-  }) {
-    if (senderUid != currentUid) {
-      return ChatDeliveryStatus.seen;
-    }
-    final peerSeen = seenBy.any((uid) => uid.isNotEmpty && uid != senderUid);
-    if (peerSeen) return ChatDeliveryStatus.seen;
-    final peerDelivered = deliveredTo.any(
-      (uid) => uid.isNotEmpty && uid != senderUid,
-    );
-    if (peerDelivered) return ChatDeliveryStatus.delivered;
-    return ChatDeliveryStatus.sent;
-  }
+  // Delivery status logic delegated to chatDeliveryStatus in chat_utils.dart
 
   static List<String> _safeStringList(dynamic value) {
     if (value is! List) return const <String>[];
@@ -1012,6 +973,7 @@ class ChatState {
           (thread) => thread.id == threadId
               ? ChatThread(
                   id: thread.id,
+                  peerUid: thread.peerUid,
                   title: thread.title,
                   subtitle: thread.subtitle,
                   avatarPath: thread.avatarPath,
@@ -1039,6 +1001,7 @@ class ChatState {
           (thread) => _pendingReadThreadIds.contains(thread.id)
               ? ChatThread(
                   id: thread.id,
+                  peerUid: thread.peerUid,
                   title: thread.title,
                   subtitle: thread.subtitle,
                   avatarPath: thread.avatarPath,
@@ -1085,7 +1048,7 @@ class _QueuedOutgoingMessage {
   final String threadId;
   final String type;
   final String text;
-  final String imageDataUrl;
+  final String imageUrl;
   final String fileName;
   final String mimeType;
   final int createdAtMs;
@@ -1097,7 +1060,7 @@ class _QueuedOutgoingMessage {
     required this.threadId,
     required this.type,
     required this.text,
-    required this.imageDataUrl,
+    required this.imageUrl,
     required this.fileName,
     required this.mimeType,
     required this.createdAtMs,
@@ -1116,7 +1079,7 @@ class _QueuedOutgoingMessage {
       threadId: threadId,
       type: 'text',
       text: text,
-      imageDataUrl: '',
+      imageUrl: '',
       fileName: '',
       mimeType: '',
       createdAtMs: now,
@@ -1128,7 +1091,7 @@ class _QueuedOutgoingMessage {
   factory _QueuedOutgoingMessage.image({
     required String localId,
     required String threadId,
-    required String imageDataUrl,
+    required String imageUrl,
     required String fileName,
     required String mimeType,
   }) {
@@ -1138,7 +1101,7 @@ class _QueuedOutgoingMessage {
       threadId: threadId,
       type: 'image',
       text: '',
-      imageDataUrl: imageDataUrl,
+      imageUrl: imageUrl,
       fileName: fileName,
       mimeType: mimeType,
       createdAtMs: now,
@@ -1160,7 +1123,7 @@ class _QueuedOutgoingMessage {
       threadId: threadId,
       type: type == 'image' ? 'image' : 'text',
       text: (row['text'] ?? '').toString(),
-      imageDataUrl: (row['imageDataUrl'] ?? '').toString(),
+      imageUrl: (row['imageUrl'] ?? row['imageDataUrl'] ?? '').toString(),
       fileName: (row['fileName'] ?? '').toString(),
       mimeType: (row['mimeType'] ?? '').toString(),
       createdAtMs: (row['createdAtMs'] as num?)?.toInt() ?? now,
@@ -1175,7 +1138,7 @@ class _QueuedOutgoingMessage {
       'threadId': threadId,
       'type': type,
       'text': text,
-      'imageDataUrl': imageDataUrl,
+      'imageUrl': imageUrl,
       'fileName': fileName,
       'mimeType': mimeType,
       'createdAtMs': createdAtMs,
@@ -1190,7 +1153,7 @@ class _QueuedOutgoingMessage {
       threadId: threadId,
       type: type,
       text: text,
-      imageDataUrl: imageDataUrl,
+      imageUrl: imageUrl,
       fileName: fileName,
       mimeType: mimeType,
       createdAtMs: createdAtMs,
@@ -1201,10 +1164,19 @@ class _QueuedOutgoingMessage {
 
   Map<String, dynamic> toPayload() {
     if (type == 'image') {
+      if (imageUrl.startsWith('data:')) {
+        return <String, dynamic>{
+          'text': '',
+          'type': 'image',
+          'imageDataUrl': imageUrl,
+          'fileName': fileName,
+          'mimeType': mimeType,
+        };
+      }
       return <String, dynamic>{
         'text': '',
         'type': 'image',
-        'imageDataUrl': imageDataUrl,
+        'imageUrl': imageUrl,
         'fileName': fileName,
         'mimeType': mimeType,
       };

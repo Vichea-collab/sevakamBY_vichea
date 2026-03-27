@@ -48,5 +48,6 @@ abstract class ProfileSettingsRepository {
     required bool isProvider,
     required String ticketId,
     required String text,
+    String? imageUrl,
   });
 }

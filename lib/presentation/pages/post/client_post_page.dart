@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:servicefinder/core/constants/app_colors.dart';
 import 'package:servicefinder/core/constants/location_options.dart';
 import 'package:servicefinder/core/constants/app_spacing.dart';
+import 'package:servicefinder/core/theme/app_theme_tokens.dart';
 import 'package:servicefinder/core/utils/app_calendar_picker.dart';
 import 'package:servicefinder/core/utils/app_toast.dart';
 import 'package:servicefinder/domain/entities/provider_portal.dart';
@@ -43,12 +44,12 @@ class _ClientPostPageState extends State<ClientPostPage> {
     return InputDecoration(
       hintText: hintText,
       filled: true,
-      fillColor: const Color(0xFFF8FAFF),
+      fillColor: AppThemeTokens.mutedSurface(context),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFD3DDEF)),
+        borderSide: BorderSide(color: AppThemeTokens.outline(context)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -131,45 +132,65 @@ class _ClientPostPageState extends State<ClientPostPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppThemeTokens.pageBackground(context),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             children: [
-              AppTopBar(
-                title: 'Request Service',
-                showBack: true,
-                onBack: () => MainShellPage.activeTab.value = AppBottomTab.home,
-                actions: [
-                  TextButton.icon(
-                    onPressed: _openManageSheet,
-                    icon: const Icon(Icons.edit_note, size: 16),
-                    label: const Text('Manage'),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppThemeTokens.surface(context),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppThemeTokens.outline(context)),
+                  boxShadow: AppThemeTokens.cardShadow(context),
+                ),
+                child: AppTopBar(
+                  title: 'Request Service',
+                  showBack: true,
+                  onBack: () =>
+                      MainShellPage.activeTab.value = AppBottomTab.home,
+                  actions: [
+                    TextButton.icon(
+                      onPressed: _openManageSheet,
+                      icon: const Icon(Icons.edit_note, size: 16),
+                      label: const Text('Manage'),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 10),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SingleChildScrollView(
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
-                        ),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: AppColors.divider),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                child: ClipRect(
+                  child: ScrollConfiguration(
+                    behavior: const MaterialScrollBehavior().copyWith(
+                      overscroll: false,
+                    ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          physics: const ClampingScrollPhysics(),
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight,
+                            ),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.fromLTRB(14, 16, 14, 18),
+                              decoration: BoxDecoration(
+                                color: AppThemeTokens.surface(context),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: AppThemeTokens.outline(context),
+                                ),
+                                boxShadow: AppThemeTokens.cardShadow(context),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                               const PostComposerHeaderCard(
                                 icon: Icons.assignment_rounded,
                                 accentColor: AppColors.primary,
@@ -290,12 +311,14 @@ class _ClientPostPageState extends State<ClientPostPage> {
                                           : 'Update Post'),
                                 onPressed: _posting ? null : _submit,
                               ),
-                            ],
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
             ],

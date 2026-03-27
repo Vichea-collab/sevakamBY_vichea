@@ -14,6 +14,7 @@ import 'package:servicefinder/presentation/state/order_state.dart';
 import 'package:servicefinder/presentation/widgets/order_status_timeline.dart';
 import 'package:servicefinder/presentation/widgets/app_top_bar.dart';
 import 'package:servicefinder/presentation/widgets/primary_button.dart';
+import 'provider_orders_page.dart';
 
 class ProviderOrderDetailPage extends StatefulWidget {
   final ProviderOrderItem order;
@@ -238,6 +239,15 @@ class _ProviderOrderDetailPageState extends State<ProviderOrderDetailPage> {
       );
       if (!mounted) return;
       setState(() => _order = updated);
+
+      // Signal the list page to switch to the correct tab.
+      if (next == ProviderOrderState.onTheWay ||
+          next == ProviderOrderState.booked ||
+          next == ProviderOrderState.started) {
+        ProviderOrdersPage.requestedTab.value = ProviderOrderTab.active;
+      } else if (next == ProviderOrderState.completed) {
+        ProviderOrdersPage.requestedTab.value = ProviderOrderTab.completed;
+      }
     } on BackendApiException catch (error) {
       await OrderState.refreshProviderOrders(
         page: OrderState.providerPagination.value.page,

@@ -751,15 +751,19 @@ class OrderState {
       return true;
     }
 
-    final dynamicError = error as dynamic;
-    final code = (dynamicError.code ?? '').toString().toLowerCase();
-    if (code == 'permission-denied' || code == 'permission_denied') {
-      return true;
-    }
+    try {
+      final dynamicError = error as dynamic;
+      final code = (dynamicError.code ?? '').toString().toLowerCase();
+      if (code == 'permission-denied' || code == 'permission_denied') {
+        return true;
+      }
 
-    final details = (dynamicError.message ?? '').toString().toLowerCase();
-    return details.contains('permission-denied') ||
-        details.contains('permission denied');
+      final details = (dynamicError.message ?? '').toString().toLowerCase();
+      return details.contains('permission-denied') ||
+          details.contains('permission denied');
+    } catch (_) {
+      return false;
+    }
   }
 
   static int _normalizedPage(int page) {
@@ -924,6 +928,7 @@ class OrderState {
   static String _safeAssetPath(dynamic value) {
     final path = (value ?? '').toString().trim();
     if (path.startsWith('assets/')) return path;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
     return '';
   }
 
@@ -945,7 +950,7 @@ class OrderState {
       final seconds = value['_seconds'] as num;
       return DateTime.fromMillisecondsSinceEpoch((seconds * 1000).round());
     }
-    return DateTime.now();
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   static DateTime? _toDateTimeOrNull(dynamic value) {

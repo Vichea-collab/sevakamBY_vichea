@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
@@ -705,12 +706,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }) async {
     return showDialog<String>(
       context: context,
-      builder: (context) =>
-          _ActionReasonDialog(
-            title: title,
-            actionLabel: actionLabel,
-            reasonRequired: reasonRequired,
-          ),
+      builder: (context) => _ActionReasonDialog(
+        title: title,
+        actionLabel: actionLabel,
+        reasonRequired: reasonRequired,
+      ),
     );
   }
 
@@ -979,6 +979,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             subcategoryId: ticket.subcategory,
           )
         : ticket.title;
+    final ticketTypeLabel = supportTicketRequestTypeLabel(
+      supportTicketRequestTypeFromId(ticket.ticketType),
+    );
     final topicLabel = supportTicketSubcategoryLabel(
       categoryId: ticket.category,
       subcategoryId: ticket.subcategory,
@@ -987,6 +990,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     var paging = false;
     var sending = false;
     Timer? pollTimer;
+    final imagePicker = ImagePicker();
     await _runAuthed(
       () => AdminDashboardState.refreshTicketMessages(
         userUid: uid,
@@ -1052,7 +1056,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                     height: 48,
                                     width: 48,
                                     decoration: BoxDecoration(
-                                      color: AppColors.primary.withValues(alpha: 0.10),
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.10,
+                                      ),
                                       borderRadius: BorderRadius.circular(16),
                                     ),
                                     child: const Icon(
@@ -1063,7 +1069,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           displayTitle,
@@ -1094,7 +1101,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                   ),
                                   const SizedBox(width: 8),
                                   IconButton(
-                                    onPressed: () => Navigator.of(context).pop(),
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
                                     icon: const Icon(Icons.close_rounded),
                                   ),
                                 ],
@@ -1104,6 +1112,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: [
+                                  _Pill(
+                                    text: ticketTypeLabel,
+                                    color:
+                                        ticket.ticketType
+                                                .trim()
+                                                .toLowerCase() ==
+                                            'support'
+                                        ? const Color(0xFF7C3AED)
+                                        : const Color(0xFF0F766E),
+                                  ),
                                   _Pill(
                                     text: supportTicketCategoryLabel(
                                       ticket.category,
@@ -1313,14 +1331,37 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                                         const SizedBox(
                                                           height: 4,
                                                         ),
-                                                        Text(
-                                                          message.text,
-                                                          style: const TextStyle(
-                                                            color: AppColors
-                                                                .textPrimary,
-                                                            height: 1.4,
+                                                        if (message
+                                                            .imageUrl
+                                                            .isNotEmpty)
+                                                          GestureDetector(
+                                                            onTap: () =>
+                                                                _showTicketImage(
+                                                                  context,
+                                                                  message
+                                                                      .imageUrl,
+                                                                ),
+                                                            child: ClipRRect(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    12,
+                                                                  ),
+                                                              child:
+                                                                  _buildTicketMessageImage(
+                                                                    message
+                                                                        .imageUrl,
+                                                                  ),
+                                                            ),
+                                                          )
+                                                        else
+                                                          Text(
+                                                            message.text,
+                                                            style: const TextStyle(
+                                                              color: AppColors
+                                                                  .textPrimary,
+                                                              height: 1.4,
+                                                            ),
                                                           ),
-                                                        ),
                                                       ],
                                                     ),
                                                   ),
@@ -1424,14 +1465,95 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 .toList(growable: false),
                           ),
                           const SizedBox(height: 12),
-                          TextField(
-                            controller: inputController,
-                            minLines: 1,
-                            maxLines: 4,
-                            onChanged: (_) => setDialogState(() {}),
-                            decoration: _adminFieldDecoration(
-                              hintText: 'Type your reply to the requester...',
-                            ),
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: sending
+                                    ? null
+                                    : () async {
+                                        try {
+                                          final picked = await imagePicker
+                                              .pickImage(
+                                                source: ImageSource.gallery,
+                                                imageQuality: 70,
+                                                maxWidth: 1024,
+                                              );
+                                          if (picked == null) return;
+                                          final bytes = await picked
+                                              .readAsBytes();
+                                          if (bytes.isEmpty) return;
+                                          setDialogState(() => sending = true);
+                                          final ext = _ticketFileExtension(
+                                            picked.name,
+                                          );
+                                          final downloadUrl =
+                                              await FirebaseStorageService.uploadMessageImage(
+                                                bytes,
+                                                extension: ext,
+                                                folder: 'ticket_images',
+                                                filePrefix: 'ticket',
+                                              );
+                                          if (downloadUrl == null ||
+                                              downloadUrl.isEmpty) {
+                                            _showError(
+                                              const AdminApiException(
+                                                'Failed to upload image.',
+                                              ),
+                                            );
+                                            return;
+                                          }
+                                          await _runAuthed(() async {
+                                            await AdminDashboardState.sendTicketMessage(
+                                              userUid: uid,
+                                              ticketId: ticketId,
+                                              text: downloadUrl,
+                                              imageUrl: downloadUrl,
+                                            );
+                                            await AdminDashboardState.refreshTicketMessages(
+                                              userUid: uid,
+                                              ticketId: ticketId,
+                                              page: 1,
+                                            );
+                                            await _loadTickets(1);
+                                          });
+                                          currentPage = 1;
+                                        } catch (error) {
+                                          _showError(error);
+                                        } finally {
+                                          if (context.mounted) {
+                                            setDialogState(
+                                              () => sending = false,
+                                            );
+                                          }
+                                        }
+                                      },
+                                icon: Icon(
+                                  Icons.image_rounded,
+                                  color: sending
+                                      ? AppColors.textSecondary
+                                      : AppColors.primary,
+                                ),
+                                tooltip: 'Attach image',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 40,
+                                  minHeight: 40,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: inputController,
+                                  minLines: 1,
+                                  maxLines: 4,
+                                  onChanged: (_) => setDialogState(() {}),
+                                  decoration: _adminFieldDecoration(
+                                    hintText:
+                                        'Type your reply to the requester...',
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 10),
                           Row(
@@ -1506,6 +1628,109 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         inputController.dispose();
       });
     });
+  }
+
+  Widget _buildTicketMessageImage(String url) {
+    return SafeImage(
+      source: url,
+      width: 260,
+      height: 170,
+      fit: BoxFit.cover,
+      errorBuilder: _ticketImageError(),
+    );
+  }
+
+  Widget _ticketImageError() {
+    return Container(
+      width: 260,
+      height: 120,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFDCE6F7)),
+      ),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.broken_image_rounded,
+            color: AppColors.textSecondary,
+            size: 28,
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Image unavailable',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTicketImage(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          children: [
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: url.startsWith('data:')
+                    ? Builder(
+                        builder: (_) {
+                          final comma = url.indexOf(',');
+                          if (comma > 0 && comma < url.length - 1) {
+                            try {
+                              final bytes = base64Decode(
+                                url.substring(comma + 1),
+                              );
+                              return Image.memory(
+                                Uint8List.fromList(bytes),
+                                fit: BoxFit.contain,
+                              );
+                            } catch (_) {
+                              return _ticketImageError();
+                            }
+                          }
+                          return _ticketImageError();
+                        },
+                      )
+                    : SafeImage(
+                        source: url,
+                        fit: BoxFit.contain,
+                        errorBuilder: _ticketImageError(),
+                      ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _ticketFileExtension(String name) {
+    final dot = name.lastIndexOf('.');
+    if (dot < 0 || dot >= name.length - 1) return 'jpg';
+    return name.substring(dot + 1).toLowerCase();
   }
 
   Widget _buildMainContent({required bool desktop}) {
@@ -1776,9 +2001,7 @@ class _ActionReasonDialogState extends State<_ActionReasonDialog> {
               controller: _controller,
               minLines: 2,
               maxLines: 4,
-              decoration: _adminFieldDecoration(
-                hintText: 'Reason (required)',
-              ),
+              decoration: _adminFieldDecoration(hintText: 'Reason (required)'),
             )
           : const Text('This action will be applied immediately.'),
       actions: [

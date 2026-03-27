@@ -242,7 +242,6 @@ class _TopHeader extends StatefulWidget {
 }
 
 class _TopHeaderState extends State<_TopHeader> {
-  Timer? _chatRefreshTimer;
   bool _syncingProfile = true;
 
   @override
@@ -253,15 +252,10 @@ class _TopHeaderState extends State<_TopHeader> {
       unawaited(ChatState.refreshUnreadCount());
       unawaited(_syncProfile());
     });
-    _chatRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (!mounted) return;
-      unawaited(ChatState.refreshUnreadCount());
-    });
   }
 
   @override
   void dispose() {
-    _chatRefreshTimer?.cancel();
     super.dispose();
   }
 
