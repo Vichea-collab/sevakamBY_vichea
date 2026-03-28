@@ -30,6 +30,8 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
   static const int _maxPhotoBytes = 350 * 1024;
 
   final ImagePicker _imagePicker = ImagePicker();
+  final Map<String, TextEditingController> _textControllers =
+      <String, TextEditingController>{};
   late Map<String, dynamic> _serviceFields;
   Map<String, String> _fieldErrors = const {};
 
@@ -38,6 +40,15 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
     super.initState();
     _serviceFields = Map<String, dynamic>.from(widget.draft.serviceFields);
     _ensureFieldDefaults();
+    _initializeTextControllers();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _textControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   @override
@@ -162,6 +173,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
       case BookingFieldType.number:
       case BookingFieldType.text:
       case BookingFieldType.multiline:
+        final controller = _controllerForField(field);
         return Padding(
           padding: const EdgeInsets.only(bottom: 14),
           child: Column(
@@ -175,7 +187,7 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
               ),
               const SizedBox(height: 8),
               TextFormField(
-                initialValue: (value ?? '').toString(),
+                controller: controller,
                 keyboardType: field.type == BookingFieldType.number
                     ? TextInputType.number
                     : TextInputType.text,
@@ -187,13 +199,15 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
                       : 'Enter ${field.label.toLowerCase()}',
                   errorText: errorText,
                 ),
-                onChanged: (newValue) => setState(() {
+                onChanged: (newValue) {
                   _serviceFields[field.key] = newValue;
                   if (_fieldErrors.containsKey(field.key)) {
-                    _fieldErrors = Map<String, String>.from(_fieldErrors)
-                      ..remove(field.key);
+                    setState(() {
+                      _fieldErrors = Map<String, String>.from(_fieldErrors)
+                        ..remove(field.key);
+                    });
                   }
-                }),
+                },
               ),
             ],
           ),
@@ -292,12 +306,60 @@ class _BookingServiceFieldsPageState extends State<BookingServiceFieldsPage> {
     }
   }
 
+  void _initializeTextControllers() {
+    final fieldDefs = BookingCatalogState.bookingFieldsForService(
+      widget.draft.serviceName,
+    );
+    for (final field in fieldDefs) {
+      switch (field.type) {
+        case BookingFieldType.text:
+        case BookingFieldType.number:
+        case BookingFieldType.multiline:
+          _textControllers.putIfAbsent(
+            field.key,
+            () => TextEditingController(
+              text: (_serviceFields[field.key] ?? '').toString(),
+            ),
+          );
+          break;
+        case BookingFieldType.dropdown:
+        case BookingFieldType.toggle:
+        case BookingFieldType.photo:
+          break;
+      }
+    }
+  }
+
+  TextEditingController _controllerForField(BookingFieldDef field) {
+    return _textControllers.putIfAbsent(
+      field.key,
+      () => TextEditingController(
+        text: (_serviceFields[field.key] ?? '').toString(),
+      ),
+    );
+  }
+
+  void _syncControllerValue(String fieldKey, String value) {
+    final controller = _textControllers[fieldKey];
+    if (controller == null || controller.text == value) return;
+    controller.value = controller.value.copyWith(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+      composing: TextRange.empty,
+    );
+  }
+
   void _ensureFieldDefaults() {
     final defaults = BookingCatalogState.initialFieldValuesForService(
       widget.draft.serviceName,
     );
     for (final entry in defaults.entries) {
       _serviceFields.putIfAbsent(entry.key, () => entry.value);
+    }
+    for (final entry in _serviceFields.entries) {
+      if (entry.value is String) {
+        _syncControllerValue(entry.key, entry.value as String);
+      }
     }
   }
 

@@ -20,7 +20,7 @@ class ProfileNotificationPage extends StatefulWidget {
 
 class _ProfileNotificationPageState extends State<ProfileNotificationPage> {
   bool general = true;
-  bool sound = false;
+  bool sound = true;
   bool vibrate = true;
   bool newService = false;
   bool _saving = false;

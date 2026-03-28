@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class LocalNotificationService {
-  static const String _channelId = 'sevakam_general';
+  static const String soundingChannelId = 'sevakam_general';
+  static const String silentChannelId = 'sevakam_general_silent';
   static const String _channelName = 'General notifications';
   static const String _channelDescription =
       'Sevakam updates, booking activity, support replies, and messages.';
@@ -43,25 +44,38 @@ class LocalNotificationService {
       },
     );
 
-    const channel = AndroidNotificationChannel(
-      _channelId,
+    const soundingChannel = AndroidNotificationChannel(
+      soundingChannelId,
       _channelName,
       description: _channelDescription,
       importance: Importance.max,
       playSound: true,
       enableVibration: true,
     );
+    const silentChannel = AndroidNotificationChannel(
+      silentChannelId,
+      'General notifications (silent)',
+      description: _channelDescription,
+      importance: Importance.max,
+      playSound: false,
+      enableVibration: true,
+    );
 
-    await _plugin
+    final androidPlugin = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(channel);
+        >();
+    await androidPlugin?.createNotificationChannel(soundingChannel);
+    await androidPlugin?.createNotificationChannel(silentChannel);
 
     _initialized = true;
   }
 
-  static Future<void> showRemoteMessage(RemoteMessage message) async {
+  static Future<void> showRemoteMessage(
+    RemoteMessage message, {
+    bool playSound = true,
+    bool enableVibration = true,
+  }) async {
     if (!_initialized || kIsWeb) return;
 
     final notification = message.notification;
@@ -74,14 +88,14 @@ class LocalNotificationService {
     );
 
     final androidDetails = AndroidNotificationDetails(
-      _channelId,
+      playSound ? soundingChannelId : silentChannelId,
       _channelName,
       channelDescription: _channelDescription,
       importance: Importance.max,
       priority: Priority.high,
       ticker: title,
-      playSound: true,
-      enableVibration: true,
+      playSound: playSound,
+      enableVibration: enableVibration,
       styleInformation: const DefaultStyleInformation(true, true),
     );
     const iosDetails = DarwinNotificationDetails(

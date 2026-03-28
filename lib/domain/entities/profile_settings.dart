@@ -213,7 +213,7 @@ class NotificationPreference {
   factory NotificationPreference.defaults() {
     return const NotificationPreference(
       general: true,
-      sound: false,
+      sound: true,
       vibrate: true,
       newService: false,
     );

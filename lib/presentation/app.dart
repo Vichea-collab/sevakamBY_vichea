@@ -44,6 +44,7 @@ import 'state/booking_catalog_state.dart';
 import 'state/app_role_state.dart';
 import 'state/app_state.dart';
 import 'state/chat_state.dart';
+import 'state/profile_settings_state.dart';
 import 'state/push_notification_state.dart';
 import 'state/user_notification_state.dart';
 import 'widgets/notification_messenger_sheet.dart';
@@ -347,7 +348,9 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost>
     }
 
     try {
-      await LocalNotificationService.initialize(onTapData: _openDeepLinkFromData);
+      await LocalNotificationService.initialize(
+        onTapData: _openDeepLinkFromData,
+      );
     } catch (error) {
       debugPrint('Local notification setup skipped: $error');
     }
@@ -421,7 +424,14 @@ class _GlobalNotificationHostState extends State<_GlobalNotificationHost>
     final bannerTitle = title.isEmpty ? 'New notification' : title;
     final fallbackSummary = body.isEmpty ? 'You have a new message.' : body;
     if (_bannerWasRecentlyShown(bannerTitle, fallbackSummary)) return;
-    unawaited(LocalNotificationService.showRemoteMessage(message));
+    final preference = ProfileSettingsState.currentNotification;
+    unawaited(
+      LocalNotificationService.showRemoteMessage(
+        message,
+        playSound: preference.sound,
+        enableVibration: preference.vibrate,
+      ),
+    );
     _showTopBanner(
       title: bannerTitle,
       message: fallbackSummary,
