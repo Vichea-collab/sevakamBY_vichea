@@ -2,6 +2,9 @@
 
 Sevakam is a multi-role service marketplace built with Flutter, Node.js, and Firebase. The project includes a customer experience for finders, a service-management experience for providers, a separate admin web interface, and a backend API for business logic, moderation, and integrations.
 
+Demo Link: https://youtu.be/XQkM15e58p0
+Android Apk File: https://drive.google.com/drive/folders/1ENl0Lc5hyUrDiO9ztjAuO_7Byq-87siv?usp=sharing
+
 ## Overview
 
 - `Finder app`: browse providers, book services, chat, pay, and review completed work
@@ -19,7 +22,7 @@ Sevakam is a multi-role service marketplace built with Flutter, Node.js, and Fir
 - `Authentication`: Firebase Authentication
 - `Notifications`: Firebase Cloud Messaging
 - `Maps`: Google Maps
-- `Payments`: Bakong / payment gateway integrations
+- `Payments`: Bakong(future work) / payment gateway integrations
 
 ## Repository Structure
 
